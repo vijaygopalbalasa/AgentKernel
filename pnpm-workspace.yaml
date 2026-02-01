@@ -1,0 +1,7 @@
+packages:
+  - "packages/*"
+  - "packages/framework/*"
+  - "apps/*"
+  - "agents/*"
+  - "providers/*"
+  - "skills/*"

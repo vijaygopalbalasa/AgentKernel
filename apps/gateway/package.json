@@ -1,0 +1,19 @@
+{
+  "name": "@agent-os/gateway",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsup src/main.ts --format esm",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@agent-os/kernel": "workspace:*",
+    "@agent-os/mal": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/provider-anthropic": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

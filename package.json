@@ -1,0 +1,20 @@
+{
+  "name": "agent-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Android for AI Agents — an operating system for autonomous AI agents",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:watch": "pnpm -r test:watch",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "dev": "pnpm --filter @agent-os/gateway dev",
+    "clean": "pnpm -r exec rm -rf dist node_modules"
+  }
+}

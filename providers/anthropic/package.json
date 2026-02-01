@@ -1,0 +1,15 @@
+{
+  "name": "@agent-os/provider-anthropic",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": { ".": "./dist/index.js" },
+  "dependencies": {
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/mal": "workspace:*",
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "vitest run"
+  }
+}
