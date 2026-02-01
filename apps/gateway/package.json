@@ -10,10 +10,16 @@
   "dependencies": {
     "@agent-os/kernel": "workspace:*",
     "@agent-os/mal": "workspace:*",
+    "@agent-os/provider-anthropic": "workspace:*",
+    "@agent-os/provider-openai": "workspace:*",
+    "@agent-os/provider-google": "workspace:*",
+    "@agent-os/provider-ollama": "workspace:*",
     "@agent-os/shared": "workspace:*",
-    "@agent-os/provider-anthropic": "workspace:*"
+    "dotenv": "^17.2.3",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.0"
   }
 }

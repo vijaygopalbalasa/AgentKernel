@@ -12,9 +12,14 @@ export function createAnthropicProvider(apiKey?: string): ProviderAdapter {
     id: "anthropic",
     name: "Anthropic Claude",
     models: [
+      // Current production models (2025-2026)
       "claude-opus-4-5-20251101",
       "claude-sonnet-4-5-20250929",
-      "claude-haiku-4-5-20251001",
+      "claude-3-5-haiku-20241022",
+      // Legacy models still available
+      "claude-3-5-sonnet-20241022",
+      "claude-3-opus-20240229",
+      "claude-3-haiku-20240307",
     ],
 
     async isAvailable(): Promise<boolean> {

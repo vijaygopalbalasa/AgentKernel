@@ -1,12 +1,11 @@
 {
-  "name": "@agent-os/provider-anthropic",
+  "name": "@agent-os/provider-ollama",
   "version": "0.1.0",
   "type": "module",
   "exports": { ".": "./dist/index.js" },
   "dependencies": {
     "@agent-os/shared": "workspace:*",
-    "@agent-os/mal": "workspace:*",
-    "@anthropic-ai/sdk": "^0.71.2"
+    "@agent-os/mal": "workspace:*"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
