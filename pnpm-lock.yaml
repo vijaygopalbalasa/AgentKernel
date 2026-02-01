@@ -82,6 +82,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/runtime:
+    dependencies:
+      '@agent-os/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@agent-os/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/shared: {}
 
   providers/anthropic:
