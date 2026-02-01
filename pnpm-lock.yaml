@@ -61,6 +61,15 @@ importers:
         specifier: ^4.19.0
         version: 4.21.0
 
+  packages/framework/identity:
+    dependencies:
+      '@agent-os/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@agent-os/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/framework/memory:
     dependencies:
       '@agent-os/kernel':
@@ -69,6 +78,15 @@ importers:
       '@agent-os/runtime':
         specifier: workspace:*
         version: link:../../runtime
+      '@agent-os/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/framework/permissions:
+    dependencies:
+      '@agent-os/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
       '@agent-os/shared':
         specifier: workspace:*
         version: link:../../shared
