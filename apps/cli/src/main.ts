@@ -1137,7 +1137,7 @@ governance
   .command("appeal-resolve")
   .description("Resolve an appeal")
   .requiredOption("-a, --agent <agentId>", "Agent ID")
-  .requiredOption("-p, --appeal <appealId>", "Appeal ID")
+  .requiredOption("--appeal <appealId>", "Appeal ID")
   .option("-r, --resolution <resolution>", "Resolution notes")
   .option("-s, --status <status>", "Status (resolved|dismissed)")
   .option("-h, --host <host>", "Gateway host", DEFAULT_HOST)

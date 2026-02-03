@@ -9,6 +9,8 @@ import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 // Load .env from the monorepo root (skip in test to avoid leaking local secrets into CI/tests)
 if (process.env.NODE_ENV !== "test") {
+  // Try CWD first (running from repo root), then relative to script location (running from apps/gateway/)
+  loadEnv({ path: resolve(process.cwd(), ".env") });
   loadEnv({ path: resolve(process.cwd(), "../../.env") });
 }
 
