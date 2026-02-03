@@ -2,13 +2,17 @@
   "name": "@agent-os/tools",
   "version": "0.1.0",
   "type": "module",
+  "description": "MCP tool client and built-in tools for Agent OS",
+  "license": "MIT",
   "exports": { ".": "./dist/index.js" },
+  "types": "./dist/index.d.ts",
+  "engines": { "node": ">=22.0.0" },
   "dependencies": {
     "@agent-os/shared": "workspace:*",
     "@agent-os/kernel": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.3",
-    "playwright": "^1.50.0",
-    "undici": "^7.16.0",
+    "playwright": "^1.55.1",
+    "undici": "^7.20.0",
     "zod": "^3.25.0"
   },
   "scripts": {

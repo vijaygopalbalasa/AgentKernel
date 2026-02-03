@@ -29,7 +29,10 @@ export interface WsServer {
   getClients(): ClientConnection[];
   getClient(clientId: string): ClientConnection | undefined;
   getConnectionCount(): number;
+  /** Gracefully close all connections and stop accepting new ones */
   close(): void;
+  /** Drain connections with a grace period, then force close */
+  drain(timeoutMs?: number): Promise<void>;
 }
 
 /**
@@ -52,6 +55,7 @@ export function createWebSocketServer(
   const log = createLogger({ name: "ws-server" });
   const connections = new Map<string, ClientConnection>();
   const messageWindows = new Map<string, { windowStart: number; count: number }>();
+  const authAttempts = new Map<string, { windowStart: number; failures: number }>();
   let connectionCounter = 0;
 
   const wss = new WebSocketServer({
@@ -75,7 +79,7 @@ export function createWebSocketServer(
     const client: ClientConnection = {
       id: clientId,
       ws,
-      authenticated: !config.authToken, // Auto-auth if no token required
+      authenticated: false, // Always require auth exchange
       connectedAt: Date.now(),
       subscriptions: [],
     };
@@ -84,18 +88,11 @@ export function createWebSocketServer(
     messageWindows.set(clientId, { windowStart: Date.now(), count: 0 });
     log.info("Client connected", { clientId, ip: req.socket.remoteAddress });
 
-    // Send connection status
-    if (config.authToken) {
-      sendMessage(ws, {
-        type: "auth_required",
-        payload: { clientId, message: "Authentication required" },
-      });
-    } else {
-      sendMessage(ws, {
-        type: "auth_success",
-        payload: { clientId, message: "Connected to Agent OS Gateway" },
-      });
-    }
+    // Always send auth_required — clients must perform the auth handshake
+    sendMessage(ws, {
+      type: "auth_required",
+      payload: { clientId, message: "Authentication required" },
+    });
 
     ws.on("message", async (data: Buffer) => {
       try {
@@ -142,7 +139,7 @@ export function createWebSocketServer(
         log.debug("Message received", { clientId, type: message.type });
 
         // Handle built-in message types
-        const response = await handleMessage(client, message, config, log, onMessage);
+        const response = await handleMessage(client, message, config, log, onMessage, authAttempts);
         if (response.ok && response.value) {
           sendMessage(ws, response.value);
         } else if (!response.ok) {
@@ -167,6 +164,7 @@ export function createWebSocketServer(
     ws.on("close", () => {
       connections.delete(clientId);
       messageWindows.delete(clientId);
+      authAttempts.delete(`auth_${clientId}`);
       log.info("Client disconnected", { clientId });
     });
 
@@ -216,8 +214,59 @@ export function createWebSocketServer(
     },
 
     close() {
+      // Notify clients, then close
+      for (const [, client] of connections) {
+        try {
+          (client.ws as WebSocket).close(1001, "Server shutting down");
+        } catch { /* client may already be gone */ }
+      }
       wss.close();
+      connections.clear();
+      messageWindows.clear();
       log.info("WebSocket server closed");
+    },
+
+    async drain(timeoutMs = 15000) {
+      log.info("Draining WebSocket connections", { count: connections.size, timeoutMs });
+
+      // Stop accepting new connections
+      wss.close();
+
+      // Notify all clients about shutdown
+      for (const [, client] of connections) {
+        try {
+          sendMessage(client.ws as WebSocket, {
+            type: "system" as MessageType,
+            payload: { message: "Server shutting down" },
+          });
+        } catch { /* ignore */ }
+      }
+
+      // Wait for clients to disconnect gracefully, up to timeout
+      if (connections.size > 0) {
+        await new Promise<void>((resolve) => {
+          const check = setInterval(() => {
+            if (connections.size === 0) {
+              clearInterval(check);
+              resolve();
+            }
+          }, 500);
+          setTimeout(() => {
+            clearInterval(check);
+            resolve();
+          }, timeoutMs);
+        });
+      }
+
+      // Force-close remaining connections
+      for (const [, client] of connections) {
+        try {
+          (client.ws as WebSocket).terminate();
+        } catch { /* ignore */ }
+      }
+      connections.clear();
+      messageWindows.clear();
+      log.info("WebSocket drain complete");
     },
   };
 
@@ -230,30 +279,72 @@ async function handleMessage(
   message: WsMessage,
   config: WsServerConfig,
   log: Logger,
-  onMessage?: MessageHandler
+  onMessage?: MessageHandler,
+  authAttempts?: Map<string, { windowStart: number; failures: number }>
 ): Promise<Result<WsMessage | null, GatewayError>> {
   switch (message.type) {
     case "ping":
       return ok({ type: "pong", id: message.id, timestamp: Date.now() });
 
     case "auth": {
-      if (!config.authToken) {
-        client.authenticated = true;
-        return ok({ type: "auth_success", id: message.id, payload: { clientId: client.id } });
-      }
-
       const payloadResult = AuthPayloadSchema.safeParse(message.payload);
       if (!payloadResult.success) {
         log.warn("Invalid auth payload", { clientId: client.id });
         return ok({ type: "auth_failed", id: message.id, payload: { message: "Invalid auth payload" } });
       }
 
+      // Rate limit auth attempts: max 5 failures per 60 seconds per client
+      if (authAttempts) {
+        const now = Date.now();
+        const authKey = `auth_${client.id}`;
+        const authWindow = authAttempts.get(authKey) ?? { windowStart: now, failures: 0 };
+        if (now - authWindow.windowStart >= 60_000) {
+          authWindow.windowStart = now;
+          authWindow.failures = 0;
+        }
+        if (authWindow.failures >= 5) {
+          log.warn("Auth rate limit exceeded", { clientId: client.id });
+          return ok({ type: "auth_failed", id: message.id, payload: { message: "Too many auth attempts. Try again later." } });
+        }
+
+        if (!config.authToken) {
+          if (payloadResult.data.token && payloadResult.data.token.length > 0) {
+            client.authenticated = true;
+            log.info("Client authenticated (dev mode)", { clientId: client.id });
+            return ok({ type: "auth_success", id: message.id, payload: { clientId: client.id } });
+          }
+          authWindow.failures += 1;
+          authAttempts.set(authKey, authWindow);
+          log.warn("Empty token rejected", { clientId: client.id });
+          return ok({ type: "auth_failed", id: message.id, payload: { message: "Token required" } });
+        }
+
+        if (payloadResult.data.token === config.authToken) {
+          client.authenticated = true;
+          authAttempts.delete(authKey);
+          log.info("Client authenticated", { clientId: client.id });
+          return ok({ type: "auth_success", id: message.id, payload: { clientId: client.id } });
+        } else {
+          authWindow.failures += 1;
+          authAttempts.set(authKey, authWindow);
+          log.warn("Authentication failed", { clientId: client.id });
+          return ok({ type: "auth_failed", id: message.id, payload: { message: "Invalid token" } });
+        }
+      }
+
+      // Fallback when no authAttempts map (shouldn't happen in normal flow)
+      if (!config.authToken) {
+        if (payloadResult.data.token && payloadResult.data.token.length > 0) {
+          client.authenticated = true;
+          return ok({ type: "auth_success", id: message.id, payload: { clientId: client.id } });
+        }
+        return ok({ type: "auth_failed", id: message.id, payload: { message: "Token required" } });
+      }
+
       if (payloadResult.data.token === config.authToken) {
         client.authenticated = true;
-        log.info("Client authenticated", { clientId: client.id });
         return ok({ type: "auth_success", id: message.id, payload: { clientId: client.id } });
       } else {
-        log.warn("Authentication failed", { clientId: client.id });
         return ok({ type: "auth_failed", id: message.id, payload: { message: "Invalid token" } });
       }
     }

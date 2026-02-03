@@ -34,9 +34,16 @@ export interface SpanEvent {
 export const TracingConfigSchema = z.object({
   enabled: z.boolean().optional().default(true),
   serviceName: z.string().optional().default("agent-os"),
+  serviceVersion: z.string().optional().default("0.1.0"),
   sampleRate: z.number().min(0).max(1).optional().default(1.0),
   exporterUrl: z.string().url().optional(),
   maxSpansPerTrace: z.number().min(1).optional().default(1000),
+  /** Additional resource attributes for the OTLP exporter */
+  resourceAttributes: z.record(z.string()).optional(),
+  /** Batch export interval in milliseconds */
+  batchExportIntervalMs: z.number().min(100).optional().default(5000),
+  /** Maximum batch size for export */
+  maxExportBatchSize: z.number().min(1).optional().default(512),
 });
 
 export type TracingConfig = z.infer<typeof TracingConfigSchema>;
@@ -317,14 +324,15 @@ export class Tracer {
   /**
    * Start periodic export.
    */
-  startExport(intervalMs = 5000): void {
+  startExport(intervalMs?: number): void {
     if (this.exportInterval) return;
 
+    const interval = intervalMs ?? this.config.batchExportIntervalMs;
     this.exportInterval = setInterval(() => {
       this.export().catch((e) => {
         log.error("Failed to export traces", { error: e });
       });
-    }, intervalMs);
+    }, interval);
   }
 
   /**
@@ -350,13 +358,22 @@ export class Tracer {
 
     try {
       // Convert to OTLP-compatible format
+      const resourceAttrs = [
+        { key: "service.name", value: { stringValue: this.config.serviceName } },
+        { key: "service.version", value: { stringValue: this.config.serviceVersion } },
+        { key: "telemetry.sdk.name", value: { stringValue: "agent-os-tracing" } },
+        { key: "telemetry.sdk.language", value: { stringValue: "nodejs" } },
+      ];
+      if (this.config.resourceAttributes) {
+        for (const [key, val] of Object.entries(this.config.resourceAttributes)) {
+          resourceAttrs.push({ key, value: { stringValue: val } });
+        }
+      }
       const payload = {
         resourceSpans: [
           {
             resource: {
-              attributes: [
-                { key: "service.name", value: { stringValue: this.config.serviceName } },
-              ],
+              attributes: resourceAttrs,
             },
             scopeSpans: [
               {
@@ -567,4 +584,26 @@ export function resetTracer(): void {
     globalTracer.stopExport();
     globalTracer = undefined;
   }
+}
+
+/**
+ * Initialize tracing for production use.
+ * Creates the global tracer and starts periodic OTLP export if an exporter URL is configured.
+ */
+export function initTracing(config: Partial<TracingConfig> = {}): Tracer {
+  const tracer = getTracer(config);
+  const parsed = TracingConfigSchema.parse(config);
+  if (parsed.exporterUrl) {
+    tracer.startExport();
+    log.info("Tracing initialized with OTLP export", {
+      exporterUrl: parsed.exporterUrl,
+      sampleRate: parsed.sampleRate,
+      serviceName: parsed.serviceName,
+    });
+  } else {
+    log.info("Tracing initialized (no exporter configured)", {
+      sampleRate: parsed.sampleRate,
+    });
+  }
+  return tracer;
 }

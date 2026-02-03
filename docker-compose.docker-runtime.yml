@@ -1,0 +1,9 @@
+# Docker Runtime Override
+# Use: docker compose -f docker-compose.yml -f docker-compose.docker-runtime.yml up
+# Mounts the Docker socket so the gateway can spawn agent containers.
+# Only use if you need Docker-based agent isolation.
+
+services:
+  gateway:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

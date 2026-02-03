@@ -2,7 +2,11 @@
   "name": "@agent-os/provider-openai",
   "version": "0.1.0",
   "type": "module",
+  "description": "OpenAI GPT provider adapter for Agent OS",
+  "license": "MIT",
   "exports": { ".": "./dist/index.js" },
+  "types": "./dist/index.d.ts",
+  "engines": { "node": ">=22.0.0" },
   "dependencies": {
     "@agent-os/shared": "workspace:*",
     "@agent-os/mal": "workspace:*",

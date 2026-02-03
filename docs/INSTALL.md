@@ -14,7 +14,7 @@ You can use Docker for a 5-minute setup or run locally for development.
 ### Steps
 1) Clone the repo and create your env file:
 ```bash
-git clone <REPO_URL>
+git clone https://github.com/vijaygopalbalasa/AgentOS.git
 cd AgentOS
 cp .env.example .env
 ```
@@ -28,7 +28,7 @@ pnpm -C apps/cli exec agent-os init
 2) Set required secrets in `.env`:
 - `GATEWAY_AUTH_TOKEN` (random string)
 - `INTERNAL_AUTH_TOKEN` (random string)
-- `PERMISSION_SECRET` (>= 16 chars)
+- `PERMISSION_SECRET` (32+ characters)
 - One provider key: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` or `GOOGLE_AI_API_KEY`
   - Or use `OLLAMA_URL=http://localhost:11434` for local models
 

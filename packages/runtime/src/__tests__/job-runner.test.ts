@@ -48,7 +48,7 @@ describe("JobRunner", () => {
 
     expect(runs).toBe(1);
 
-    resolveRun?.();
+    resolveRun!();
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(runs).toBe(2);

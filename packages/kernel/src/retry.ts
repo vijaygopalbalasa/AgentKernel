@@ -122,8 +122,9 @@ export function calculateDelay(
   // Cap at maxDelay
   const cappedDelay = Math.min(exponentialDelay, config.maxDelay);
 
-  // Add jitter: random value between -jitter and +jitter
-  const jitter = cappedDelay * config.jitterFactor * (Math.random() * 2 - 1);
+  // Add full jitter: random value between 0 and cappedDelay
+  // This prevents thundering herd by spreading retries across the full delay window
+  const jitter = cappedDelay * config.jitterFactor * Math.random();
 
   // Ensure positive delay
   return Math.max(config.baseDelay, Math.floor(cappedDelay + jitter));

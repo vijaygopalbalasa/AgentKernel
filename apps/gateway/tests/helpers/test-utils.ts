@@ -291,7 +291,7 @@ export async function createTestConnection(
       if (messageResolvers.length > 0) {
         const index = messageResolvers.findIndex((entry) => !entry.predicate || entry.predicate(message));
         if (index >= 0) {
-          const entry = messageResolvers.splice(index, 1)[0];
+          const entry = messageResolvers.splice(index, 1)[0]!;
           clearTimeout(entry.timeoutId);
           entry.resolve(message);
           return;

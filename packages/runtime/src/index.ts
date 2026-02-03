@@ -105,6 +105,15 @@ export {
   createHealthMonitor,
 } from "./health.js";
 
+// Agent State Store
+export {
+  InMemoryAgentStateStore,
+  RedisAgentStateStore,
+  type AgentStateStore,
+  type AgentStateEntry,
+  type RedisHashClient,
+} from "./agent-state-store.js";
+
 // Job Runner
 export {
   JobRunner,

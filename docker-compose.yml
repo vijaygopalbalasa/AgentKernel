@@ -21,12 +21,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
     networks:
       - agent-os-network
 
   # Qdrant - Vector database for memory
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.13.6
     container_name: agent-os-qdrant
     restart: unless-stopped
     volumes:
@@ -36,6 +44,14 @@ services:
       - "6334:6334"
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.25"
+          memory: 512M
     networks:
       - agent-os-network
 
@@ -54,6 +70,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
     networks:
       - agent-os-network
 
@@ -174,13 +198,13 @@ services:
     ports:
       - "18800:18800"
       - "18801:18801"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    # Docker socket NOT mounted by default for security.
+    # Use docker-compose.docker-runtime.yml override to enable Docker agent runtime.
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:18801/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
-      start_period: 30s
+      start_period: 60s
       retries: 3
     networks:
       - agent-os-network
@@ -245,6 +269,8 @@ volumes:
   qdrant_data:
     driver: local
   redis_data:
+    driver: local
+  backup_data:
     driver: local
 
 networks:

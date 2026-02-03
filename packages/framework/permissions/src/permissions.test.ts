@@ -6,7 +6,7 @@ describe("CapabilityManager", () => {
   let manager: CapabilityManager;
 
   beforeEach(() => {
-    manager = new CapabilityManager({ secret: "test-secret-key-1234" });
+    manager = new CapabilityManager({ secret: "test-secret-key-1234-must-be-at-least-32-chars" });
   });
 
   describe("Grant", () => {

@@ -962,11 +962,32 @@ export class AgentLifecycleManager {
     if (this.options.autoCheckpointIntervalMs <= 0) return;
     if (!this.options.persistence) return;
 
+    let consecutiveCheckpointFailures = 0;
     const timer = setInterval(async () => {
       try {
         await this.checkpoint(agentId);
-      } catch {
-        // Ignore checkpoint errors
+        consecutiveCheckpointFailures = 0;
+      } catch (error) {
+        consecutiveCheckpointFailures++;
+        this.emit({
+          type: "error",
+          agentId,
+          timestamp: new Date(),
+          data: {
+            reason: `Auto-checkpoint failed (attempt ${consecutiveCheckpointFailures}): ${error instanceof Error ? error.message : String(error)}`,
+          },
+        });
+        if (consecutiveCheckpointFailures >= 5) {
+          this.emit({
+            type: "error",
+            agentId,
+            timestamp: new Date(),
+            data: {
+              reason: `Auto-checkpoint failed ${consecutiveCheckpointFailures} times consecutively, stopping auto-checkpoint`,
+            },
+          });
+          this.stopAutoCheckpoint(agentId);
+        }
       }
     }, this.options.autoCheckpointIntervalMs);
 

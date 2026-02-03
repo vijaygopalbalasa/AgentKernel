@@ -20,6 +20,7 @@ describe("EventBus Module API Contracts", () => {
     password: undefined,
     db: 0,
     keyPrefix: "test:",
+    mode: "standalone",
   };
 
   describe("createEventBus", () => {

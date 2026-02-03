@@ -1,8 +1,27 @@
 {
   "name": "@agent-os/shared",
   "version": "0.1.0",
+  "description": "Shared types, utilities, and constants for Agent OS",
+  "license": "MIT",
   "type": "module",
-  "exports": { ".": "./dist/index.js" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "files": ["dist", "README.md"],
+  "keywords": ["agent-os", "shared", "types"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijaygopalbalasa/AgentOS",
+    "directory": "packages/shared"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "test": "vitest run --passWithNoTests",

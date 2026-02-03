@@ -19,6 +19,7 @@ export {
   type Config,
   type DatabaseConfig,
   type QdrantConfig,
+  RedisSentinelNodeSchema,
   type RedisConfig,
   type GatewayConfig,
   type LoggingConfig,
@@ -68,6 +69,7 @@ export {
 
 // Event Bus
 export {
+  createRedisClient,
   createEventBus,
   checkEventBusHealth,
   waitForEventBus,
@@ -210,9 +212,11 @@ export {
   clearVaultProviders,
   // Rate Limiting
   RateLimiter,
+  RedisRateLimiter,
   RateLimitConfigSchema,
   getRateLimiter,
   destroyAllRateLimiters,
+  createRateLimiter,
   // Audit Logging
   AuditLogger,
   InMemoryAuditStorage,
@@ -230,6 +234,7 @@ export {
   type SecretReference,
   type VaultProvider,
   type RateLimitConfig,
+  type RedisLike,
   type AuditAction,
   type AuditEntry,
   type AuditStorage,
@@ -261,6 +266,7 @@ export {
   TracingConfigSchema,
   getTracer,
   resetTracer,
+  initTracing,
   parseTraceParent,
   generateTraceParent,
   extractTraceContext,

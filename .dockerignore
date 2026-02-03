@@ -1,0 +1,47 @@
+node_modules/
+dist/
+.git/
+.github/
+
+# Environment & secrets
+.env
+.env.local
+.env.production
+.env.staging
+*.key
+*.pem
+*.p12
+*.pfx
+*.cert
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build & test
+coverage/
+.turbo/
+.cache/
+*.tsbuildinfo
+
+# Cloud credentials
+.aws/
+.gcp/
+.azure/
+
+# Documentation (not needed in image)
+docs/
+*.md
+LICENSE
+
+# Claude Code
+.claude/

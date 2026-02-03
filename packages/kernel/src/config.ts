@@ -13,7 +13,7 @@ export const DatabaseConfigSchema = z.object({
   database: z.string().default("agent_os"),
   user: z.string().default("agent_os"),
   password: z.string().default(""),
-  maxConnections: z.number().default(20),
+  maxConnections: z.number().default(100),
   idleTimeout: z.number().default(30000),
   ssl: z.boolean().default(false),
 });
@@ -28,6 +28,12 @@ export const QdrantConfigSchema = z.object({
   vectorSize: z.number().default(1536),
 });
 
+/** Redis Sentinel node */
+export const RedisSentinelNodeSchema = z.object({
+  host: z.string(),
+  port: z.number(),
+});
+
 /** Redis configuration */
 export const RedisConfigSchema = z.object({
   host: z.string().default("localhost"),
@@ -35,6 +41,14 @@ export const RedisConfigSchema = z.object({
   password: z.string().optional(),
   db: z.number().default(0),
   keyPrefix: z.string().default("agent_os:"),
+  /** Connection mode: standalone (default), sentinel for HA failover, cluster for sharding */
+  mode: z.enum(["standalone", "sentinel", "cluster"]).default("standalone"),
+  /** Sentinel nodes (required when mode=sentinel) */
+  sentinels: z.array(RedisSentinelNodeSchema).optional(),
+  /** Sentinel master name (required when mode=sentinel) */
+  sentinelName: z.string().optional(),
+  /** Cluster nodes as host:port strings (required when mode=cluster) */
+  clusterNodes: z.array(z.string()).optional(),
 });
 
 /** Gateway configuration */
@@ -43,7 +57,7 @@ export const GatewayConfigSchema = z.object({
   port: z.number().default(18800),
   wsPath: z.string().default("/ws"),
   authToken: z.string().optional(),
-  corsOrigins: z.array(z.string()).default(["*"]),
+  corsOrigins: z.array(z.string()).default([]),
   maxPayloadSize: z.number().default(10 * 1024 * 1024),
   maxConnections: z.number().int().min(1).default(500),
   messageRateLimit: z.number().int().min(1).default(600),
@@ -131,6 +145,8 @@ const ENV_MAPPINGS: Record<string, string> = {
   REDIS_PORT: "redis.port",
   REDIS_PASSWORD: "redis.password",
   REDIS_DB: "redis.db",
+  REDIS_MODE: "redis.mode",
+  REDIS_SENTINEL_NAME: "redis.sentinelName",
   GATEWAY_HOST: "gateway.host",
   GATEWAY_PORT: "gateway.port",
   GATEWAY_AUTH_TOKEN: "gateway.authToken",
@@ -284,6 +300,36 @@ function loadEnvConfig(): Record<string, unknown> {
     const value = resolveEnvValue(envKey);
     if (value !== undefined) {
       setNestedValue(config, configPath, parseEnvValue(value));
+    }
+  }
+
+  // Parse REDIS_SENTINELS: "host1:port1,host2:port2" or JSON array
+  const sentinelsRaw = resolveEnvValue("REDIS_SENTINELS");
+  if (sentinelsRaw) {
+    try {
+      const parsed = JSON.parse(sentinelsRaw);
+      if (Array.isArray(parsed)) {
+        setNestedValue(config, "redis.sentinels", parsed);
+      }
+    } catch {
+      const sentinels = sentinelsRaw.split(",").map((s) => {
+        const [host, portStr] = s.trim().split(":");
+        return { host: host ?? "localhost", port: Number(portStr) || 26379 };
+      });
+      setNestedValue(config, "redis.sentinels", sentinels);
+    }
+  }
+
+  // Parse REDIS_CLUSTER_NODES: "host1:port1,host2:port2"
+  const clusterNodesRaw = resolveEnvValue("REDIS_CLUSTER_NODES");
+  if (clusterNodesRaw) {
+    try {
+      const parsed = JSON.parse(clusterNodesRaw);
+      if (Array.isArray(parsed)) {
+        setNestedValue(config, "redis.clusterNodes", parsed);
+      }
+    } catch {
+      setNestedValue(config, "redis.clusterNodes", clusterNodesRaw.split(",").map((s) => s.trim()));
     }
   }
 

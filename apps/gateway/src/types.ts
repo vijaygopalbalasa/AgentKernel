@@ -18,6 +18,7 @@ export type GatewayErrorCode =
   | "PERMISSION_DENIED"
   | "APPROVAL_REQUIRED"
   | "POLICY_ERROR"
+  | "CLUSTER_FORWARD_FAILED"
   | "INTERNAL_ERROR";
 
 /**

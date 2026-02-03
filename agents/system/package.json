@@ -1,7 +1,12 @@
 {
   "name": "@agent-os/system-agent",
   "version": "0.1.0",
+  "description": "System monitoring and health agent for AgentOS",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "dev": "tsx src/index.ts",

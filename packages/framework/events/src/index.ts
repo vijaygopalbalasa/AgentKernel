@@ -15,6 +15,7 @@ export type {
   MemoryEvent,
   CommunicationEvent,
   SystemEvent,
+  AlertEvent,
   AgentOSEvent,
   EventSubscription,
   EventHandler,
@@ -56,6 +57,10 @@ export {
   HealthStatusSchema,
   SystemEventDataSchema,
   SystemEventSchema,
+  // Alert events
+  AlertEventTypeSchema,
+  AlertEventDataSchema,
+  AlertEventSchema,
   // Union schema
   AgentOSEventSchema,
   // Subscription schemas

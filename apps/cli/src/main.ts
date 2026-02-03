@@ -1324,7 +1324,7 @@ program
     console.log(`Version: ${VERSION}`);
     console.log();
     console.log("Agent OS — Android for AI Agents");
-    console.log("https://github.com/agentos/agentos");
+    console.log("https://github.com/vijaygopalbalasa/AgentOS");
   });
 
 // ─── Helper Functions ───────────────────────────────────────

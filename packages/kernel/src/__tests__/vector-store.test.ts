@@ -1,4 +1,22 @@
 import { describe, it, expect, vi } from "vitest";
+
+// Mock @qdrant/js-client-rest so tests never make real network calls
+vi.mock("@qdrant/js-client-rest", () => {
+  class MockQdrantClient {
+    getCollections = vi.fn().mockRejectedValue(new Error("mock: no Qdrant"));
+    getCollection = vi.fn().mockRejectedValue(new Error("mock: no Qdrant"));
+    createCollection = vi.fn().mockResolvedValue(undefined);
+    createPayloadIndex = vi.fn().mockResolvedValue(undefined);
+    collectionExists = vi.fn().mockResolvedValue(false);
+    upsert = vi.fn().mockResolvedValue(undefined);
+    search = vi.fn().mockResolvedValue([]);
+    retrieve = vi.fn().mockResolvedValue([]);
+    delete = vi.fn().mockResolvedValue(undefined);
+    count = vi.fn().mockResolvedValue({ count: 0 });
+  }
+  return { QdrantClient: MockQdrantClient };
+});
+
 import {
   createVectorStore,
   checkVectorStoreHealth,
@@ -76,9 +94,11 @@ describe("VectorStore Module API Contracts", () => {
   describe("VectorStore.isHealthy", () => {
     it("should return a Promise<boolean>", async () => {
       const store = createVectorStore(mockConfig);
+      // Without a live Qdrant, isHealthy returns false
       const result = await store.isHealthy();
       expect(typeof result).toBe("boolean");
-    });
+      expect(result).toBe(false);
+    }, 10000);
 
     it("should return false when Qdrant is not available", async () => {
       const store = createVectorStore({
@@ -88,7 +108,7 @@ describe("VectorStore Module API Contracts", () => {
 
       const healthy = await store.isHealthy();
       expect(healthy).toBe(false);
-    });
+    }, 10000);
   });
 
   describe("VectorStore.close", () => {
@@ -107,7 +127,7 @@ describe("VectorStore Module API Contracts", () => {
       expect(health).toHaveProperty("latencyMs");
       expect(typeof health.healthy).toBe("boolean");
       expect(typeof health.latencyMs).toBe("number");
-    });
+    }, 10000);
 
     it("should include error when unhealthy", async () => {
       const store = createVectorStore({
@@ -118,7 +138,7 @@ describe("VectorStore Module API Contracts", () => {
       const health = await checkVectorStoreHealth(store);
       expect(health.healthy).toBe(false);
       expect(health.error).toBeDefined();
-    });
+    }, 10000);
   });
 
   describe("waitForVectorStore", () => {
@@ -154,7 +174,7 @@ describe("VectorStore Module API Contracts", () => {
 
       // Logger should have been called
       expect(mockLogger.debug).toHaveBeenCalled();
-    });
+    }, 10000);
   });
 });
 

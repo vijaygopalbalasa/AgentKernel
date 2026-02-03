@@ -1,8 +1,46 @@
 node_modules/
 dist/
+
+# Environment & secrets
 .env
 .env.local
+.env.production
+.env.staging
+*.key
+*.pem
+*.p12
+*.pfx
+*.cert
+
+# Logs
 *.log
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build & test
 coverage/
 .turbo/
+.cache/
+*.tsbuildinfo
+
+# Cloud credentials
+.aws/
+.gcp/
+.azure/
+
+# Claude Code session data (keep .claude/commands/ and .claude/skills/)
+.claude/plans/
+.claude/settings.*
+
+# Bootstrap artifacts (one-time scaffolding)
+bootstrap.sh
+*.tar.gz
+agent-os.jsx

@@ -118,6 +118,8 @@ export interface ChatResponse {
     readonly inputTokens: number;
     readonly outputTokens: number;
   };
+  /** Reason the model stopped generating */
+  readonly finishReason?: string;
   /** Router-generated request ID */
   readonly requestId?: string;
   /** Provider that served the request */

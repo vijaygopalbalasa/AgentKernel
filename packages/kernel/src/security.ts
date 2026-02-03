@@ -477,6 +477,124 @@ export class RateLimiter {
   }
 }
 
+/**
+ * Interface for a Redis-compatible client.
+ * Accepts ioredis or any client with these methods.
+ */
+export interface RedisLike {
+  incr(key: string): Promise<number>;
+  pexpire(key: string, ms: number): Promise<number>;
+  get(key: string): Promise<string | null>;
+  del(...keys: string[]): Promise<number>;
+}
+
+/**
+ * Redis-backed rate limiter for distributed deployments.
+ * Uses INCR + PEXPIRE for atomic window-based counting.
+ */
+export class RedisRateLimiter {
+  private config: RateLimitConfig;
+  private redis: RedisLike;
+
+  constructor(redis: RedisLike, config: Partial<RateLimitConfig> = {}) {
+    this.config = RateLimitConfigSchema.parse(config);
+    this.redis = redis;
+  }
+
+  /**
+   * Record a request and check if it is allowed.
+   */
+  async record(key: string): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+    const windowMs = this.config.windowMs;
+    const now = Date.now();
+    const windowKey = `${this.config.keyPrefix}:${key}:${Math.floor(now / windowMs)}`;
+
+    const count = await this.redis.incr(windowKey);
+    if (count === 1) {
+      await this.redis.pexpire(windowKey, windowMs);
+    }
+
+    const allowed = count <= this.config.maxRequests;
+    const remaining = Math.max(0, this.config.maxRequests - count);
+    const resetAt = (Math.floor(now / windowMs) + 1) * windowMs;
+
+    if (!allowed) {
+      log.warn("Rate limit exceeded (Redis)", {
+        key,
+        count,
+        maxRequests: this.config.maxRequests,
+        resetAt: new Date(resetAt).toISOString(),
+      });
+    }
+
+    return { allowed, remaining, resetAt };
+  }
+
+  /**
+   * Check if a request would be allowed (read-only).
+   */
+  async isAllowed(key: string): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+    const windowMs = this.config.windowMs;
+    const now = Date.now();
+    const windowKey = `${this.config.keyPrefix}:${key}:${Math.floor(now / windowMs)}`;
+
+    const raw = await this.redis.get(windowKey);
+    const count = raw ? parseInt(raw, 10) : 0;
+
+    const allowed = count < this.config.maxRequests;
+    const remaining = Math.max(0, this.config.maxRequests - count);
+    const resetAt = (Math.floor(now / windowMs) + 1) * windowMs;
+
+    return { allowed, remaining, resetAt };
+  }
+
+  /**
+   * Reset rate limit for a specific key.
+   */
+  async reset(key: string): Promise<void> {
+    const windowMs = this.config.windowMs;
+    const now = Date.now();
+    const windowKey = `${this.config.keyPrefix}:${key}:${Math.floor(now / windowMs)}`;
+    await this.redis.del(windowKey);
+  }
+
+  /**
+   * Get current stats for a key.
+   */
+  async getStats(key: string): Promise<{ count: number; remaining: number; resetAt: number } | null> {
+    const windowMs = this.config.windowMs;
+    const now = Date.now();
+    const windowKey = `${this.config.keyPrefix}:${key}:${Math.floor(now / windowMs)}`;
+
+    const raw = await this.redis.get(windowKey);
+    if (!raw) return null;
+
+    const count = parseInt(raw, 10);
+    return {
+      count,
+      remaining: Math.max(0, this.config.maxRequests - count),
+      resetAt: (Math.floor(now / windowMs) + 1) * windowMs,
+    };
+  }
+
+  destroy(): void {
+    // No-op — Redis connection lifecycle is managed externally
+  }
+}
+
+/**
+ * Factory: create a rate limiter backed by Redis if available, otherwise in-memory.
+ */
+export function createRateLimiter(
+  config: Partial<RateLimitConfig> = {},
+  redis?: RedisLike
+): RateLimiter | RedisRateLimiter {
+  if (redis) {
+    return new RedisRateLimiter(redis, config);
+  }
+  return new RateLimiter(config);
+}
+
 // Global rate limiters by purpose
 const rateLimiters: Map<string, RateLimiter> = new Map();
 
@@ -749,7 +867,7 @@ export const CorsConfigSchema = z.object({
   methods: z.array(z.string()).optional().default(["GET", "POST", "PUT", "DELETE", "OPTIONS"]),
   allowedHeaders: z.array(z.string()).optional().default(["Content-Type", "Authorization", "X-Request-ID"]),
   exposedHeaders: z.array(z.string()).optional().default(["X-Request-ID", "X-RateLimit-Remaining"]),
-  credentials: z.boolean().optional().default(true),
+  credentials: z.boolean().optional().default(false),
   maxAge: z.number().optional().default(86400), // 24 hours
 });
 

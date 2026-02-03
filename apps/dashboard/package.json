@@ -1,8 +1,13 @@
 {
   "name": "@agent-os/dashboard",
   "version": "0.1.0",
+  "description": "AgentOS web dashboard for monitoring agents, memory, and events",
+  "license": "MIT",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",

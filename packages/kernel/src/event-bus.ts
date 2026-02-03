@@ -1,12 +1,12 @@
 // Redis-based event bus for pub/sub messaging
 // Supports channels, patterns, and message persistence
 
-import { Redis as IORedis, type Redis as RedisInstance } from "ioredis";
+import { Redis as IORedis, Cluster as IORedisCluster, type Redis as RedisInstance, type Cluster as ClusterInstance } from "ioredis";
 import type { RedisConfig } from "./config.js";
 import type { Logger } from "./logger.js";
 
-/** Redis client type */
-type RedisClient = RedisInstance;
+/** Redis client type (standalone/sentinel or cluster) */
+type RedisClient = RedisInstance | ClusterInstance;
 
 /** Event message structure */
 export interface EventMessage<T = unknown> {
@@ -82,6 +82,53 @@ function generateId(): string {
   });
 }
 
+/**
+ * Create a Redis client based on the configured mode (standalone, sentinel, or cluster).
+ */
+export function createRedisClient(config: RedisConfig, options?: { keyPrefix?: string }): RedisClient {
+  const retryStrategy = (times: number) => {
+    if (times > 10) return null;
+    return Math.min(times * 100, 3000);
+  };
+
+  if (config.mode === "cluster" && config.clusterNodes?.length) {
+    const nodes = config.clusterNodes.map((node) => {
+      const [host, portStr] = node.split(":");
+      return { host: host ?? "localhost", port: Number(portStr) || 6379 };
+    });
+    return new IORedisCluster(nodes, {
+      redisOptions: {
+        password: config.password,
+        keyPrefix: options?.keyPrefix,
+      },
+      scaleReads: "slave",
+      clusterRetryStrategy: retryStrategy,
+    });
+  }
+
+  if (config.mode === "sentinel" && config.sentinels?.length && config.sentinelName) {
+    return new IORedis({
+      sentinels: config.sentinels,
+      name: config.sentinelName,
+      password: config.password,
+      db: config.db,
+      keyPrefix: options?.keyPrefix,
+      retryStrategy,
+      sentinelRetryStrategy: retryStrategy,
+    });
+  }
+
+  // Standalone mode (default)
+  return new IORedis({
+    host: config.host,
+    port: config.port,
+    password: config.password,
+    db: config.db,
+    keyPrefix: options?.keyPrefix,
+    retryStrategy,
+  });
+}
+
 /** Create a Redis-based event bus */
 export function createEventBus(config: RedisConfig, logger?: Logger): EventBus {
   const log = logger ?? {
@@ -95,28 +142,8 @@ export function createEventBus(config: RedisConfig, logger?: Logger): EventBus {
 
   // Create two Redis connections: one for pub, one for sub
   // (Redis requires separate connections for pub/sub)
-  const pubClient: RedisClient = new IORedis({
-    host: config.host,
-    port: config.port,
-    password: config.password,
-    db: config.db,
-    keyPrefix,
-    retryStrategy: (times: number) => {
-      if (times > 10) return null; // Stop retrying
-      return Math.min(times * 100, 3000);
-    },
-  });
-
-  const subClient: RedisClient = new IORedis({
-    host: config.host,
-    port: config.port,
-    password: config.password,
-    db: config.db,
-    retryStrategy: (times: number) => {
-      if (times > 10) return null;
-      return Math.min(times * 100, 3000);
-    },
-  });
+  const pubClient = createRedisClient(config, { keyPrefix });
+  const subClient = createRedisClient(config);
 
   // Track subscriptions
   const channelHandlers = new Map<string, Set<EventHandler>>();

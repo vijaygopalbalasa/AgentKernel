@@ -131,8 +131,8 @@ export class PermissionError extends Error {
 
 /** Options schema for the capability manager */
 export const CapabilityManagerOptionsSchema = z.object({
-  /** Secret for signing tokens */
-  secret: z.string().min(16).optional(),
+  /** Secret for signing tokens (required, minimum 32 characters) */
+  secret: z.string().min(32),
   /** Maximum audit log entries */
   maxAuditLogSize: z.number().int().min(100).optional(),
   /** Default token duration in ms */
@@ -140,16 +140,13 @@ export const CapabilityManagerOptionsSchema = z.object({
 });
 
 export interface CapabilityManagerOptions {
-  /** Secret for signing tokens */
-  secret?: string;
+  /** Secret for signing tokens (required, minimum 32 characters) */
+  secret: string;
   /** Maximum audit log entries */
   maxAuditLogSize?: number;
   /** Default token duration in ms */
   defaultDurationMs?: number;
 }
-
-/** Secret used for signing tokens */
-const DEFAULT_SECRET = "agent-os-capability-secret-change-in-production";
 
 /**
  * Capability Manager — handles permission grants and checks.
@@ -169,8 +166,14 @@ export class CapabilityManager {
   private defaultDurationMs: number;
   private log: Logger;
 
-  constructor(options: CapabilityManagerOptions = {}) {
-    this.secret = options.secret ?? DEFAULT_SECRET;
+  constructor(options: CapabilityManagerOptions) {
+    if (!options.secret || options.secret.length < 32) {
+      throw new Error(
+        "PERMISSION_SECRET is required and must be at least 32 characters. " +
+        "Set the PERMISSION_SECRET environment variable to a secure random string."
+      );
+    }
+    this.secret = options.secret;
     this.maxAuditLogSize = options.maxAuditLogSize ?? 10000;
     this.defaultDurationMs = options.defaultDurationMs ?? 60 * 60 * 1000; // 1 hour
     this.log = createLogger({ name: "capability-manager" });
@@ -557,6 +560,6 @@ export class CapabilityManager {
 }
 
 /** Factory function to create a capability manager */
-export function createCapabilityManager(options?: CapabilityManagerOptions): CapabilityManager {
+export function createCapabilityManager(options: CapabilityManagerOptions): CapabilityManager {
   return new CapabilityManager(options);
 }

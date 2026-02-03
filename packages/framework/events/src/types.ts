@@ -344,6 +344,59 @@ export interface SystemEvent extends BaseEvent {
   };
 }
 
+// ─── ALERT EVENTS ─────────────────────────────────────────
+
+/** Alert event type values */
+export const AlertEventTypeSchema = z.enum([
+  "agent.error.threshold",
+  "rate_limit.exceeded",
+  "budget.exceeded",
+  "budget.reached",
+]);
+
+/** Alert event data schema */
+export const AlertEventDataSchema = z.object({
+  message: z.string().optional(),
+  error: z.string().optional(),
+  limit: z.number().optional(),
+  current: z.number().optional(),
+  kind: z.string().optional(),
+  action: z.string().optional(),
+  budget: z.number().optional(),
+  spent: z.number().optional(),
+  errorCount: z.number().optional(),
+  maxErrors: z.number().optional(),
+});
+
+/** Alert event schema */
+export const AlertEventSchema = BaseEventSchema.extend({
+  channel: z.literal("alerts"),
+  type: AlertEventTypeSchema,
+  data: AlertEventDataSchema,
+});
+
+/** Alert event (rate limits, budgets, error thresholds) */
+export interface AlertEvent extends BaseEvent {
+  channel: "alerts";
+  type:
+    | "agent.error.threshold"
+    | "rate_limit.exceeded"
+    | "budget.exceeded"
+    | "budget.reached";
+  data: {
+    message?: string;
+    error?: string;
+    limit?: number;
+    current?: number;
+    kind?: string;
+    action?: string;
+    budget?: number;
+    spent?: number;
+    errorCount?: number;
+    maxErrors?: number;
+  };
+}
+
 // ─── UNION TYPE ────────────────────────────────────────────
 
 /** All event types */
@@ -353,7 +406,8 @@ export type AgentOSEvent =
   | SkillEvent
   | MemoryEvent
   | CommunicationEvent
-  | SystemEvent;
+  | SystemEvent
+  | AlertEvent;
 
 /** Union schema for all event types (for validation) */
 export const AgentOSEventSchema = z.union([
@@ -363,6 +417,7 @@ export const AgentOSEventSchema = z.union([
   MemoryEventSchema,
   CommunicationEventSchema,
   SystemEventSchema,
+  AlertEventSchema,
 ]);
 
 // ─── SUBSCRIPTION TYPES ────────────────────────────────────

@@ -1,7 +1,12 @@
 {
   "name": "@agent-os/cli",
   "version": "0.1.0",
+  "description": "AgentOS CLI — init, status, deploy, chat, and doctor commands",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "bin": {
     "agent-os": "./dist/main.js"
   },

@@ -10,6 +10,58 @@ services:
       HTTPS_PROXY: ${HTTPS_PROXY:-http://egress-proxy:3128}
       NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agent-os-gateway,postgres,redis,qdrant,egress-proxy}
 
+  # Automated PostgreSQL backup — runs daily at 02:00 UTC
+  backup-postgres:
+    image: postgres:16-alpine
+    container_name: agent-os-backup-postgres
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-agentuser}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-agentpass}
+      PGDATABASE: ${POSTGRES_DB:-agentdb}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - ./scripts/backup-postgres.sh:/usr/local/bin/backup-postgres.sh:ro
+      - backup_data:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "0 2 * * * /usr/local/bin/backup-postgres.sh && find /backups -name '*.dump' -mtime +$${BACKUP_RETENTION_DAYS} -delete" | crontab -
+        crond -f -l 2
+    networks:
+      - agent-os-network
+
+  # Automated Qdrant snapshot — runs daily at 03:00 UTC
+  backup-qdrant:
+    image: curlimages/curl:8.11.1
+    container_name: agent-os-backup-qdrant
+    restart: unless-stopped
+    depends_on:
+      qdrant:
+        condition: service_started
+    environment:
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-agent_os_memory}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - ./scripts/backup-qdrant.sh:/usr/local/bin/backup-qdrant.sh:ro
+      - backup_data:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "0 3 * * * /usr/local/bin/backup-qdrant.sh && find /backups -name '*.snapshot' -mtime +$${BACKUP_RETENTION_DAYS} -delete" | crontab -
+        crond -f -l 2
+    networks:
+      - agent-os-network
+
   egress-proxy:
     build:
       context: .

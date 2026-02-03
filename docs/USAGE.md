@@ -39,7 +39,7 @@ pnpm -C apps/cli exec agent-os status
 pnpm -C apps/cli exec agent-os agents --token <GATEWAY_AUTH_TOKEN>
 
 # Deploy an agent
-pnpm -C apps/cli exec agent-os deploy agents/researcher/agent.manifest.json --token <GATEWAY_AUTH_TOKEN>
+pnpm -C apps/cli exec agent-os deploy agents/researcher/manifest.json --token <GATEWAY_AUTH_TOKEN>
 
 # Chat directly with a model
 pnpm -C apps/cli exec agent-os chat "hello" --model claude-3-5-haiku-20241022 --token <GATEWAY_AUTH_TOKEN>

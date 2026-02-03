@@ -4,6 +4,14 @@
   "private": true,
   "description": "Android for AI Agents — an operating system for autonomous AI agents",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijaygopalbalasa/AgentOS.git"
+  },
+  "homepage": "https://github.com/vijaygopalbalasa/AgentOS#readme",
+  "bugs": {
+    "url": "https://github.com/vijaygopalbalasa/AgentOS/issues"
+  },
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=9.0.0"

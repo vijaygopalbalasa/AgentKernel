@@ -167,6 +167,10 @@ export interface ToolContext {
   signal?: AbortSignal;
   /** Logger instance */
   logger?: ToolLogger;
+  /** Allowed filesystem paths for sandboxing */
+  allowedPaths?: string[];
+  /** If true, allow access to all paths (disables sandboxing) */
+  allowAllPaths?: boolean;
 }
 
 // ─── TOOL LOGGER ────────────────────────────────────────────

@@ -2,12 +2,70 @@
 // These are registered by default for all agents
 
 import { z } from "zod";
-import { readFile, writeFile, appendFile } from "node:fs/promises";
+import { readFile, writeFile, appendFile, realpath } from "node:fs/promises";
+import { resolve as resolvePath } from "node:path";
 import { spawn } from "node:child_process";
 import type { ToolDefinition, ToolHandler, ToolResult, ToolContext } from "./types.js";
 import { ToolRegistry } from "./registry.js";
 import type { Browser } from "playwright";
 import { ProxyAgent } from "undici";
+
+/**
+ * Validate that a path is within allowed directories.
+ * Resolves symlinks to prevent traversal via symlink chains.
+ */
+async function validatePathAsync(rawPath: string, context: ToolContext): Promise<string | null> {
+  if (context.allowAllPaths) return null;
+
+  if (!context.allowedPaths || context.allowedPaths.length === 0) {
+    return "No allowed paths configured. Filesystem access denied.";
+  }
+
+  const resolved = resolvePath(rawPath);
+
+  // Resolve symlinks to get the real path — prevents symlink traversal attacks
+  let real: string;
+  try {
+    real = await realpath(resolved);
+  } catch {
+    // File may not exist yet (e.g. file_write); fall back to resolved path
+    real = resolved;
+  }
+
+  const isAllowed = context.allowedPaths.some(
+    (allowed) => real === allowed || real.startsWith(allowed + "/")
+  );
+
+  if (!isAllowed) {
+    return `Path '${real}' is outside allowed directories.`;
+  }
+
+  return null;
+}
+
+/**
+ * Synchronous path validation (for backward compat with non-async callers).
+ * Does NOT resolve symlinks — use validatePathAsync when possible.
+ */
+function validatePath(rawPath: string, context: ToolContext): string | null {
+  if (context.allowAllPaths) return null;
+
+  const resolved = resolvePath(rawPath);
+
+  if (!context.allowedPaths || context.allowedPaths.length === 0) {
+    return "No allowed paths configured. Filesystem access denied.";
+  }
+
+  const isAllowed = context.allowedPaths.some(
+    (allowed) => resolved === allowed || resolved.startsWith(allowed + "/")
+  );
+
+  if (!isAllowed) {
+    return `Path '${resolved}' is outside allowed directories.`;
+  }
+
+  return null;
+}
 
 // ─── ECHO TOOL (for testing) ─────────────────────────────────
 
@@ -92,9 +150,70 @@ const calculateDefinition: ToolDefinition = {
   tags: ["math", "calculate"],
 };
 
+/**
+ * Safe arithmetic parser — recursive descent, no code generation.
+ * Supports: +, -, *, /, %, parentheses, unary minus, decimal numbers.
+ */
+function safeArithmeticParse(expr: string): number {
+  let pos = 0;
+  const s = expr.replace(/\s+/g, "");
+
+  function parseExpression(): number {
+    let left = parseTerm();
+    while (pos < s.length && (s[pos] === "+" || s[pos] === "-")) {
+      const op = s[pos]!;
+      pos++;
+      const right = parseTerm();
+      left = op === "+" ? left + right : left - right;
+    }
+    return left;
+  }
+
+  function parseTerm(): number {
+    let left = parseFactor();
+    while (pos < s.length && (s[pos] === "*" || s[pos] === "/" || s[pos] === "%")) {
+      const op = s[pos]!;
+      pos++;
+      const right = parseFactor();
+      if (op === "*") left = left * right;
+      else if (op === "/") left = left / right;
+      else left = left % right;
+    }
+    return left;
+  }
+
+  function parseFactor(): number {
+    if (s[pos] === "-") {
+      pos++;
+      return -parseFactor();
+    }
+    if (s[pos] === "+") {
+      pos++;
+      return parseFactor();
+    }
+    if (s[pos] === "(") {
+      pos++;
+      const val = parseExpression();
+      if (s[pos] !== ")") throw new Error("Missing closing parenthesis");
+      pos++;
+      return val;
+    }
+    const start = pos;
+    while (pos < s.length && (s[pos]! >= "0" && s[pos]! <= "9" || s[pos] === ".")) {
+      pos++;
+    }
+    if (pos === start) throw new Error(`Unexpected character at position ${pos}`);
+    return Number(s.slice(start, pos));
+  }
+
+  const result = parseExpression();
+  if (pos < s.length) throw new Error(`Unexpected character '${s[pos]}' at position ${pos}`);
+  return result;
+}
+
 const calculateHandler: ToolHandler<z.infer<typeof calculateSchema>> = async (args) => {
   try {
-    // Safe evaluation using Function (only allows numbers and operators)
+    // Validate input contains only safe characters
     const sanitized = args.expression.replace(/[^0-9+\-*/().%\s]/g, "");
     if (sanitized !== args.expression) {
       return {
@@ -103,8 +222,7 @@ const calculateHandler: ToolHandler<z.infer<typeof calculateSchema>> = async (ar
       };
     }
 
-    // Evaluate (in a sandbox this would be safer)
-    const result = Function(`"use strict"; return (${sanitized})`)();
+    const result = safeArithmeticParse(sanitized);
 
     if (typeof result !== "number" || !Number.isFinite(result)) {
       return {
@@ -144,7 +262,12 @@ const fileReadDefinition: ToolDefinition = {
   requiredPermissions: ["filesystem.read"],
 };
 
-const fileReadHandler: ToolHandler<z.infer<typeof fileReadSchema>> = async (args) => {
+const fileReadHandler: ToolHandler<z.infer<typeof fileReadSchema>> = async (args, context) => {
+  const pathError = await validatePathAsync(args.path, context);
+  if (pathError) {
+    return { success: false, error: pathError };
+  }
+
   try {
     const content = await readFile(args.path, "utf-8");
     return {
@@ -186,7 +309,12 @@ const fileWriteDefinition: ToolDefinition = {
   requiresConfirmation: true, // Destructive operation requires approval
 };
 
-const fileWriteHandler: ToolHandler<z.infer<typeof fileWriteSchema>> = async (args) => {
+const fileWriteHandler: ToolHandler<z.infer<typeof fileWriteSchema>> = async (args, context) => {
+  const pathError = await validatePathAsync(args.path, context);
+  if (pathError) {
+    return { success: false, error: pathError };
+  }
+
   try {
     const encoding = (args.encoding ?? "utf-8") as BufferEncoding;
     if (args.append) {
@@ -235,15 +363,34 @@ const shellExecDefinition: ToolDefinition = {
 };
 
 const shellExecHandler: ToolHandler<z.infer<typeof shellExecSchema>> = async (args, context) => {
+  if (args.cwd) {
+    const cwdError = validatePath(args.cwd, context);
+    if (cwdError) {
+      return { success: false, error: `Invalid cwd: ${cwdError}` };
+    }
+  }
+
   const start = Date.now();
   const maxBytes = args.maxBytes ?? 1024 * 1024;
   const timeoutMs = args.timeoutMs ?? 30000;
 
   return new Promise((resolve) => {
+    // Only pass safe environment variables — never inherit secrets
+    const SAFE_ENV_KEYS = [
+      "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
+      "LC_CTYPE", "TZ", "TMPDIR", "NODE_ENV",
+    ];
+    const safeEnv: Record<string, string> = {};
+    for (const key of SAFE_ENV_KEYS) {
+      if (process.env[key]) {
+        safeEnv[key] = process.env[key]!;
+      }
+    }
+
     const child = spawn(args.command, args.args ?? [], {
       cwd: args.cwd,
       env: {
-        ...process.env,
+        ...safeEnv,
         ...(args.env ?? {}),
       },
       stdio: ["ignore", "pipe", "pipe"],

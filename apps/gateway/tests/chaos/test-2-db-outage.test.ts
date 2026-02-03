@@ -49,7 +49,7 @@ describe("Chaos Test 2: DB Outage", () => {
   it("reports degraded health but still serves tasks", async () => {
     const health = await fetch(`http://127.0.0.1:${healthPort}/health`);
     expect(health.ok).toBe(true);
-    const payload = await health.json();
+    const payload = (await health.json()) as Record<string, unknown>;
     expect(payload.status).toBe("degraded");
 
     const connectionResult = await createTestConnection(
