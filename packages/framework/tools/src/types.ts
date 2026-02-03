@@ -211,6 +211,18 @@ export const MCPServerConfigSchema = z.object({
   env: z.record(z.string()).optional(),
   /** Authentication */
   auth: MCPAuthConfigSchema.optional(),
+  /** Allowlist of tool names (supports '*' wildcards) */
+  allowedTools: z.array(z.string()).optional(),
+  /** Blocklist of tool names (supports '*' wildcards) */
+  blockedTools: z.array(z.string()).optional(),
+  /** Allowlist of resource URIs (supports '*' wildcards) */
+  allowedResources: z.array(z.string()).optional(),
+  /** Blocklist of resource URIs (supports '*' wildcards) */
+  blockedResources: z.array(z.string()).optional(),
+  /** Allowlist of prompt names (supports '*' wildcards) */
+  allowedPrompts: z.array(z.string()).optional(),
+  /** Blocklist of prompt names (supports '*' wildcards) */
+  blockedPrompts: z.array(z.string()).optional(),
 });
 
 /** MCP Server connection info */
@@ -232,6 +244,18 @@ export interface MCPServerConfig {
     type: MCPAuthType;
     token?: string;
   };
+  /** Allowlist of tool names (supports '*' wildcards) */
+  allowedTools?: string[];
+  /** Blocklist of tool names (supports '*' wildcards) */
+  blockedTools?: string[];
+  /** Allowlist of resource URIs (supports '*' wildcards) */
+  allowedResources?: string[];
+  /** Blocklist of resource URIs (supports '*' wildcards) */
+  blockedResources?: string[];
+  /** Allowlist of prompt names (supports '*' wildcards) */
+  allowedPrompts?: string[];
+  /** Blocklist of prompt names (supports '*' wildcards) */
+  blockedPrompts?: string[];
 }
 
 // ─── MCP RESOURCE ───────────────────────────────────────────

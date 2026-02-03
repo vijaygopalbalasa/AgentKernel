@@ -1364,6 +1364,13 @@ export class PersistentMemoryStore implements MemoryStore {
 
   private async upsertEmbedding(memory: Memory, id: MemoryId): Promise<void> {
     if (!this.vectorStore) return;
+    if (this.encryptionEnabled) {
+      this.log.warn("Skipping embedding storage while memory encryption is enabled", {
+        memoryId: id,
+        agentId: memory.agentId,
+      });
+      return;
+    }
 
     if (memory.type !== "episodic" && memory.type !== "semantic") {
       return;
@@ -1389,6 +1396,7 @@ export class PersistentMemoryStore implements MemoryStore {
 
   private async attachEmbeddings(memories: Memory[]): Promise<void> {
     if (!this.vectorStore) return;
+    if (this.encryptionEnabled) return;
 
     const ids = memories
       .filter((memory) => memory.type === "episodic" || memory.type === "semantic")

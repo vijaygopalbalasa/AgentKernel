@@ -257,6 +257,14 @@ export class MCPClientManager {
     if (!tool) {
       return err(new ToolError(`Tool not found: ${toolName}`, "NOT_FOUND", toolName));
     }
+    const toolAllowed = this.isAllowedByPolicy(
+      tool.id ?? tool.name,
+      connection.config.allowedTools,
+      connection.config.blockedTools
+    );
+    if (!toolAllowed) {
+      return err(new ToolError(`Tool blocked by policy: ${toolName}`, "PERMISSION_DENIED", toolName));
+    }
 
     try {
       if (this.mode === "mock") {
@@ -311,6 +319,15 @@ export class MCPClientManager {
 
     if (connection.state !== "connected") {
       return err(new ToolError(`Server not connected: ${serverName}`, "CONNECTION_ERROR"));
+    }
+
+    const resourceAllowed = this.isAllowedByPolicy(
+      uri,
+      connection.config.allowedResources,
+      connection.config.blockedResources
+    );
+    if (!resourceAllowed) {
+      return err(new ToolError(`Resource blocked by policy: ${uri}`, "PERMISSION_DENIED"));
     }
 
     try {
@@ -402,6 +419,37 @@ export class MCPClientManager {
     }
   }
 
+  private normalizePatterns(value?: string[]): string[] {
+    if (!value) return [];
+    return value.map((entry) => entry.trim()).filter(Boolean);
+  }
+
+  private matchesPattern(value: string, pattern: string): boolean {
+    if (pattern === "*") return true;
+    if (!pattern.includes("*")) return value === pattern;
+    const escaped = pattern
+      .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\*/g, ".*");
+    const regex = new RegExp(`^${escaped}$`, "i");
+    return regex.test(value);
+  }
+
+  private isAllowedByPolicy(
+    value: string,
+    allowlist?: string[],
+    blocklist?: string[]
+  ): boolean {
+    const allow = this.normalizePatterns(allowlist);
+    const block = this.normalizePatterns(blocklist);
+    if (allow.length > 0) {
+      return allow.some((pattern) => this.matchesPattern(value, pattern));
+    }
+    if (block.length > 0) {
+      return !block.some((pattern) => this.matchesPattern(value, pattern));
+    }
+    return true;
+  }
+
   private async connectReal(connection: MCPConnection): Promise<void> {
     const { transport, client } = this.createClientAndTransport(connection.config);
     await client.connect(transport as never);
@@ -409,9 +457,27 @@ export class MCPClientManager {
     connection.transport = transport;
 
     const { tools, resources, prompts } = await this.loadCapabilities(client);
-    connection.tools = tools;
-    connection.resources = resources;
-    connection.prompts = prompts;
+    connection.tools = tools.filter((tool) =>
+      this.isAllowedByPolicy(
+        tool.id ?? tool.name,
+        connection.config.allowedTools,
+        connection.config.blockedTools
+      )
+    );
+    connection.resources = resources.filter((resource) =>
+      this.isAllowedByPolicy(
+        resource.uri,
+        connection.config.allowedResources,
+        connection.config.blockedResources
+      )
+    );
+    connection.prompts = prompts.filter((prompt) =>
+      this.isAllowedByPolicy(
+        prompt.name,
+        connection.config.allowedPrompts,
+        connection.config.blockedPrompts
+      )
+    );
   }
 
   private async connectMock(connection: MCPConnection): Promise<void> {

@@ -232,12 +232,27 @@ function loadYamlConfig(configPath: string): Record<string, unknown> {
   }
 }
 
+/** Resolve an environment value, supporting *_FILE secrets */
+function resolveEnvValue(envKey: string): string | undefined {
+  const direct = process.env[envKey];
+  if (direct !== undefined) return direct;
+  const fileKey = `${envKey}_FILE`;
+  const filePath = process.env[fileKey];
+  if (!filePath) return undefined;
+  try {
+    return readFileSync(filePath, "utf-8").trim();
+  } catch {
+    return undefined;
+  }
+}
+
 /** Load configuration from environment variables */
 function loadEnvConfig(): Record<string, unknown> {
   const config: Record<string, unknown> = {};
 
-  if (process.env.DATABASE_URL) {
-    const parsed = parseDatabaseUrl(process.env.DATABASE_URL);
+  const databaseUrl = resolveEnvValue("DATABASE_URL");
+  if (databaseUrl) {
+    const parsed = parseDatabaseUrl(databaseUrl);
     for (const [key, value] of Object.entries(parsed)) {
       if (value !== undefined) {
         setNestedValue(config, `database.${key}`, value);
@@ -245,8 +260,9 @@ function loadEnvConfig(): Record<string, unknown> {
     }
   }
 
-  if (process.env.REDIS_URL) {
-    const parsed = parseRedisUrl(process.env.REDIS_URL);
+  const redisUrl = resolveEnvValue("REDIS_URL");
+  if (redisUrl) {
+    const parsed = parseRedisUrl(redisUrl);
     for (const [key, value] of Object.entries(parsed)) {
       if (value !== undefined) {
         setNestedValue(config, `redis.${key}`, value);
@@ -254,8 +270,9 @@ function loadEnvConfig(): Record<string, unknown> {
     }
   }
 
-  if (process.env.QDRANT_URL) {
-    const parsed = parseQdrantUrl(process.env.QDRANT_URL);
+  const qdrantUrl = resolveEnvValue("QDRANT_URL");
+  if (qdrantUrl) {
+    const parsed = parseQdrantUrl(qdrantUrl);
     for (const [key, value] of Object.entries(parsed)) {
       if (value !== undefined) {
         setNestedValue(config, `qdrant.${key}`, value);
@@ -264,7 +281,7 @@ function loadEnvConfig(): Record<string, unknown> {
   }
 
   for (const [envKey, configPath] of Object.entries(ENV_MAPPINGS)) {
-    const value = process.env[envKey];
+    const value = resolveEnvValue(envKey);
     if (value !== undefined) {
       setNestedValue(config, configPath, parseEnvValue(value));
     }

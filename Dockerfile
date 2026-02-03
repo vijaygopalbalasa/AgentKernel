@@ -104,8 +104,8 @@ COPY agents/coder/package.json ./agents/coder/
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod
 
-# Install Playwright browser binaries (Chromium)
-RUN pnpm --filter @agent-os/tools exec playwright install --with-deps chromium
+# Install Playwright system dependencies (Chromium)
+RUN pnpm --filter @agent-os/tools exec playwright install-deps chromium
 
 # Copy built artifacts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -136,11 +136,13 @@ COPY --from=builder /app/agents/monitor/manifest.json ./agents/monitor/manifest.
 COPY --from=builder /app/agents/coder/manifest.json ./agents/coder/manifest.json
 COPY --from=builder /app/docker/bootstrap-agents.mjs ./docker/bootstrap-agents.mjs
 
-# Set ownership
-RUN chown -R agentuser:nodejs /app
+# Prepare writable dirs for non-root runtime + Playwright cache
+RUN mkdir -p /app/.agent-os /app/.cache/ms-playwright && \
+    chown -R agentuser:nodejs /app/.agent-os /app/.cache
 
-# Switch to non-root user
+# Switch to non-root user and install browser binaries to owned cache
 USER agentuser
+RUN pnpm --filter @agent-os/tools exec playwright install chromium
 
 # Expose ports
 EXPOSE 18800

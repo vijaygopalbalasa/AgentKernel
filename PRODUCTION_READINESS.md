@@ -119,7 +119,7 @@ SLOs, security posture, operational policies, and release gates. It follows the
 - **Memory:** retained with configurable TTLs (episodic/semantic/procedural defaults set in `.env.example`)
 - **Memory archival:** optional archive tables for cold storage (`memory_archives`) with separate retention
 - **PII handling:** opt‑in, with redaction hooks for logs
-- **Memory encryption:** optional at-rest encryption with per-agent derived keys (`MEMORY_ENCRYPTION_ENABLED`)
+- **Memory encryption:** optional at-rest encryption with per-agent derived keys (`MEMORY_ENCRYPTION_ENABLED`); embeddings are not stored/searchable when enabled
 - **Backups:** daily full backup + 7‑day rolling snapshots
 - **Restore drill:** quarterly minimum
 

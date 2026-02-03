@@ -421,6 +421,19 @@ const httpFetchHandler: ToolHandler<z.infer<typeof httpFetchSchema>> = async (ar
 
 const browserSnapshotSchema = z.object({
   url: z.string().url().describe("URL to open in a headless browser"),
+  actions: z.array(z.object({
+    action: z.enum([
+      "click",
+      "fill",
+      "press",
+      "select",
+      "wait_for_selector",
+      "wait_ms",
+    ]),
+    selector: z.string().optional(),
+    value: z.union([z.string(), z.number()]).optional(),
+    timeoutMs: z.number().int().min(0).max(60000).optional(),
+  })).optional().describe("Optional automation steps to run after navigation"),
   waitMs: z.number().int().min(0).max(30000).optional().describe("Wait after load (ms)"),
   timeoutMs: z.number().int().min(1000).max(60000).optional().describe("Navigation timeout (ms)"),
   maxHtmlBytes: z.number().int().min(1024).max(2 * 1024 * 1024).optional().describe("Max HTML bytes"),
@@ -437,7 +450,7 @@ const browserSnapshotSchema = z.object({
 const browserSnapshotDefinition: ToolDefinition = {
   id: "builtin:browser_snapshot",
   name: "Browser Snapshot",
-  description: "Load a URL in a headless browser and return HTML (and optional screenshot).",
+  description: "Load a URL in a headless browser, run optional actions, and return HTML (and optional screenshot).",
   inputSchema: browserSnapshotSchema,
   category: "browser",
   tags: ["browser", "web", "automation"],
@@ -474,8 +487,78 @@ const browserSnapshotHandler: ToolHandler<z.infer<typeof browserSnapshotSchema>>
     }
 
     await page.goto(args.url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+
     if (waitMs > 0) {
       await page.waitForTimeout(waitMs);
+    }
+
+    const actionResults: Array<Record<string, unknown>> = [];
+    if (args.actions && args.actions.length > 0) {
+      for (const [index, step] of args.actions.entries()) {
+        const stepTimeout = step.timeoutMs ?? timeoutMs;
+        switch (step.action) {
+          case "click": {
+            if (!step.selector) {
+              throw new Error(`browser_snapshot action ${index} missing selector`);
+            }
+            await page.click(step.selector, { timeout: stepTimeout });
+            actionResults.push({ index, action: "click", selector: step.selector });
+            break;
+          }
+          case "fill": {
+            if (!step.selector) {
+              throw new Error(`browser_snapshot action ${index} missing selector`);
+            }
+            if (step.value === undefined) {
+              throw new Error(`browser_snapshot action ${index} missing value`);
+            }
+            await page.fill(step.selector, String(step.value), { timeout: stepTimeout });
+            actionResults.push({ index, action: "fill", selector: step.selector });
+            break;
+          }
+          case "press": {
+            if (!step.selector) {
+              throw new Error(`browser_snapshot action ${index} missing selector`);
+            }
+            if (step.value === undefined) {
+              throw new Error(`browser_snapshot action ${index} missing value`);
+            }
+            await page.press(step.selector, String(step.value), { timeout: stepTimeout });
+            actionResults.push({ index, action: "press", selector: step.selector });
+            break;
+          }
+          case "select": {
+            if (!step.selector) {
+              throw new Error(`browser_snapshot action ${index} missing selector`);
+            }
+            if (step.value === undefined) {
+              throw new Error(`browser_snapshot action ${index} missing value`);
+            }
+            await page.selectOption(step.selector, String(step.value));
+            actionResults.push({ index, action: "select", selector: step.selector });
+            break;
+          }
+          case "wait_for_selector": {
+            if (!step.selector) {
+              throw new Error(`browser_snapshot action ${index} missing selector`);
+            }
+            await page.waitForSelector(step.selector, { timeout: stepTimeout });
+            actionResults.push({ index, action: "wait_for_selector", selector: step.selector });
+            break;
+          }
+          case "wait_ms": {
+            const value = typeof step.value === "number" ? step.value : Number(step.value);
+            if (!Number.isFinite(value)) {
+              throw new Error(`browser_snapshot action ${index} requires numeric value`);
+            }
+            await page.waitForTimeout(Math.max(0, value));
+            actionResults.push({ index, action: "wait_ms", value });
+            break;
+          }
+          default:
+            break;
+        }
+      }
     }
 
     const title = await page.title();
@@ -505,6 +588,7 @@ const browserSnapshotHandler: ToolHandler<z.infer<typeof browserSnapshotSchema>>
         title,
         html: htmlOut,
         screenshotBase64,
+        actions: actionResults.length > 0 ? actionResults : undefined,
       },
       metadata: {
         htmlBytes,

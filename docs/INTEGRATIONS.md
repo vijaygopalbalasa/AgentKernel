@@ -34,6 +34,20 @@ Any MCP server can be used as a tool source:
 
 This is how you add filesystem, browser automation, or external APIs.
 
+Example `MCP_SERVERS` with allowlists:
+```
+MCP_SERVERS=[
+  {
+    "name":"filesystem",
+    "transport":"stdio",
+    "command":"node",
+    "args":["/opt/mcp/filesystem.js"],
+    "allowedTools":["read*","write*"],
+    "blockedTools":["admin:*"]
+  }
+]
+```
+
 ---
 
 ## Local model providers
@@ -58,4 +72,3 @@ If you want a full “agent society”:
 - Use **Governance + Appeals** for safety and policy enforcement
 
 AgentOS provides the infra; the external agents bring behavior.
-

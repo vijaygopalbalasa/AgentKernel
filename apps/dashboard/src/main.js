@@ -55,6 +55,16 @@ const resolveAppealStatusInput = document.getElementById("resolve-appeal-status-
 const resolveAppealNotesInput = document.getElementById("resolve-appeal-notes-input");
 const resolveAppealBtn = document.getElementById("resolve-appeal-btn");
 const permissionListEl = document.getElementById("permission-list");
+const capabilityAgentInput = document.getElementById("capability-agent-input");
+const capabilityListBtn = document.getElementById("capability-list-btn");
+const capabilityGrantPermissionsInput = document.getElementById("capability-grant-permissions");
+const capabilityGrantPurposeInput = document.getElementById("capability-grant-purpose");
+const capabilityGrantDurationInput = document.getElementById("capability-grant-duration");
+const capabilityGrantBtn = document.getElementById("capability-grant-btn");
+const capabilityRevokeInput = document.getElementById("capability-revoke-input");
+const capabilityRevokeBtn = document.getElementById("capability-revoke-btn");
+const capabilityRevokeAllBtn = document.getElementById("capability-revoke-all-btn");
+const capabilityListEl = document.getElementById("capability-list");
 const auditActionInput = document.getElementById("audit-action-input");
 const auditActorInput = document.getElementById("audit-actor-input");
 const auditLimitInput = document.getElementById("audit-limit-input");
@@ -171,6 +181,31 @@ const renderPermissions = () => {
       <button class="ghost-btn" data-agent-id="${agent.id}">Quarantine</button>
     `;
     permissionListEl.appendChild(item);
+  });
+};
+
+const renderCapabilities = (tokens = []) => {
+  if (!tokens.length) {
+    capabilityListEl.innerHTML = `<p class="subhead">No capability tokens.</p>`;
+    return;
+  }
+
+  capabilityListEl.innerHTML = "";
+  tokens.forEach((token) => {
+    const el = document.createElement("div");
+    el.className = "list-item";
+    const perms = Array.isArray(token.permissions)
+      ? token.permissions
+          .map((perm) => `${perm.category}.${perm.actions?.join("|")}${perm.resource ? `:${perm.resource}` : ""}`)
+          .join(", ")
+      : "—";
+    el.innerHTML = `
+      <strong>${token.id}</strong>
+      <small>Agent: ${token.agentId} · Expires: ${token.expiresAt ? new Date(token.expiresAt).toLocaleString() : "—"}</small>
+      <small>Permissions: ${perms}</small>
+      <button class="ghost-btn" data-token-id="${token.id}">Revoke</button>
+    `;
+    capabilityListEl.appendChild(el);
   });
 };
 
@@ -622,6 +657,29 @@ const fetchAudit = async () => {
   }
 };
 
+const parseCapabilityPermissions = () => {
+  const raw = capabilityGrantPermissionsInput.value || "";
+  return raw
+    .split(/[\n,]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+};
+
+const fetchCapabilities = async () => {
+  try {
+    const agentId = capabilityAgentInput.value.trim() || state.operatorAgentId;
+    if (!agentId) {
+      capabilityListEl.innerHTML = `<p class="subhead">Provide an agent id.</p>`;
+      return;
+    }
+    const result = await sendAgentTask({ type: "capability_list", agentId });
+    renderCapabilities(result?.tokens ?? []);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    capabilityListEl.innerHTML = `<p class="subhead">${message}</p>`;
+  }
+};
+
 const getLockdownPolicy = async (name) => {
   const policies = await sendAgentTask({ type: "policy_list", limit: 100 });
   const list = policies?.policies ?? [];
@@ -688,6 +746,87 @@ refreshGovernanceBtn.addEventListener("click", () => {
 
 refreshAuditBtn.addEventListener("click", () => {
   fetchAudit();
+});
+
+capabilityListBtn.addEventListener("click", () => {
+  fetchCapabilities();
+});
+
+capabilityGrantBtn.addEventListener("click", async () => {
+  const agentId = capabilityAgentInput.value.trim() || state.operatorAgentId;
+  if (!agentId) {
+    capabilityListEl.innerHTML = `<p class="subhead">Provide an agent id.</p>`;
+    return;
+  }
+  const permissions = parseCapabilityPermissions();
+  if (!permissions.length) {
+    capabilityListEl.innerHTML = `<p class="subhead">Provide at least one permission.</p>`;
+    return;
+  }
+  const purpose = capabilityGrantPurposeInput.value.trim();
+  const durationValue = Number(capabilityGrantDurationInput.value);
+  const durationMs = Number.isFinite(durationValue) && durationValue > 0 ? durationValue : undefined;
+  try {
+    await sendAgentTask({
+      type: "capability_grant",
+      agentId,
+      permissions,
+      purpose: purpose || undefined,
+      durationMs,
+    });
+    capabilityGrantPermissionsInput.value = "";
+    capabilityGrantPurposeInput.value = "";
+    capabilityGrantDurationInput.value = "";
+    fetchCapabilities();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    capabilityListEl.innerHTML = `<p class="subhead">${message}</p>`;
+  }
+});
+
+capabilityRevokeBtn.addEventListener("click", async () => {
+  const tokenId = capabilityRevokeInput.value.trim();
+  if (!tokenId) {
+    capabilityListEl.innerHTML = `<p class="subhead">Provide a token id.</p>`;
+    return;
+  }
+  try {
+    await sendAgentTask({ type: "capability_revoke", tokenId });
+    capabilityRevokeInput.value = "";
+    fetchCapabilities();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    capabilityListEl.innerHTML = `<p class="subhead">${message}</p>`;
+  }
+});
+
+capabilityRevokeAllBtn.addEventListener("click", async () => {
+  const agentId = capabilityAgentInput.value.trim() || state.operatorAgentId;
+  if (!agentId) {
+    capabilityListEl.innerHTML = `<p class="subhead">Provide an agent id.</p>`;
+    return;
+  }
+  try {
+    await sendAgentTask({ type: "capability_revoke_all", agentId });
+    fetchCapabilities();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    capabilityListEl.innerHTML = `<p class="subhead">${message}</p>`;
+  }
+});
+
+capabilityListEl.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!target || !target.dataset) return;
+  const tokenId = target.dataset.tokenId;
+  if (!tokenId) return;
+  try {
+    await sendAgentTask({ type: "capability_revoke", tokenId });
+    fetchCapabilities();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    capabilityListEl.innerHTML = `<p class="subhead">${message}</p>`;
+  }
 });
 
 permissionListEl.addEventListener("click", async (event) => {

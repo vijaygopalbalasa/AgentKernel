@@ -179,6 +179,25 @@
             <h2>Permission Review</h2>
             <p>Trust level + permissions + quick quarantine action</p>
           </div>
+          <div class="form-stack">
+            <label for="capability-agent-input">Capability target agent</label>
+            <input id="capability-agent-input" type="text" placeholder="agent id (defaults to operator)" />
+            <button id="capability-list-btn" type="button">List capabilities</button>
+
+            <label for="capability-grant-permissions">Grant permissions (comma or newline separated)</label>
+            <textarea id="capability-grant-permissions" rows="3" placeholder="filesystem.read:/tmp, network.execute:api.example.com"></textarea>
+            <input id="capability-grant-purpose" type="text" placeholder="Purpose (optional)" />
+            <input id="capability-grant-duration" type="number" min="1" placeholder="Duration ms (optional)" />
+            <button id="capability-grant-btn" type="button">Grant capability</button>
+
+            <label for="capability-revoke-input">Revoke capability token</label>
+            <input id="capability-revoke-input" type="text" placeholder="token id" />
+            <div class="inline-actions">
+              <button id="capability-revoke-btn" type="button">Revoke token</button>
+              <button id="capability-revoke-all-btn" type="button">Revoke all for agent</button>
+            </div>
+          </div>
+          <div class="list" id="capability-list"></div>
           <div class="list" id="permission-list"></div>
         </section>
 

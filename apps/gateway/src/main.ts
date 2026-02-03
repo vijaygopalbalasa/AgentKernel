@@ -13,6 +13,7 @@ import Ajv from "ajv";
 import type { ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
 import { ProxyAgent, setGlobalDispatcher } from "undici";
+import { WebSocket } from "ws";
 
 // Load .env from the monorepo root (skip in test to avoid leaking local secrets into CI/tests)
 if (process.env.NODE_ENV !== "test") {
@@ -134,6 +135,7 @@ interface AgentEntry {
   id: string;
   externalId?: string;
   name: string;
+  nodeId?: string;
   state: "initializing" | "ready" | "running" | "paused" | "error" | "terminated";
   startedAt: number;
   model?: string;
@@ -550,6 +552,30 @@ const AuditQueryTaskSchema = z.object({
   action: z.string().optional(),
   actorId: z.string().optional(),
   limit: z.number().int().min(1).optional(),
+});
+
+const CapabilityListTaskSchema = z.object({
+  type: z.literal("capability_list"),
+  agentId: z.string().min(1).optional(),
+});
+
+const CapabilityGrantTaskSchema = z.object({
+  type: z.literal("capability_grant"),
+  agentId: z.string().min(1),
+  permissions: z.array(z.string().min(1)),
+  purpose: z.string().optional(),
+  durationMs: z.number().int().min(1).optional(),
+  delegatable: z.boolean().optional(),
+});
+
+const CapabilityRevokeTaskSchema = z.object({
+  type: z.literal("capability_revoke"),
+  tokenId: z.string().min(1),
+});
+
+const CapabilityRevokeAllTaskSchema = z.object({
+  type: z.literal("capability_revoke_all"),
+  agentId: z.string().min(1),
 });
 
 const PolicyCreateTaskSchema = z.object({
@@ -1187,9 +1213,10 @@ function validateProductionHardening(
 ): void {
   if (!isProduction) return;
 
-  const enforce = parseBoolean(process.env.ENFORCE_PRODUCTION_HARDENING, false);
+  const enforce = parseBoolean(process.env.ENFORCE_PRODUCTION_HARDENING, isProduction);
   const allowUnsafeLocal = parseBoolean(process.env.ALLOW_UNSAFE_LOCAL_WORKERS, false);
   const enforceEgressProxy = parseBoolean(process.env.ENFORCE_EGRESS_PROXY, false);
+  const disableNetwork = parseBoolean(process.env.AGENT_WORKER_DISABLE_NETWORK, false);
   const runtime = resolveWorkerRuntime();
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -1225,7 +1252,6 @@ function validateProductionHardening(
     const pidsLimit = process.env.AGENT_WORKER_DOCKER_PIDS_LIMIT?.trim();
     const ulimits = resolveDockerUlimits();
     const storageOpts = resolveDockerStorageOpts();
-    const disableNetwork = parseBoolean(process.env.AGENT_WORKER_DISABLE_NETWORK, false);
     const network = resolveDockerWorkerNetwork();
 
     if (!readOnly) {
@@ -1257,6 +1283,10 @@ function validateProductionHardening(
         "AGENT_WORKER_DISABLE_NETWORK should be true or AGENT_WORKER_DOCKER_NETWORK set in production"
       );
     }
+  }
+
+  if (!enforceEgressProxy && !disableNetwork) {
+    addIssue("ENFORCE_EGRESS_PROXY should be true or AGENT_WORKER_DISABLE_NETWORK=true in production");
   }
 
   if (enforceEgressProxy) {
@@ -1291,6 +1321,208 @@ function hashToInt32(value: string): number {
 
 function deriveAdvisoryKeys(key: string): [number, number] {
   return [hashToInt32(key), hashToInt32(`${key}:secondary`)];
+}
+
+function resolveClusterNodeWsUrl(config: Config): string | null {
+  const override = process.env.CLUSTER_NODE_WS_URL?.trim();
+  if (override) return override;
+
+  const host = process.env.CLUSTER_NODE_HOST?.trim() || config.gateway.host;
+  const port = process.env.CLUSTER_NODE_PORT?.trim() || String(config.gateway.port);
+  if (!host) return null;
+  if (host.startsWith("ws://") || host.startsWith("wss://")) {
+    return host;
+  }
+  return `ws://${host}:${port}`;
+}
+
+function normalizeRecord(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === "object") return value as Record<string, unknown>;
+  try {
+    return JSON.parse(String(value)) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  if (value === null || value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+async function registerClusterNode(
+  db: Database,
+  nodeId: string,
+  wsUrl: string,
+  log: ReturnType<typeof createLogger>
+): Promise<NodeJS.Timeout> {
+  const heartbeatMs = Number(process.env.CLUSTER_NODE_HEARTBEAT_MS ?? 10000);
+
+  const upsert = async () => {
+    try {
+      await db.query((sql) => sql`
+        INSERT INTO gateway_nodes (node_id, ws_url, last_seen_at)
+        VALUES (${nodeId}, ${wsUrl}, NOW())
+        ON CONFLICT (node_id) DO UPDATE SET
+          ws_url = EXCLUDED.ws_url,
+          last_seen_at = NOW()
+      `);
+    } catch (error) {
+      log.warn("Failed to update cluster node registry", {
+        nodeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  await upsert();
+
+  return setInterval(() => {
+    void upsert();
+  }, Number.isFinite(heartbeatMs) && heartbeatMs > 1000 ? heartbeatMs : 10000);
+}
+
+async function resolveClusterNodeUrl(
+  db: Database,
+  nodeId: string
+): Promise<string | null> {
+  const rows = await db.query<{ ws_url: string }>((sql) => sql`
+    SELECT ws_url
+    FROM gateway_nodes
+    WHERE node_id = ${nodeId}
+    LIMIT 1
+  `);
+  return rows[0]?.ws_url ?? null;
+}
+
+async function resolveAgentNode(
+  db: Database,
+  agentId: string
+): Promise<{ id: string; nodeId?: string }> {
+  const rows = await db.query<{ id: string; node_id?: string }>((sql) => sql`
+    SELECT id, node_id
+    FROM agents
+    WHERE id = ${agentId}
+       OR metadata->>'manifestId' = ${agentId}
+    ORDER BY created_at DESC
+    LIMIT 1
+  `);
+  const row = rows[0];
+  return row ? { id: row.id, nodeId: row.node_id } : { id: agentId };
+}
+
+async function forwardClusterMessage(
+  wsUrl: string,
+  message: WsMessage,
+  log: ReturnType<typeof createLogger>
+): Promise<WsMessage> {
+  const authToken = process.env.GATEWAY_AUTH_TOKEN;
+  const authId = authToken ? `auth-${message.id ?? randomUUID()}` : undefined;
+  const timeoutMs = Number(process.env.CLUSTER_FORWARD_TIMEOUT_MS ?? 15000);
+
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error("Cluster forward timed out"));
+    }, timeoutMs);
+
+    const sendMessage = (payload: WsMessage) => {
+      try {
+        ws.send(JSON.stringify(payload));
+      } catch (error) {
+        clearTimeout(timeout);
+        ws.close();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+
+    ws.on("open", () => {
+      if (authToken && authId) {
+        sendMessage({ type: "auth", id: authId, payload: { token: authToken } });
+      } else {
+        sendMessage(message);
+      }
+    });
+
+    ws.on("message", (data) => {
+      try {
+        const parsed = JSON.parse(data.toString()) as WsMessage;
+        if (authId && parsed.id === authId) {
+          if (parsed.type === "auth_success") {
+            sendMessage(message);
+            return;
+          }
+          clearTimeout(timeout);
+          ws.close();
+          reject(new Error("Cluster auth failed"));
+          return;
+        }
+
+        if (message.id && parsed.id !== message.id) return;
+        clearTimeout(timeout);
+        ws.close();
+        resolve(parsed);
+      } catch (error) {
+        clearTimeout(timeout);
+        ws.close();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+
+    ws.on("error", (error) => {
+      clearTimeout(timeout);
+      ws.close();
+      log.warn("Cluster forward error", { wsUrl, error: error.message });
+      reject(error);
+    });
+  });
+}
+
+async function listAgentsFromDatabase(
+  db: Database
+): Promise<Array<Record<string, unknown>>> {
+  const rows = await db.query<{
+    id: string;
+    name: string;
+    state: string;
+    created_at: Date;
+    node_id?: string;
+    metadata?: Record<string, unknown>;
+    total_input_tokens?: number | string;
+    total_output_tokens?: number | string;
+  }>((sql) => sql`
+    SELECT id, name, state, created_at, node_id, metadata,
+           total_input_tokens, total_output_tokens
+    FROM agents
+    WHERE deleted_at IS NULL
+    ORDER BY created_at DESC
+  `);
+
+  return rows.map((row) => {
+    const metadata = normalizeRecord(row.metadata);
+    const limits = normalizeRecord(metadata.limits);
+    return {
+      id: row.id,
+      externalId: metadata.manifestId ?? row.id,
+      name: row.name,
+      state: row.state,
+      uptime: Math.floor((Date.now() - new Date(row.created_at).getTime()) / 1000),
+      model: metadata.model,
+      capabilities: Array.isArray(metadata.capabilities) ? metadata.capabilities : [],
+      permissions: Array.isArray(metadata.permissions) ? metadata.permissions : [],
+      permissionGrants: Array.isArray(metadata.permissionGrants) ? metadata.permissionGrants : [],
+      trustLevel: metadata.trustLevel ?? "monitored-autonomous",
+      limits,
+      tokenUsage: {
+        input: toNumber(row.total_input_tokens, 0),
+        output: toNumber(row.total_output_tokens, 0),
+      },
+      nodeId: row.node_id,
+    };
+  });
 }
 
 function createJobLockProvider(
@@ -2107,6 +2339,8 @@ async function main(): Promise<void> {
   const requireVectorStore = parseBoolean(process.env.REQUIRE_VECTOR_STORE, isProduction);
   const monitorIntervalMs = Number(process.env.MONITOR_AGENT_INTERVAL_MS ?? 60000);
   let clusterCoordinator: ClusterCoordinator | null = null;
+  let clusterNodeId: string | null = null;
+  let clusterHeartbeat: NodeJS.Timeout | null = null;
   if (parseBoolean(process.env.CLUSTER_MODE, false)) {
     if (!db) {
       log.error("CLUSTER_MODE requires persistent storage");
@@ -2116,6 +2350,13 @@ async function main(): Promise<void> {
     if (!clusterCoordinator) {
       log.error("Failed to initialize cluster coordinator");
       process.exit(1);
+    }
+    clusterNodeId = clusterCoordinator.nodeId;
+    const wsUrl = resolveClusterNodeWsUrl(config);
+    if (wsUrl) {
+      clusterHeartbeat = await registerClusterNode(db, clusterCoordinator.nodeId, wsUrl, log);
+    } else {
+      log.warn("CLUSTER_MODE enabled but CLUSTER_NODE_WS_URL/CLUSTER_NODE_HOST not set; routing disabled");
     }
   }
   if (!clusterCoordinator || distributedScheduler || clusterCoordinator.isLeader()) {
@@ -2243,6 +2484,7 @@ async function main(): Promise<void> {
         allowAllDomains,
         allowAllCommands,
         memoryLimitMb,
+        clusterNodeId,
       });
     });
   };
@@ -2407,6 +2649,12 @@ async function main(): Promise<void> {
     if (retentionInterval) {
       clearInterval(retentionInterval);
     }
+    if (clusterHeartbeat) {
+      clearInterval(clusterHeartbeat);
+    }
+    if (clusterCoordinator) {
+      await clusterCoordinator.stop();
+    }
     tracer.stopExport();
     await jobRunner.stop();
     await db?.close();
@@ -2441,6 +2689,7 @@ async function handleClientMessage(
     allowAllDomains: boolean;
     allowAllCommands: boolean;
     memoryLimitMb: number;
+    clusterNodeId: string | null;
   }
 ): Promise<Result<WsMessage | null, GatewayError>> {
   const {
@@ -2462,6 +2711,7 @@ async function handleClientMessage(
     allowAllDomains,
     allowAllCommands,
     memoryLimitMb,
+    clusterNodeId,
   } = ctx;
   const taskContext = {
     router,
@@ -2647,6 +2897,7 @@ async function handleClientMessage(
         id: agentId,
         externalId: manifest.id,
         name: manifest.name,
+        nodeId: clusterNodeId ?? undefined,
         state: "ready",
         startedAt: Date.now(),
         model: manifest.preferredModel ?? manifest.model,
@@ -2688,7 +2939,7 @@ async function handleClientMessage(
       }
 
       if (db) {
-        await upsertAgentRecord(db, agentId, manifest, entry.state, log);
+        await upsertAgentRecord(db, agentId, manifest, entry.state, log, clusterNodeId);
         await recordAuditLog(
           db,
           {
@@ -2743,6 +2994,25 @@ async function handleClientMessage(
       const agent = findAgentById(agents, agentId);
 
       if (!agent) {
+        if (clusterNodeId && db) {
+          const { nodeId } = await resolveAgentNode(db, agentId);
+          if (nodeId && nodeId !== clusterNodeId) {
+            const wsUrl = await resolveClusterNodeUrl(db, nodeId);
+            if (wsUrl) {
+              try {
+                const forwarded = await forwardClusterMessage(wsUrl, message, log);
+                return ok(forwarded);
+              } catch (error) {
+                return err(new GatewayError(
+                  `Cluster forward failed: ${error instanceof Error ? error.message : String(error)}`,
+                  "CLUSTER_FORWARD_FAILED",
+                  client.id,
+                  agentId
+                ));
+              }
+            }
+          }
+        }
         return err(new GatewayError(
           `Agent not found: ${agentId}`,
           "NOT_FOUND",
@@ -2841,6 +3111,74 @@ async function handleClientMessage(
       if (agentId) {
         const agent = findAgentById(agents, agentId);
         if (!agent) {
+          if (clusterNodeId && db) {
+            const { nodeId } = await resolveAgentNode(db, agentId);
+            if (nodeId && nodeId !== clusterNodeId) {
+              const wsUrl = await resolveClusterNodeUrl(db, nodeId);
+              if (wsUrl) {
+                try {
+                  const forwarded = await forwardClusterMessage(wsUrl, message, log);
+                  return ok(forwarded);
+                } catch (error) {
+                  return err(new GatewayError(
+                    `Cluster forward failed: ${error instanceof Error ? error.message : String(error)}`,
+                    "CLUSTER_FORWARD_FAILED",
+                    client.id,
+                    agentId
+                  ));
+                }
+              }
+            }
+
+            const rows = await db.query<{
+              id: string;
+              name: string;
+              state: string;
+              created_at: Date;
+              node_id?: string;
+              metadata?: Record<string, unknown>;
+              total_input_tokens?: number | string;
+              total_output_tokens?: number | string;
+            }>((sql) => sql`
+              SELECT id, name, state, created_at, node_id, metadata,
+                     total_input_tokens, total_output_tokens
+              FROM agents
+              WHERE id = ${agentId}
+                 OR metadata->>'manifestId' = ${agentId}
+              ORDER BY created_at DESC
+              LIMIT 1
+            `);
+            const row = rows[0];
+            if (row) {
+              const metadata = normalizeRecord(row.metadata);
+              const limits = normalizeRecord(metadata.limits);
+              return ok({
+                type: "agent_status",
+                id: message.id,
+                payload: {
+                  agentId: row.id,
+                  externalId: metadata.manifestId ?? row.id,
+                  name: row.name,
+                  state: row.state,
+                  uptime: Math.floor((Date.now() - new Date(row.created_at).getTime()) / 1000),
+                  model: metadata.model,
+                  capabilities: Array.isArray(metadata.capabilities) ? metadata.capabilities : [],
+                  permissions: Array.isArray(metadata.permissions) ? metadata.permissions : [],
+                  permissionGrants: Array.isArray(metadata.permissionGrants)
+                    ? metadata.permissionGrants
+                    : [],
+                  trustLevel: metadata.trustLevel ?? "monitored-autonomous",
+                  limits,
+                  tokenUsage: {
+                    input: toNumber(row.total_input_tokens, 0),
+                    output: toNumber(row.total_output_tokens, 0),
+                  },
+                  nodeId: row.node_id,
+                },
+              });
+            }
+          }
+
           return err(new GatewayError(
             `Agent not found: ${agentId}`,
             "NOT_FOUND",
@@ -2864,6 +3202,18 @@ async function handleClientMessage(
             trustLevel: agent.trustLevel,
             limits: agent.limits,
             tokenUsage: agent.tokenUsage,
+          },
+        });
+      }
+
+      if (clusterNodeId && db) {
+        const agentsList = await listAgentsFromDatabase(db);
+        return ok({
+          type: "agent_list",
+          id: message.id,
+          payload: {
+            agents: agentsList,
+            count: agentsList.length,
           },
         });
       }
@@ -2910,6 +3260,26 @@ async function handleClientMessage(
       const agent = findAgentById(agents, agentId);
 
       if (!agent) {
+        if (clusterNodeId && db) {
+          const { nodeId } = await resolveAgentNode(db, agentId);
+          if (nodeId && nodeId !== clusterNodeId) {
+            const wsUrl = await resolveClusterNodeUrl(db, nodeId);
+            if (wsUrl) {
+              try {
+                const forwarded = await forwardClusterMessage(wsUrl, message, log);
+                return ok(forwarded);
+              } catch (error) {
+                return err(new GatewayError(
+                  `Cluster forward failed: ${error instanceof Error ? error.message : String(error)}`,
+                  "CLUSTER_FORWARD_FAILED",
+                  client.id,
+                  agentId
+                ));
+              }
+            }
+          }
+        }
+
         return err(new GatewayError(
           `Agent not found: ${agentId}`,
           "NOT_FOUND",
@@ -3169,17 +3539,24 @@ async function initializeMemorySubsystem(
   }
 
   const store = db
-    ? new PersistentMemoryStore({
+      ? new PersistentMemoryStore({
         db,
         vectorStore,
         logger: log,
-        enableVectorSearch: Boolean(vectorStore),
+        enableVectorSearch: Boolean(vectorStore) && !encryptionEnabled,
         encryptionKey,
       })
     : new InMemoryStore();
 
   if (db) {
-    log.info("Persistent memory store enabled", { vectorSearch: Boolean(vectorStore) });
+    if (encryptionEnabled && vectorStore) {
+      log.warn("Memory encryption enabled; disabling vector search/embeddings storage", {
+        collection: config.qdrant.collection,
+      });
+    }
+    log.info("Persistent memory store enabled", {
+      vectorSearch: Boolean(vectorStore) && !encryptionEnabled,
+    });
   } else {
     log.warn("Using in-memory memory store (persistence disabled)");
   }
@@ -3194,7 +3571,8 @@ async function upsertAgentRecord(
   agentId: string,
   manifest: AgentManifest,
   state: AgentEntry["state"],
-  log: ReturnType<typeof createLogger>
+  log: ReturnType<typeof createLogger>,
+  nodeId?: string | null
 ): Promise<void> {
   const tags = Array.from(
     new Set([
@@ -3229,6 +3607,7 @@ async function upsertAgentRecord(
         state,
         tags,
         metadata,
+        node_id,
         last_active_at,
         deleted_at
       ) VALUES (
@@ -3239,6 +3618,7 @@ async function upsertAgentRecord(
         ${state},
         ${sql.array(tags)},
         ${sql.json(toJsonValue(metadata))},
+        ${nodeId ?? null},
         NOW(),
         NULL
       )
@@ -3249,6 +3629,7 @@ async function upsertAgentRecord(
         state = EXCLUDED.state,
         tags = EXCLUDED.tags,
         metadata = EXCLUDED.metadata,
+        node_id = EXCLUDED.node_id,
         updated_at = NOW(),
         last_active_at = NOW(),
         deleted_at = NULL
@@ -4617,28 +4998,40 @@ async function handleAgentTask(
       await ensurePermission("agents", "read");
       const filter = parsed.filter ?? {};
 
-      let candidates = Array.from(agents.values()).filter((candidate) => candidate.state !== "terminated");
+      let candidates: Array<Record<string, unknown>> = Array.from(agents.values())
+        .filter((candidate) => candidate.state !== "terminated")
+        .map((candidate) => ({
+          id: candidate.id,
+          externalId: candidate.externalId,
+          name: candidate.name,
+          capabilities: candidate.capabilities,
+        }));
+
+      if (clusterNodeId && db) {
+        const dbAgents = await listAgentsFromDatabase(db);
+        candidates = dbAgents;
+      }
 
       if (filter.capability) {
         candidates = candidates.filter((candidate) =>
-          candidate.capabilities.includes(filter.capability!)
+          Array.isArray(candidate.capabilities) && candidate.capabilities.includes(filter.capability!)
         );
       }
 
       if (filter.name) {
         const nameQuery = filter.name.toLowerCase();
         candidates = candidates.filter((candidate) =>
-          candidate.name.toLowerCase().includes(nameQuery)
+          typeof candidate.name === "string" && candidate.name.toLowerCase().includes(nameQuery)
         );
       }
 
       return {
         type: "discover_agents",
         agents: candidates.map((candidate) => ({
-          id: candidate.id,
-          externalId: candidate.externalId,
-          name: candidate.name,
-          capabilities: candidate.capabilities,
+          id: candidate.id as string,
+          externalId: candidate.externalId as string | undefined,
+          name: candidate.name as string,
+          capabilities: Array.isArray(candidate.capabilities) ? candidate.capabilities : [],
         })),
       };
     }
@@ -5100,6 +5493,138 @@ async function handleAgentTask(
       return {
         type: "audit_query",
         entries: rows,
+      };
+    }
+
+    case "capability_list": {
+      const parsed = CapabilityListTaskSchema.parse(task);
+      await ensurePermission("admin", "read");
+      const targetId = parsed.agentId ?? agent.id;
+      const tokens = permissionManager.listTokens(targetId);
+      return {
+        type: "capability_list",
+        agentId: targetId,
+        tokens,
+      };
+    }
+
+    case "capability_grant": {
+      const parsed = CapabilityGrantTaskSchema.parse(task);
+      await ensurePermission("admin", "admin");
+
+      const parsedPermissions: Permission[] = [];
+      const invalid: string[] = [];
+      for (const perm of parsed.permissions) {
+        const parsedList = parsePermissionString(perm);
+        if (!parsedList) {
+          invalid.push(perm);
+          continue;
+        }
+        parsedPermissions.push(...parsedList);
+      }
+      if (invalid.length > 0) {
+        throw new Error(`Invalid permissions: ${invalid.join(", ")}`);
+      }
+
+      const deduped = dedupePermissions(parsedPermissions);
+      const grantResult = permissionManager.grant(
+        {
+          agentId: parsed.agentId,
+          permissions: deduped,
+          purpose: parsed.purpose ?? "manual",
+          durationMs: parsed.durationMs,
+          delegatable: parsed.delegatable ?? false,
+        },
+        agent.id
+      );
+      if (!grantResult.ok) {
+        throw new Error(`Failed to grant capability: ${grantResult.error.message}`);
+      }
+
+      if (db) {
+        await recordAuditLog(
+          db,
+          {
+            action: "capability.grant",
+            resourceType: "capability",
+            resourceId: grantResult.value.id,
+            actorId: agent.id,
+            details: {
+              agentId: parsed.agentId,
+              purpose: parsed.purpose ?? "manual",
+              permissions: deduped,
+            },
+            outcome: "success",
+          },
+          log
+        );
+      }
+
+      return {
+        type: "capability_grant",
+        token: grantResult.value,
+      };
+    }
+
+    case "capability_revoke": {
+      const parsed = CapabilityRevokeTaskSchema.parse(task);
+      await ensurePermission("admin", "admin");
+
+      const tokenResult = permissionManager.getToken(parsed.tokenId);
+      if (!tokenResult.ok) {
+        throw new Error(tokenResult.error.message);
+      }
+      const revokeResult = permissionManager.revoke(parsed.tokenId);
+      if (!revokeResult.ok) {
+        throw new Error(revokeResult.error.message);
+      }
+
+      if (db) {
+        await recordAuditLog(
+          db,
+          {
+            action: "capability.revoke",
+            resourceType: "capability",
+            resourceId: parsed.tokenId,
+            actorId: agent.id,
+            details: { agentId: tokenResult.value.agentId },
+            outcome: "success",
+          },
+          log
+        );
+      }
+
+      return {
+        type: "capability_revoke",
+        tokenId: parsed.tokenId,
+        success: true,
+      };
+    }
+
+    case "capability_revoke_all": {
+      const parsed = CapabilityRevokeAllTaskSchema.parse(task);
+      await ensurePermission("admin", "admin");
+      const count = permissionManager.revokeAll(parsed.agentId);
+
+      if (db) {
+        await recordAuditLog(
+          db,
+          {
+            action: "capability.revoke_all",
+            resourceType: "capability",
+            resourceId: parsed.agentId,
+            actorId: agent.id,
+            details: { count },
+            outcome: "success",
+          },
+          log
+        );
+      }
+
+      return {
+        type: "capability_revoke_all",
+        agentId: parsed.agentId,
+        count,
       };
     }
 

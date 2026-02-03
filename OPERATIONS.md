@@ -76,7 +76,7 @@ Notes:
 - If the gateway runs inside Docker, ensure the worker containers can reach it (network + host config).
 - Use `AGENT_WORKER_DOCKER_PIDS_LIMIT` and `MAX_MEMORY_PER_AGENT_MB` to bound resource usage.
 - For selective egress control, attach workers to a locked-down Docker network and whitelist via a proxy.
-- For tool egress proxying from the gateway, set `AGENT_EGRESS_PROXY_URL` and run the `egress-proxy` service (see `docker-compose.prod.yml`).
+- For tool egress proxying from the gateway, set `AGENT_EGRESS_PROXY_URL` and run the `egress-proxy` service (see `docker-compose.yml`).
 
 ## Distributed Scheduler (Multi-node)
 AgentOS supports distributed job execution via Postgres advisory locks.
@@ -111,7 +111,7 @@ Environment settings:
 
 Notes:
 - Encryption uses per-agent derived keys (HMAC of the master key + agent ID).
-- Text search is disabled for encrypted fields; prefer embedding search when enabled.
+- Text and embedding search are disabled when encryption is enabled; embeddings are not stored.
 - Not all fields are encrypted (varchar fields remain plaintext for schema compatibility).
 
 ## Load Testing
@@ -130,11 +130,16 @@ AgentOS supports a lightweight leader election using PostgreSQL advisory locks.
 Environment settings:
 - `CLUSTER_MODE=true`
 - `CLUSTER_NODE_ID=<unique-id>`
+- `CLUSTER_NODE_WS_URL=ws://<node-host>:<port>` (recommended)
+- or `CLUSTER_NODE_HOST=<node-host>` + `CLUSTER_NODE_PORT=18800`
+- `CLUSTER_NODE_HEARTBEAT_MS=10000`
+- `CLUSTER_FORWARD_TIMEOUT_MS=15000`
 - `CLUSTER_LEADER_LOCK_KEY=agentos:leader`
 - `CLUSTER_LEADER_CHECK_INTERVAL_MS=5000`
 
 Notes:
 - Only the leader runs scheduled jobs (monitor agent, background tasks).
+- Nodes register in `gateway_nodes` for cross-node task routing.
 - All nodes can serve WebSocket traffic; leader failover happens when DB lock releases.
 
 ## Policy Engine Rules
