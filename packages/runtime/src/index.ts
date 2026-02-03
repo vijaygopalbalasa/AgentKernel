@@ -110,4 +110,6 @@ export {
   JobRunner,
   type JobRunnerConfig,
   type JobRunnerJobConfig,
+  type JobLockProvider,
+  type JobLockRelease,
 } from "./job-runner.js";

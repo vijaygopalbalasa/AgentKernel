@@ -48,7 +48,7 @@ SLOs, security posture, operational policies, and release gates. It follows the
 - Watchdog + exponential backoff restart policy.
 - Resource limits enforced at runtime.
 - Deterministic lifecycle state transitions.
-- Cluster mode supports leader-only scheduling (HA-lite).
+- Cluster mode supports leader-only scheduling or distributed job locks (HA-lite with optional distributed scheduler).
 
 ### Layer 4 — Agent Framework
 **Responsibilities:** identity, memory, skills, communication (A2A), permissions, tools.
@@ -171,7 +171,7 @@ Retention controls are configured via `*_RETENTION_DAYS` environment variables i
 - [x] Backup/restore + migration safety
 - [x] Metrics + tracing + alerting
 - [x] Streaming responses surfaced end-to-end (gateway + CLI; simulated when provider lacks streaming)
-- [ ] Memory lifecycle policies with archival + privacy (archival + encryption done; tiering pending)
+- [x] Memory lifecycle policies with archival + privacy (archival + encryption + tiering + compaction)
 - [x] Dashboard operational workflows (permission review, audit trails, incident handling)
 - [x] CI gate for build + tests + docker smoke on every commit
 - [x] Default agents with guardrails + tests

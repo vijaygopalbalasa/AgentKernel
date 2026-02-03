@@ -10,7 +10,12 @@ import {
 } from "@agent-os/kernel";
 import { createLogger } from "@agent-os/kernel";
 
-export interface JobRunnerConfig extends SchedulerConfig {}
+export interface JobRunnerConfig extends SchedulerConfig {
+  lockProvider?: JobLockProvider;
+}
+
+export type JobLockRelease = () => Promise<void> | void;
+export type JobLockProvider = (jobId: string) => Promise<JobLockRelease | null>;
 
 export interface JobRunnerJobConfig extends Partial<JobConfig> {
   id: string;
@@ -22,6 +27,7 @@ export class JobRunner {
   private scheduler = createScheduler({ logExecutions: false });
   private activeJobs = new Set<string>();
   private log = createLogger({ name: "job-runner" });
+  private lockProvider?: JobLockProvider;
 
   constructor(config: JobRunnerConfig = {}) {
     this.scheduler = createScheduler({
@@ -29,6 +35,7 @@ export class JobRunner {
       defaultIntervalMs: config.defaultIntervalMs ?? 60000,
       shutdownGracePeriodMs: config.shutdownGracePeriodMs ?? 5000,
     });
+    this.lockProvider = config.lockProvider;
   }
 
   start(): void {
@@ -48,9 +55,27 @@ export class JobRunner {
       }
 
       this.activeJobs.add(config.id);
+      let releaseLock: JobLockRelease | null = null;
       try {
+        if (this.lockProvider) {
+          releaseLock = await this.lockProvider(config.id);
+          if (!releaseLock) {
+            this.log.debug("Job lock not acquired; skipping run", { jobId: config.id });
+            return;
+          }
+        }
         await handler();
       } finally {
+        if (releaseLock) {
+          try {
+            await releaseLock();
+          } catch (error) {
+            this.log.warn("Job lock release failed", {
+              jobId: config.id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
         this.activeJobs.delete(config.id);
       }
     });

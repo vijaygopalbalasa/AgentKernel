@@ -12,6 +12,7 @@ import { z } from "zod";
 import Ajv from "ajv";
 import type { ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
+import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 // Load .env from the monorepo root (skip in test to avoid leaking local secrets into CI/tests)
 if (process.env.NODE_ENV !== "test") {
@@ -44,7 +45,7 @@ import {
   type PermissionAction,
   type PermissionCategory,
 } from "@agent-os/permissions";
-import { estimateCost, JobRunner } from "@agent-os/runtime";
+import { estimateCost, JobRunner, type JobLockProvider } from "@agent-os/runtime";
 import { type A2ASkill } from "@agent-os/communication";
 import {
   createToolRegistry,
@@ -779,6 +780,15 @@ function resolveInternalTaskToken(): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function resolveEgressProxyUrl(): string | undefined {
+  return (
+    process.env.AGENT_EGRESS_PROXY_URL?.trim() ||
+    process.env.HTTPS_PROXY?.trim() ||
+    process.env.HTTP_PROXY?.trim() ||
+    undefined
+  );
+}
+
 function resolveMaxAgentTaskTimeoutMs(): number {
   const raw = process.env.MAX_AGENT_TASK_TIMEOUT_MS;
   if (!raw) return 60000;
@@ -791,6 +801,56 @@ function resolveRetentionDays(value: string | undefined, defaultDays: number): n
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return defaultDays;
   return Math.max(0, Math.floor(parsed));
+}
+
+function resolveOptionalNumber(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed;
+}
+
+function truncateText(value: string | null | undefined, limit: number): string | null | undefined {
+  if (value === null || value === undefined) return value;
+  if (limit <= 0) return "";
+  if (value.length <= limit) return value;
+  return value.slice(0, limit);
+}
+
+type MemoryType = "episodic" | "semantic" | "procedural";
+
+function compactArchivePayload(
+  type: MemoryType,
+  row: Record<string, unknown>,
+  limit: number
+): Record<string, unknown> {
+  if (limit <= 0) return row;
+  switch (type) {
+    case "episodic":
+      return {
+        ...row,
+        event: truncateText(row.event as string | null | undefined, limit),
+        context: truncateText(row.context as string | null | undefined, limit),
+        outcome: truncateText(row.outcome as string | null | undefined, limit),
+      };
+    case "semantic":
+      return {
+        ...row,
+        subject: truncateText(row.subject as string | null | undefined, limit),
+        predicate: truncateText(row.predicate as string | null | undefined, limit),
+        object: truncateText(row.object as string | null | undefined, limit),
+        source: truncateText(row.source as string | null | undefined, limit),
+      };
+    case "procedural":
+      return {
+        ...row,
+        name: truncateText(row.name as string | null | undefined, limit),
+        description: truncateText(row.description as string | null | undefined, limit),
+        trigger: truncateText(row.trigger as string | null | undefined, limit),
+      };
+    default:
+      return row;
+  }
 }
 
 function scheduleRetentionCleanup(
@@ -808,12 +868,49 @@ function scheduleRetentionCleanup(
     semanticArchiveDays: number;
     proceduralArchiveDays: number;
     archiveRetentionDays: number;
+    episodicTierDays: number;
+    semanticTierDays: number;
+    proceduralTierDays: number;
+    tierImportanceMax?: number;
+    archiveCompact: boolean;
+    archiveTextLimit: number;
   }
 ): NodeJS.Timeout {
   const intervalMs = 24 * 60 * 60 * 1000;
 
   const runCleanup = async () => {
     try {
+      const archiveRows = async <TRow extends { id: string; agent_id: string; created_at: Date }>(
+        rows: TRow[],
+        type: MemoryType
+      ): Promise<string[]> => {
+        if (rows.length === 0) return [];
+        const payloadRows = rows.map((row) => ({
+          agent_id: row.agent_id,
+          memory_id: row.id,
+          type,
+          payload: config.archiveCompact ? compactArchivePayload(type, row as Record<string, unknown>, config.archiveTextLimit) : row,
+          created_at: row.created_at,
+          archived_at: new Date(),
+        }));
+
+        const inserted = await db.query<{ memory_id: string }>((sql) => sql`
+          INSERT INTO memory_archives (agent_id, memory_id, type, payload, created_at, archived_at)
+          VALUES ${sql(payloadRows.map((entry) => [
+            entry.agent_id,
+            entry.memory_id,
+            entry.type,
+            entry.payload,
+            entry.created_at,
+            entry.archived_at,
+          ]))}
+          ON CONFLICT (memory_id, type) DO NOTHING
+          RETURNING memory_id
+        `);
+
+        return inserted.map((row) => row.memory_id);
+      };
+
       if (config.auditDays > 0) {
         const rows = await db.query((sql) => sql`
           DELETE FROM audit_log
@@ -844,23 +941,32 @@ function scheduleRetentionCleanup(
           log.info("Task message retention cleanup", { deleted: rows.length });
         }
       }
-      if (config.episodicArchiveDays > 0) {
-        const rows = await db.query<{ memory_id: string }>((sql) => sql`
-          WITH moved AS (
-            DELETE FROM episodic_memories
-            WHERE created_at < NOW() - (${config.episodicArchiveDays}::int * INTERVAL '1 day')
-            RETURNING *
-          )
-          INSERT INTO memory_archives (agent_id, memory_id, type, payload, created_at, archived_at)
-          SELECT agent_id, id, 'episodic', to_jsonb(moved), created_at, NOW()
-          FROM moved
-          ON CONFLICT (memory_id, type) DO NOTHING
-          RETURNING memory_id
+      if (config.episodicTierDays > 0) {
+        const rows = await db.query<{ id: string; agent_id: string; created_at: Date }>((sql) => sql`
+          DELETE FROM episodic_memories
+          WHERE last_accessed_at < NOW() - (${config.episodicTierDays}::int * INTERVAL '1 day')
+          ${config.tierImportanceMax !== undefined ? sql`AND importance <= ${config.tierImportanceMax}` : sql``}
+          RETURNING *
         `);
         if (rows.length > 0) {
-          log.info("Episodic memory archived", { archived: rows.length });
+          const archived = await archiveRows(rows, "episodic");
+          log.info("Episodic memory tiered to archive", { archived: archived.length });
           if (vectorStore) {
-            await vectorStore.deleteBatch(rows.map((row) => row.memory_id));
+            await vectorStore.deleteBatch(rows.map((row) => row.id));
+          }
+        }
+      }
+      if (config.episodicArchiveDays > 0) {
+        const rows = await db.query<{ id: string; agent_id: string; created_at: Date }>((sql) => sql`
+          DELETE FROM episodic_memories
+          WHERE created_at < NOW() - (${config.episodicArchiveDays}::int * INTERVAL '1 day')
+          RETURNING *
+        `);
+        if (rows.length > 0) {
+          const archived = await archiveRows(rows, "episodic");
+          log.info("Episodic memory archived", { archived: archived.length });
+          if (vectorStore) {
+            await vectorStore.deleteBatch(rows.map((row) => row.id));
           }
         }
       } else if (config.episodicDays > 0) {
@@ -876,23 +982,32 @@ function scheduleRetentionCleanup(
           }
         }
       }
-      if (config.semanticArchiveDays > 0) {
-        const rows = await db.query<{ memory_id: string }>((sql) => sql`
-          WITH moved AS (
-            DELETE FROM semantic_memories
-            WHERE created_at < NOW() - (${config.semanticArchiveDays}::int * INTERVAL '1 day')
-            RETURNING *
-          )
-          INSERT INTO memory_archives (agent_id, memory_id, type, payload, created_at, archived_at)
-          SELECT agent_id, id, 'semantic', to_jsonb(moved), created_at, NOW()
-          FROM moved
-          ON CONFLICT (memory_id, type) DO NOTHING
-          RETURNING memory_id
+      if (config.semanticTierDays > 0) {
+        const rows = await db.query<{ id: string; agent_id: string; created_at: Date }>((sql) => sql`
+          DELETE FROM semantic_memories
+          WHERE last_accessed_at < NOW() - (${config.semanticTierDays}::int * INTERVAL '1 day')
+          ${config.tierImportanceMax !== undefined ? sql`AND importance <= ${config.tierImportanceMax}` : sql``}
+          RETURNING *
         `);
         if (rows.length > 0) {
-          log.info("Semantic memory archived", { archived: rows.length });
+          const archived = await archiveRows(rows, "semantic");
+          log.info("Semantic memory tiered to archive", { archived: archived.length });
           if (vectorStore) {
-            await vectorStore.deleteBatch(rows.map((row) => row.memory_id));
+            await vectorStore.deleteBatch(rows.map((row) => row.id));
+          }
+        }
+      }
+      if (config.semanticArchiveDays > 0) {
+        const rows = await db.query<{ id: string; agent_id: string; created_at: Date }>((sql) => sql`
+          DELETE FROM semantic_memories
+          WHERE created_at < NOW() - (${config.semanticArchiveDays}::int * INTERVAL '1 day')
+          RETURNING *
+        `);
+        if (rows.length > 0) {
+          const archived = await archiveRows(rows, "semantic");
+          log.info("Semantic memory archived", { archived: archived.length });
+          if (vectorStore) {
+            await vectorStore.deleteBatch(rows.map((row) => row.id));
           }
         }
       } else if (config.semanticDays > 0) {
@@ -908,21 +1023,27 @@ function scheduleRetentionCleanup(
           }
         }
       }
-      if (config.proceduralArchiveDays > 0) {
-        const rows = await db.query<{ memory_id: string }>((sql) => sql`
-          WITH moved AS (
-            DELETE FROM procedural_memories
-            WHERE created_at < NOW() - (${config.proceduralArchiveDays}::int * INTERVAL '1 day')
-            RETURNING *
-          )
-          INSERT INTO memory_archives (agent_id, memory_id, type, payload, created_at, archived_at)
-          SELECT agent_id, id, 'procedural', to_jsonb(moved), created_at, NOW()
-          FROM moved
-          ON CONFLICT (memory_id, type) DO NOTHING
-          RETURNING memory_id
+      if (config.proceduralTierDays > 0) {
+        const rows = await db.query<{ id: string; agent_id: string; created_at: Date }>((sql) => sql`
+          DELETE FROM procedural_memories
+          WHERE last_accessed_at < NOW() - (${config.proceduralTierDays}::int * INTERVAL '1 day')
+          ${config.tierImportanceMax !== undefined ? sql`AND importance <= ${config.tierImportanceMax}` : sql``}
+          RETURNING *
         `);
         if (rows.length > 0) {
-          log.info("Procedural memory archived", { archived: rows.length });
+          const archived = await archiveRows(rows, "procedural");
+          log.info("Procedural memory tiered to archive", { archived: archived.length });
+        }
+      }
+      if (config.proceduralArchiveDays > 0) {
+        const rows = await db.query<{ id: string; agent_id: string; created_at: Date }>((sql) => sql`
+          DELETE FROM procedural_memories
+          WHERE created_at < NOW() - (${config.proceduralArchiveDays}::int * INTERVAL '1 day')
+          RETURNING *
+        `);
+        if (rows.length > 0) {
+          const archived = await archiveRows(rows, "procedural");
+          log.info("Procedural memory archived", { archived: archived.length });
         }
       } else if (config.proceduralDays > 0) {
         const rows = await db.query((sql) => sql`
@@ -1068,6 +1189,7 @@ function validateProductionHardening(
 
   const enforce = parseBoolean(process.env.ENFORCE_PRODUCTION_HARDENING, false);
   const allowUnsafeLocal = parseBoolean(process.env.ALLOW_UNSAFE_LOCAL_WORKERS, false);
+  const enforceEgressProxy = parseBoolean(process.env.ENFORCE_EGRESS_PROXY, false);
   const runtime = resolveWorkerRuntime();
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -1137,6 +1259,13 @@ function validateProductionHardening(
     }
   }
 
+  if (enforceEgressProxy) {
+    const proxyUrl = resolveEgressProxyUrl();
+    if (!proxyUrl) {
+      addIssue("ENFORCE_EGRESS_PROXY requires AGENT_EGRESS_PROXY_URL/HTTPS_PROXY/HTTP_PROXY to be set");
+    }
+  }
+
   for (const warning of warnings) {
     log.warn(warning);
   }
@@ -1162,6 +1291,43 @@ function hashToInt32(value: string): number {
 
 function deriveAdvisoryKeys(key: string): [number, number] {
   return [hashToInt32(key), hashToInt32(`${key}:secondary`)];
+}
+
+function createJobLockProvider(
+  db: Database,
+  log: ReturnType<typeof createLogger>
+): JobLockProvider {
+  return async (jobId: string) => {
+    const [key1, key2] = deriveAdvisoryKeys(`job:${jobId}`);
+    const connection = await db.sql.reserve();
+    try {
+      const rows = await connection<{ acquired: boolean }[]>`
+        SELECT pg_try_advisory_lock(${key1}, ${key2}) AS acquired
+      `;
+      const acquired = rows[0]?.acquired ?? false;
+      if (!acquired) {
+        connection.release();
+        return null;
+      }
+    } catch (error) {
+      connection.release();
+      log.warn("Failed to acquire job lock", {
+        jobId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+
+    return async () => {
+      try {
+        await connection`
+          SELECT pg_advisory_unlock(${key1}, ${key2})
+        `;
+      } finally {
+        connection.release();
+      }
+    };
+  };
 }
 
 async function createClusterCoordinator(
@@ -1794,6 +1960,17 @@ function scheduleMonitorAgent(
 async function main(): Promise<void> {
   const config = loadConfig();
   const log = createLogger({ name: "gateway" });
+  const proxyUrl = resolveEgressProxyUrl();
+  if (proxyUrl) {
+    try {
+      setGlobalDispatcher(new ProxyAgent(proxyUrl));
+      log.info("Global egress proxy enabled", { proxyUrl });
+    } catch (error) {
+      log.warn("Failed to configure global egress proxy", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   const exporterUrl = process.env.TRACING_EXPORTER_URL?.trim() || undefined;
   const tracer = getTracer({
     enabled: parseBoolean(process.env.TRACING_ENABLED, false),
@@ -1913,7 +2090,12 @@ async function main(): Promise<void> {
 
   // ─── Agent Tracking ───
   const agents = new Map<string, AgentEntry>();
-  const jobRunner = new JobRunner({ logExecutions: false });
+  const distributedScheduler = parseBoolean(
+    process.env.DISTRIBUTED_SCHEDULER,
+    parseBoolean(process.env.CLUSTER_MODE, false)
+  );
+  const jobLockProvider = db && distributedScheduler ? createJobLockProvider(db, log) : undefined;
+  const jobRunner = new JobRunner({ logExecutions: false, lockProvider: jobLockProvider });
   const a2aTasks = new Map<string, A2ATaskEntry>();
   const allowedPaths = parseAllowedPaths(process.env.ALLOWED_PATHS);
   const allowedDomains = parseAllowedDomains(process.env.ALLOWED_DOMAINS);
@@ -1922,6 +2104,7 @@ async function main(): Promise<void> {
   const allowAllPaths = parseBoolean(process.env.ALLOW_ALL_PATHS, !isProduction);
   const allowAllDomains = parseBoolean(process.env.ALLOW_ALL_DOMAINS, !isProduction);
   const allowAllCommands = parseBoolean(process.env.ALLOW_ALL_COMMANDS, false);
+  const requireVectorStore = parseBoolean(process.env.REQUIRE_VECTOR_STORE, isProduction);
   const monitorIntervalMs = Number(process.env.MONITOR_AGENT_INTERVAL_MS ?? 60000);
   let clusterCoordinator: ClusterCoordinator | null = null;
   if (parseBoolean(process.env.CLUSTER_MODE, false)) {
@@ -1935,12 +2118,12 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
-  if (!clusterCoordinator || clusterCoordinator.isLeader()) {
+  if (!clusterCoordinator || distributedScheduler || clusterCoordinator.isLeader()) {
     jobRunner.start();
   } else {
     log.info("Cluster follower: scheduler paused", { nodeId: clusterCoordinator.nodeId });
   }
-  if (clusterCoordinator) {
+  if (clusterCoordinator && !distributedScheduler) {
     clusterCoordinator.onChange((isLeader) => {
       if (isLeader) {
         log.info("Cluster leadership acquired; starting scheduler", { nodeId: clusterCoordinator?.nodeId });
@@ -1949,6 +2132,10 @@ async function main(): Promise<void> {
         log.warn("Cluster leadership lost; stopping scheduler", { nodeId: clusterCoordinator?.nodeId });
         void jobRunner.stop();
       }
+    });
+  } else if (clusterCoordinator && distributedScheduler) {
+    log.info("Distributed scheduler enabled; job locks handle coordination", {
+      nodeId: clusterCoordinator.nodeId,
     });
   }
   const permissionSecret = process.env.PERMISSION_SECRET ?? process.env.CAPABILITY_SECRET;
@@ -1998,6 +2185,16 @@ async function main(): Promise<void> {
   const semanticArchiveDays = resolveRetentionDays(process.env.SEMANTIC_ARCHIVE_DAYS, 0);
   const proceduralArchiveDays = resolveRetentionDays(process.env.PROCEDURAL_ARCHIVE_DAYS, 0);
   const archiveRetentionDays = resolveRetentionDays(process.env.MEMORY_ARCHIVE_RETENTION_DAYS, 0);
+  const episodicTierDays = resolveRetentionDays(process.env.EPISODIC_TIER_DAYS, 0);
+  const semanticTierDays = resolveRetentionDays(process.env.SEMANTIC_TIER_DAYS, 0);
+  const proceduralTierDays = resolveRetentionDays(process.env.PROCEDURAL_TIER_DAYS, 0);
+  const tierImportanceMax = resolveOptionalNumber(process.env.MEMORY_TIER_IMPORTANCE_MAX);
+  const memoryEncryptionEnabled = parseBoolean(process.env.MEMORY_ENCRYPTION_ENABLED, false);
+  const archiveCompact = parseBoolean(process.env.MEMORY_ARCHIVE_COMPACT, false) && !memoryEncryptionEnabled;
+  const archiveTextLimit = Math.max(
+    256,
+    Math.floor(resolveOptionalNumber(process.env.MEMORY_ARCHIVE_TEXT_LIMIT) ?? 4096)
+  );
   const retentionInterval = db
     ? scheduleRetentionCleanup(db, vectorStore, log, {
         auditDays: auditRetentionDays,
@@ -2010,6 +2207,12 @@ async function main(): Promise<void> {
         semanticArchiveDays,
         proceduralArchiveDays,
         archiveRetentionDays,
+        episodicTierDays,
+        semanticTierDays,
+        proceduralTierDays,
+        tierImportanceMax,
+        archiveCompact,
+        archiveTextLimit,
       })
     : undefined;
 
@@ -2093,7 +2296,7 @@ async function main(): Promise<void> {
         if (healthyProviders === 0) return "error";
         if (!db) return "degraded";
         if (healthyProviders < providerStates.length) return "degraded";
-        if (!vectorStore) return "degraded";
+        if (requireVectorStore && !vectorStore) return "degraded";
         return "ok";
       })(),
       version: "0.1.0",
@@ -3555,6 +3758,12 @@ async function handleAgentTask(
     memoryLimitMb,
   };
 
+  const baseResult = z.object({ type: z.string().min(1) }).safeParse(task);
+  if (!baseResult.success) {
+    throw new Error(`Invalid task: ${baseResult.error.message}`);
+  }
+  const taskType = baseResult.data.type;
+
   if (db) {
     const sanctions = await db.query((sql) => sql`
       SELECT id, type, status
@@ -3563,7 +3772,10 @@ async function handleAgentTask(
     `);
     if (sanctions.length > 0) {
       const types = sanctions.map((s: { type?: string }) => s.type).filter(Boolean);
-      throw new Error(`Agent sanctioned: ${types.join(", ") || "active"}`);
+      const isAppealTask = taskType === "appeal_open" || taskType === "appeal_list";
+      if (!isAppealTask) {
+        throw new Error(`Agent sanctioned: ${types.join(", ") || "active"}`);
+      }
     }
   }
 
@@ -3575,11 +3787,6 @@ async function handleAgentTask(
   }
   if (agent.state === "paused") {
     throw new Error("Agent is paused");
-  }
-
-  const baseResult = z.object({ type: z.string().min(1) }).safeParse(task);
-  if (!baseResult.success) {
-    throw new Error(`Invalid task: ${baseResult.error.message}`);
   }
 
   const ensureApproval = async (

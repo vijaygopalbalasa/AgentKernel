@@ -126,7 +126,7 @@ function handleHealth(
     return;
   }
 
-  res.writeHead(health.status === "ok" ? 200 : 503, { "Content-Type": "application/json" });
+  res.writeHead(health.status === "error" ? 503 : 200, { "Content-Type": "application/json" });
   res.end(JSON.stringify(health, null, 2));
 }
 

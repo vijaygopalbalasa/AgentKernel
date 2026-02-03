@@ -4,6 +4,8 @@ services:
       AGENT_WORKER_REQUIRE_APPARMOR: "true"
       AGENT_WORKER_DOCKER_APPARMOR: ${AGENT_WORKER_DOCKER_APPARMOR:-docker-default}
       AGENT_EGRESS_PROXY_URL: ${AGENT_EGRESS_PROXY_URL:-http://egress-proxy:3128}
+      ENFORCE_EGRESS_PROXY: ${ENFORCE_EGRESS_PROXY:-true}
+      DISTRIBUTED_SCHEDULER: ${DISTRIBUTED_SCHEDULER:-true}
       HTTP_PROXY: ${HTTP_PROXY:-http://egress-proxy:3128}
       HTTPS_PROXY: ${HTTPS_PROXY:-http://egress-proxy:3128}
       NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agent-os-gateway,postgres,redis,qdrant,egress-proxy}

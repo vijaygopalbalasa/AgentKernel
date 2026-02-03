@@ -67,14 +67,27 @@ Environment settings:
   - `AGENT_WORKER_DOCKER_SECURITY_OPTS=seccomp=...,apparmor=...`
   - `AGENT_WORKER_DOCKER_CPUS=1`
   - `AGENT_WORKER_DOCKER_ULIMITS=nofile=1024:2048,fsize=10485760`
-  - `AGENT_WORKER_DOCKER_STORAGE_OPTS=size=2G`
-  - `AGENT_WORKER_DISABLE_NETWORK=true` (full egress block)
+- `AGENT_WORKER_DOCKER_STORAGE_OPTS=size=2G`
+- `AGENT_WORKER_DISABLE_NETWORK=true` (full egress block)
+- `ENFORCE_EGRESS_PROXY=true` (require proxy for gateway/provider egress)
+- `AGENT_EGRESS_PROXY_URL=http://egress-proxy:3128` (proxy URL)
 
 Notes:
 - If the gateway runs inside Docker, ensure the worker containers can reach it (network + host config).
 - Use `AGENT_WORKER_DOCKER_PIDS_LIMIT` and `MAX_MEMORY_PER_AGENT_MB` to bound resource usage.
 - For selective egress control, attach workers to a locked-down Docker network and whitelist via a proxy.
 - For tool egress proxying from the gateway, set `AGENT_EGRESS_PROXY_URL` and run the `egress-proxy` service (see `docker-compose.prod.yml`).
+
+## Distributed Scheduler (Multi-node)
+AgentOS supports distributed job execution via Postgres advisory locks.
+
+Environment settings:
+- `CLUSTER_MODE=true`
+- `DISTRIBUTED_SCHEDULER=true` (default in `docker-compose.prod.yml`)
+
+Notes:
+- When enabled, any node can execute scheduled jobs; advisory locks prevent double execution.
+- If disabled, the leader-only scheduler is used (HA-lite).
 - If running the gateway inside Docker with worker isolation, mount the Docker socket and ensure the image includes `docker` CLI.
 - Default compose uses an internal network for workers to prevent outbound egress unless explicitly configured.
 

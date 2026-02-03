@@ -6,14 +6,13 @@ This file captures the current state, what has been completed, what remains, and
 
 ## Current Status (as of 2026-02-03)
 - **Codebase status:** Extensive production-hardening and social/governance features implemented (see Completed section below).
-- **Infra status:** Docker test infra (postgres/redis/qdrant) can be started; qdrant healthcheck is “unhealthy” only because the container lacks `curl`. HTTP `/collections` works.
-- **Blocking issue (local sandbox):** Integration tests that require Postgres/Qdrant/Redis fail when the gateway cannot connect to localhost (EPERM). This is a **sandbox/network restriction** and does not reproduce on a normal macOS host shell.
-- **Impact:** Memory + social/governance tests fail because the gateway silently falls back to in‑memory stores when persistent infra is unreachable.
+- **Integration status:** All gateway integration tests now pass locally (`pnpm -C apps/gateway test:integration`).
+- **Docker status:** `scripts/docker-smoke.sh` currently fails during image build with Docker BuildKit I/O errors while `chown -R /app` runs (read-only filesystem + `metadata_v2.db` write error). This is a Docker Desktop storage issue, not a code failure.
 
-### Quick Fix (most likely)
-1) Run the integration suite in a normal host shell (not sandboxed), OR
-2) Use the dockerized test environment + run vitest on the host machine, OR
-3) If ports conflict, stop `agent-os-gateway` container or move integration test ports.
+### Quick Fix (Docker smoke failure)
+1) Restart Docker Desktop (clears transient BuildKit filesystem errors).
+2) If the error persists, run `docker system prune -af --volumes` and re-run `./scripts/docker-smoke.sh`.
+3) Ensure Docker Desktop has enough free disk space (the failure indicates a storage I/O issue).
 
 ### Recent Changes (2026-02-03)
 - Added mock LLM providers for `NODE_ENV=test` to eliminate real API dependency.
@@ -47,6 +46,12 @@ This file captures the current state, what has been completed, what remains, and
 - Added production overlay `docker-compose.prod.yml` (AppArmor requirement + egress proxy wiring).
 - Added `AGENT_WORKER_REQUIRE_APPARMOR` gate and AppArmor config support.
 - Latest docker smoke rerun timed out mid-Playwright browser download; rerun with longer timeout if needed.
+- Added memory tiering + archive compaction controls (`EPISODIC_TIER_DAYS`, `MEMORY_ARCHIVE_COMPACT`, etc).
+- Added distributed scheduler support with Postgres advisory job locks (`DISTRIBUTED_SCHEDULER`).
+- Gateway now sets a global egress proxy for provider traffic when `AGENT_EGRESS_PROXY_URL` is set.
+- Health endpoint now returns HTTP 200 for `degraded` status (503 only on `error`).
+- Sanction enforcement now blocks all tasks **except** `appeal_open` / `appeal_list`.
+- Integration tests confirmed green after the above fixes.
 
 ---
 
@@ -149,15 +154,14 @@ AgentOS is a **self-hosted operating system for AI agents**: identity, memory, p
 
 ## Test & Validation Status
 ### Integration tests
-- **Status:** Failing due to gateway connection errors (`createTestConnection` returning `ok: false`).
-- **Most likely cause:** Port conflict with running docker gateway container.
-- **Required action:** Stop the container or move integration test ports.
+- **Status:** ✅ Passing (`pnpm -C apps/gateway test:integration`).
 
 ### Chaos tests
 - **Status:** Implemented (`test-2-db-outage.test.ts`), not yet re-run since the last infra changes.
 
 ### Docker smoke test
-- **Status:** Implemented (`scripts/docker-smoke.sh`), needs re-run after infra fixes.
+- **Status:** Failing due to Docker BuildKit storage I/O errors during `chown -R /app` in the production image build.
+- **Next:** Restart Docker Desktop or prune Docker system cache, then re-run `./scripts/docker-smoke.sh`.
 
 ---
 

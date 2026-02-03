@@ -227,6 +227,9 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
+      undici:
+        specifier: ^7.16.0
+        version: 7.20.0
       ws:
         specifier: ^8.19.0
         version: 8.19.0
