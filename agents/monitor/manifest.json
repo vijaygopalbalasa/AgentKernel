@@ -1,0 +1,78 @@
+{
+  "id": "monitor",
+  "name": "Monitor Agent",
+  "version": "0.1.0",
+  "description": "Tracks URLs or feeds and emits alerts when content changes.",
+  "preferredModel": "gpt-4o-mini",
+  "entryPoint": "agents/monitor/dist/index.js",
+  "requiredSkills": [],
+  "permissions": [
+    "memory.read",
+    "memory.write",
+    "tools.execute",
+    "network.fetch"
+  ],
+  "trustLevel": "monitored-autonomous",
+  "limits": {
+    "requestsPerMinute": 30,
+    "toolCallsPerMinute": 60
+  },
+  "tools": [
+    { "id": "builtin:http_fetch", "enabled": true }
+  ],
+  "a2aSkills": [
+    {
+      "id": "monitor_add",
+      "name": "Add Monitor",
+      "description": "Add a URL to the monitoring list.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "monitor_add" },
+          "url": { "type": "string" },
+          "name": { "type": "string" },
+          "notifyUrl": { "type": "string" }
+        },
+        "required": ["type", "url"]
+      }
+    },
+    {
+      "id": "monitor_remove",
+      "name": "Remove Monitor",
+      "description": "Remove a watcher by id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "monitor_remove" },
+          "id": { "type": "string" }
+        },
+        "required": ["type", "id"]
+      }
+    },
+    {
+      "id": "monitor_check",
+      "name": "Check Monitors",
+      "description": "Check all watchers (or a specific watcher).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "monitor_check" },
+          "id": { "type": "string" }
+        },
+        "required": ["type"]
+      }
+    },
+    {
+      "id": "monitor_list",
+      "name": "List Monitors",
+      "description": "List current watchers.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "monitor_list" }
+        },
+        "required": ["type"]
+      }
+    }
+  ]
+}

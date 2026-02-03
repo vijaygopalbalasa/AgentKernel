@@ -1,0 +1,21 @@
+services:
+  gateway:
+    environment:
+      AGENT_WORKER_REQUIRE_APPARMOR: "true"
+      AGENT_WORKER_DOCKER_APPARMOR: ${AGENT_WORKER_DOCKER_APPARMOR:-docker-default}
+      AGENT_EGRESS_PROXY_URL: ${AGENT_EGRESS_PROXY_URL:-http://egress-proxy:3128}
+      HTTP_PROXY: ${HTTP_PROXY:-http://egress-proxy:3128}
+      HTTPS_PROXY: ${HTTPS_PROXY:-http://egress-proxy:3128}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agent-os-gateway,postgres,redis,qdrant,egress-proxy}
+
+  egress-proxy:
+    build:
+      context: .
+      dockerfile: docker/egress-proxy/Dockerfile
+    container_name: agent-os-egress-proxy
+    restart: unless-stopped
+    environment:
+      EGRESS_ALLOWED_DOMAINS: ${EGRESS_ALLOWED_DOMAINS:-${ALLOWED_DOMAINS:-}}
+    networks:
+      - agent-os-network
+      - agent-os-internal

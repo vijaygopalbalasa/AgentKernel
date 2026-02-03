@@ -1,0 +1,8 @@
+# Agent OS Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-os
+  labels:
+    app.kubernetes.io/name: agent-os
+    app.kubernetes.io/part-of: agent-os

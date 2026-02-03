@@ -1,0 +1,98 @@
+{
+  "id": "coder",
+  "name": "Coder Agent",
+  "version": "0.1.0",
+  "description": "Reviews code, suggests tests, and proposes refactors.",
+  "preferredModel": "gpt-4o-mini",
+  "entryPoint": "agents/coder/dist/index.js",
+  "requiredSkills": [],
+  "permissions": [
+    "memory.read",
+    "memory.write",
+    "llm.execute",
+    "tools.execute",
+    "filesystem.read",
+    "shell.execute"
+  ],
+  "trustLevel": "semi-autonomous",
+  "limits": {
+    "maxTokensPerRequest": 4096,
+    "requestsPerMinute": 60
+  },
+  "a2aSkills": [
+    {
+      "id": "code_review",
+      "name": "Code Review",
+      "description": "Review a diff or code snippet and return findings.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "code_review" },
+          "diff": { "type": "string" },
+          "context": { "type": "string" },
+          "guidelines": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["type", "diff"]
+      }
+    },
+    {
+      "id": "test_suggest",
+      "name": "Test Suggestions",
+      "description": "Suggest tests for a given file or snippet.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "test_suggest" },
+          "code": { "type": "string" },
+          "filePath": { "type": "string" },
+          "framework": { "type": "string" }
+        },
+        "required": ["type", "code"]
+      }
+    },
+    {
+      "id": "refactor_suggest",
+      "name": "Refactor Suggestions",
+      "description": "Recommend refactors for a code snippet.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "refactor_suggest" },
+          "code": { "type": "string" },
+          "goal": { "type": "string" }
+        },
+        "required": ["type", "code"]
+      }
+    },
+    {
+      "id": "run_command",
+      "name": "Run Command",
+      "description": "Execute a shell command (allowlisted) and return output.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "run_command" },
+          "command": { "type": "string" },
+          "args": { "type": "array", "items": { "type": "string" } },
+          "cwd": { "type": "string" },
+          "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 60000 },
+          "allowNonZeroExit": { "type": "boolean" }
+        },
+        "required": ["type", "command"]
+      }
+    },
+    {
+      "id": "repo_summary",
+      "name": "Repository Summary",
+      "description": "Summarize a repository using README and directory listing.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "repo_summary" },
+          "root": { "type": "string" }
+        },
+        "required": ["type"]
+      }
+    }
+  ]
+}

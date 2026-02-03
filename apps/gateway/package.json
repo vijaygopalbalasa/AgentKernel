@@ -4,22 +4,39 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "tsup src/main.ts --format esm",
-    "start": "node dist/main.js"
+    "build": "tsup src/main.ts src/agent-worker.ts --format esm",
+    "start": "node dist/main.js",
+    "test": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:all": "vitest run"
   },
   "dependencies": {
     "@agent-os/kernel": "workspace:*",
     "@agent-os/mal": "workspace:*",
+    "@agent-os/runtime": "workspace:*",
+    "@agent-os/identity": "workspace:*",
+    "@agent-os/communication": "workspace:*",
+    "@agent-os/permissions": "workspace:*",
+    "@agent-os/events": "workspace:*",
+    "@agent-os/memory": "workspace:*",
     "@agent-os/provider-anthropic": "workspace:*",
     "@agent-os/provider-openai": "workspace:*",
     "@agent-os/provider-google": "workspace:*",
     "@agent-os/provider-ollama": "workspace:*",
     "@agent-os/shared": "workspace:*",
+    "@agent-os/tools": "workspace:*",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "dotenv": "^17.2.3",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.10",
     "@types/ws": "^8.18.1",
-    "tsx": "^4.19.0"
+    "pg": "^8.14.0",
+    "redis": "^5.0.0",
+    "tsx": "^4.19.0",
+    "vitest": "^4.0.0"
   }
 }

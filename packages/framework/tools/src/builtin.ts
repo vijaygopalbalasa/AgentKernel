@@ -2,8 +2,12 @@
 // These are registered by default for all agents
 
 import { z } from "zod";
+import { readFile, writeFile, appendFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import type { ToolDefinition, ToolHandler, ToolResult, ToolContext } from "./types.js";
 import { ToolRegistry } from "./registry.js";
+import type { Browser } from "playwright";
+import { ProxyAgent } from "undici";
 
 // ─── ECHO TOOL (for testing) ─────────────────────────────────
 
@@ -121,6 +125,401 @@ const calculateHandler: ToolHandler<z.infer<typeof calculateSchema>> = async (ar
       success: false,
       error: `Failed to evaluate expression: ${err instanceof Error ? err.message : String(err)}`,
     };
+  }
+};
+
+// ─── FILE READ TOOL ─────────────────────────────────────────
+
+const fileReadSchema = z.object({
+  path: z.string().min(1).describe("Absolute or relative path to read"),
+});
+
+const fileReadDefinition: ToolDefinition = {
+  id: "builtin:file_read",
+  name: "File Read",
+  description: "Read the contents of a file from disk.",
+  inputSchema: fileReadSchema,
+  category: "filesystem",
+  tags: ["file", "read"],
+  requiredPermissions: ["filesystem.read"],
+};
+
+const fileReadHandler: ToolHandler<z.infer<typeof fileReadSchema>> = async (args) => {
+  try {
+    const content = await readFile(args.path, "utf-8");
+    return {
+      success: true,
+      content,
+      metadata: {
+        path: args.path,
+        bytes: content.length,
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+};
+
+// ─── FILE WRITE TOOL ────────────────────────────────────────
+
+const fileWriteSchema = z.object({
+  path: z.string().min(1).describe("Absolute or relative path to write"),
+  content: z.string().describe("Content to write to the file"),
+  append: z.boolean().optional().describe("Append instead of overwrite"),
+  encoding: z.enum([
+    "utf-8", "utf8", "utf16le", "ucs2", "ucs-2", "base64", "base64url",
+    "latin1", "binary", "hex", "ascii"
+  ]).optional().describe("Text encoding (default utf-8)"),
+});
+
+const fileWriteDefinition: ToolDefinition = {
+  id: "builtin:file_write",
+  name: "File Write",
+  description: "Write content to a file on disk.",
+  inputSchema: fileWriteSchema,
+  category: "filesystem",
+  tags: ["file", "write"],
+  requiredPermissions: ["filesystem.write"],
+  requiresConfirmation: true, // Destructive operation requires approval
+};
+
+const fileWriteHandler: ToolHandler<z.infer<typeof fileWriteSchema>> = async (args) => {
+  try {
+    const encoding = (args.encoding ?? "utf-8") as BufferEncoding;
+    if (args.append) {
+      await appendFile(args.path, args.content, encoding);
+    } else {
+      await writeFile(args.path, args.content, encoding);
+    }
+
+    return {
+      success: true,
+      content: {
+        path: args.path,
+        bytes: Buffer.byteLength(args.content, encoding),
+        append: args.append ?? false,
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: `Failed to write file: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+};
+
+// ─── SHELL EXEC TOOL ────────────────────────────────────────
+
+const shellExecSchema = z.object({
+  command: z.string().min(1).describe("Command to execute (no shell)"),
+  args: z.array(z.string()).optional().describe("Arguments to pass"),
+  cwd: z.string().optional().describe("Working directory"),
+  env: z.record(z.string()).optional().describe("Environment variables"),
+  timeoutMs: z.number().int().min(100).max(60000).optional().describe("Execution timeout"),
+  maxBytes: z.number().int().min(1).max(5 * 1024 * 1024).optional().describe("Max output bytes"),
+  allowNonZeroExit: z.boolean().optional().describe("Allow non-zero exit codes"),
+});
+
+const shellExecDefinition: ToolDefinition = {
+  id: "builtin:shell_exec",
+  name: "Shell Exec",
+  description: "Execute a command with strict allowlisting (no shell interpolation).",
+  inputSchema: shellExecSchema,
+  category: "system",
+  tags: ["shell", "exec", "command"],
+  requiredPermissions: ["shell.execute"],
+  requiresConfirmation: true,
+};
+
+const shellExecHandler: ToolHandler<z.infer<typeof shellExecSchema>> = async (args, context) => {
+  const start = Date.now();
+  const maxBytes = args.maxBytes ?? 1024 * 1024;
+  const timeoutMs = args.timeoutMs ?? 30000;
+
+  return new Promise((resolve) => {
+    const child = spawn(args.command, args.args ?? [], {
+      cwd: args.cwd,
+      env: {
+        ...process.env,
+        ...(args.env ?? {}),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let outputBytes = 0;
+    let timedOut = false;
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, timeoutMs);
+
+    const onData = (chunk: Buffer, target: "stdout" | "stderr") => {
+      outputBytes += chunk.length;
+      if (outputBytes > maxBytes) {
+        child.kill("SIGTERM");
+        return;
+      }
+      if (target === "stdout") {
+        stdout += chunk.toString("utf-8");
+      } else {
+        stderr += chunk.toString("utf-8");
+      }
+    };
+
+    child.stdout?.on("data", (chunk: Buffer) => onData(chunk, "stdout"));
+    child.stderr?.on("data", (chunk: Buffer) => onData(chunk, "stderr"));
+
+    context.signal?.addEventListener("abort", () => {
+      child.kill("SIGTERM");
+    });
+
+    child.on("error", (err) => {
+      clearTimeout(timeout);
+      resolve({
+        success: false,
+        error: `Failed to execute command: ${err.message}`,
+        executionTime: Date.now() - start,
+      });
+    });
+
+    child.on("close", (code, signal) => {
+      clearTimeout(timeout);
+      if (timedOut) {
+        resolve({
+          success: false,
+          error: "Command timed out",
+          executionTime: Date.now() - start,
+          content: { stdout, stderr, exitCode: code, signal },
+        });
+        return;
+      }
+
+      if (outputBytes > maxBytes) {
+        resolve({
+          success: false,
+          error: `Output exceeded maxBytes (${maxBytes})`,
+          executionTime: Date.now() - start,
+          content: { stdout, stderr, exitCode: code, signal },
+        });
+        return;
+      }
+
+      const success = code === 0 || args.allowNonZeroExit === true;
+      resolve({
+        success,
+        executionTime: Date.now() - start,
+        content: { stdout, stderr, exitCode: code, signal },
+        error: success ? undefined : `Command exited with code ${code ?? "unknown"}`,
+      });
+    });
+  });
+};
+
+// ─── HTTP FETCH TOOL ────────────────────────────────────────
+
+const httpFetchSchema = z.object({
+  url: z.string().url().describe("URL to fetch"),
+  method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]).optional(),
+  headers: z.record(z.string()).optional(),
+  body: z.union([z.string(), z.record(z.unknown())]).optional(),
+  timeoutMs: z.number().int().min(100).max(60000).optional(),
+  maxBytes: z.number().int().min(1).max(5 * 1024 * 1024).optional(),
+});
+
+const httpFetchDefinition: ToolDefinition = {
+  id: "builtin:http_fetch",
+  name: "HTTP Fetch",
+  description: "Fetch a URL over HTTP(S).",
+  inputSchema: httpFetchSchema,
+  category: "network",
+  tags: ["http", "fetch", "network"],
+  requiredPermissions: ["network.fetch"],
+};
+
+let cachedProxyUrl: string | undefined;
+let cachedProxyAgent: unknown;
+
+const resolveProxyAgent = (): unknown => {
+  const proxyUrl = process.env.AGENT_EGRESS_PROXY_URL?.trim();
+  if (!proxyUrl) {
+    cachedProxyUrl = undefined;
+    cachedProxyAgent = undefined;
+    return undefined;
+  }
+  if (!cachedProxyAgent || cachedProxyUrl !== proxyUrl) {
+    cachedProxyUrl = proxyUrl;
+    cachedProxyAgent = new ProxyAgent(proxyUrl);
+  }
+  return cachedProxyAgent;
+};
+
+const httpFetchHandler: ToolHandler<z.infer<typeof httpFetchSchema>> = async (args, context) => {
+  const controller = new AbortController();
+  const timeoutMs = args.timeoutMs ?? 10000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (context.signal) {
+    context.signal.addEventListener("abort", () => controller.abort());
+  }
+
+  try {
+    const body = args.body && typeof args.body === "object"
+      ? JSON.stringify(args.body)
+      : args.body;
+
+    const dispatcher = resolveProxyAgent();
+    const fetchInit: Record<string, unknown> = {
+      method: args.method ?? "GET",
+      headers: args.headers,
+      body,
+      signal: controller.signal,
+    };
+    if (dispatcher) {
+      fetchInit.dispatcher = dispatcher;
+    }
+
+    const response = await fetch(args.url, fetchInit as RequestInit);
+
+    const text = await response.text();
+    const maxBytes = args.maxBytes ?? 1024 * 1024;
+    if (Buffer.byteLength(text, "utf-8") > maxBytes) {
+      return {
+        success: false,
+        error: `Response exceeded maxBytes (${maxBytes})`,
+      };
+    }
+
+    const headers = Object.fromEntries(response.headers.entries());
+
+    return {
+      success: response.ok,
+      content: {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+        body: text,
+      },
+      error: response.ok ? undefined : `HTTP ${response.status}`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: `Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+// ─── BROWSER SNAPSHOT TOOL ──────────────────────────────────
+
+const browserSnapshotSchema = z.object({
+  url: z.string().url().describe("URL to open in a headless browser"),
+  waitMs: z.number().int().min(0).max(30000).optional().describe("Wait after load (ms)"),
+  timeoutMs: z.number().int().min(1000).max(60000).optional().describe("Navigation timeout (ms)"),
+  maxHtmlBytes: z.number().int().min(1024).max(2 * 1024 * 1024).optional().describe("Max HTML bytes"),
+  screenshot: z.boolean().optional().describe("Include a PNG screenshot"),
+  fullPage: z.boolean().optional().describe("Capture full page screenshot"),
+  viewport: z.object({
+    width: z.number().int().min(100).max(1920),
+    height: z.number().int().min(100).max(1080),
+  }).optional(),
+  userAgent: z.string().optional(),
+  headers: z.record(z.string()).optional(),
+});
+
+const browserSnapshotDefinition: ToolDefinition = {
+  id: "builtin:browser_snapshot",
+  name: "Browser Snapshot",
+  description: "Load a URL in a headless browser and return HTML (and optional screenshot).",
+  inputSchema: browserSnapshotSchema,
+  category: "browser",
+  tags: ["browser", "web", "automation"],
+  requiredPermissions: ["network.execute"],
+};
+
+const browserSnapshotHandler: ToolHandler<z.infer<typeof browserSnapshotSchema>> = async (args, context) => {
+  const timeoutMs = args.timeoutMs ?? 30000;
+  const waitMs = args.waitMs ?? 0;
+  const maxHtmlBytes = args.maxHtmlBytes ?? 500000;
+
+  let browser: Browser | null = null;
+  try {
+    const { chromium } = await import("playwright");
+    const proxyUrl = process.env.AGENT_EGRESS_PROXY_URL?.trim();
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      proxy: proxyUrl ? { server: proxyUrl } : undefined,
+    });
+    const pageContext = await browser.newContext({
+      viewport: args.viewport,
+      userAgent: args.userAgent,
+    });
+    if (args.headers) {
+      await pageContext.setExtraHTTPHeaders(args.headers);
+    }
+    const page = await pageContext.newPage();
+
+    if (context.signal) {
+      context.signal.addEventListener("abort", () => {
+        void page.close().catch(() => {});
+      });
+    }
+
+    await page.goto(args.url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+    if (waitMs > 0) {
+      await page.waitForTimeout(waitMs);
+    }
+
+    const title = await page.title();
+    const html = await page.content();
+    let htmlOut = html;
+    let htmlBytes = Buffer.byteLength(htmlOut, "utf8");
+    if (htmlBytes > maxHtmlBytes) {
+      htmlOut = htmlOut.slice(0, maxHtmlBytes);
+      htmlBytes = Buffer.byteLength(htmlOut, "utf8");
+    }
+
+    let screenshotBase64: string | undefined;
+    let screenshotBytes: number | undefined;
+    if (args.screenshot) {
+      const buffer = await page.screenshot({ fullPage: args.fullPage ?? true, type: "png" });
+      screenshotBase64 = buffer.toString("base64");
+      screenshotBytes = buffer.byteLength;
+    }
+
+    await page.close();
+    await pageContext.close();
+
+    return {
+      success: true,
+      content: {
+        url: args.url,
+        title,
+        html: htmlOut,
+        screenshotBase64,
+      },
+      metadata: {
+        htmlBytes,
+        screenshotBytes,
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: `Browser snapshot failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
   }
 };
 
@@ -346,6 +745,11 @@ export const BUILTIN_TOOLS: Array<{
   { definition: echoDefinition, handler: echoHandler as ToolHandler<Record<string, unknown>> },
   { definition: datetimeDefinition, handler: datetimeHandler as ToolHandler<Record<string, unknown>> },
   { definition: calculateDefinition, handler: calculateHandler as ToolHandler<Record<string, unknown>> },
+  { definition: fileReadDefinition, handler: fileReadHandler as ToolHandler<Record<string, unknown>> },
+  { definition: fileWriteDefinition, handler: fileWriteHandler as ToolHandler<Record<string, unknown>> },
+  { definition: shellExecDefinition, handler: shellExecHandler as ToolHandler<Record<string, unknown>> },
+  { definition: httpFetchDefinition, handler: httpFetchHandler as ToolHandler<Record<string, unknown>> },
+  { definition: browserSnapshotDefinition, handler: browserSnapshotHandler as ToolHandler<Record<string, unknown>> },
   { definition: jsonParseDefinition, handler: jsonParseHandler as ToolHandler<Record<string, unknown>> },
   { definition: stringTransformDefinition, handler: stringTransformHandler as ToolHandler<Record<string, unknown>> },
   { definition: randomDefinition, handler: randomHandler as ToolHandler<Record<string, unknown>> },

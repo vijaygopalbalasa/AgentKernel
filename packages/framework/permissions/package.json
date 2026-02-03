@@ -5,7 +5,8 @@
   "exports": { ".": "./dist/index.js" },
   "dependencies": {
     "@agent-os/shared": "workspace:*",
-    "@agent-os/kernel": "workspace:*"
+    "@agent-os/kernel": "workspace:*",
+    "zod": "^3.25.0"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",

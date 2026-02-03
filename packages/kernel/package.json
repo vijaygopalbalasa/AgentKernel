@@ -2,15 +2,29 @@
   "name": "@agent-os/kernel",
   "version": "0.1.0",
   "type": "module",
-  "exports": { ".": "./dist/index.js" },
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "dependencies": {
     "@agent-os/shared": "workspace:*",
-    "zod": "^3.24.0",
-    "pino": "^9.0.0"
+    "@qdrant/js-client-rest": "^1.13.0",
+    "ioredis": "^5.4.2",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "postgres": "^3.4.5",
+    "yaml": "^2.7.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.7",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
-    "test": "vitest run --passWithNoTests",
-    "test:watch": "vitest watch"
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "migrate": "tsx src/migrations/run.ts"
   }
 }

@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>AgentOS Dashboard</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">AgentOS Control Plane</p>
+          <h1>Fleet view for your local agents</h1>
+          <p class="subhead">
+            Live state, trust policies, memory events, and audit trails from the
+            gateway.
+          </p>
+        </div>
+        <div class="status-card">
+          <div class="status-pill" id="connection-status">connecting</div>
+          <div class="metric">
+            <span>Gateway</span>
+            <strong id="gateway-status">—</strong>
+          </div>
+          <div class="metric">
+            <span>Providers</span>
+            <strong id="provider-count">—</strong>
+          </div>
+          <div class="metric">
+            <span>Agents</span>
+            <strong id="agent-count">—</strong>
+          </div>
+          <button id="refresh-btn" type="button">Refresh now</button>
+        </div>
+      </header>
+
+      <main class="grid">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Active Agents</h2>
+            <p>Runtime state + trust mode + limits</p>
+          </div>
+          <div class="agent-list" id="agent-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Live Events</h2>
+            <p>Lifecycle + audit stream (most recent first)</p>
+          </div>
+          <div class="event-stream" id="event-stream"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Runtime Metrics</h2>
+            <p>Token throughput + estimated spend</p>
+          </div>
+          <div class="metric-bars">
+            <div>
+              <span class="label">Input Tokens</span>
+              <div class="bar"><div id="metric-input-bar"></div></div>
+              <small id="metric-input-value">—</small>
+            </div>
+            <div>
+              <span class="label">Output Tokens</span>
+              <div class="bar"><div id="metric-output-bar"></div></div>
+              <small id="metric-output-value">—</small>
+            </div>
+            <div>
+              <span class="label">Model Spend (USD)</span>
+              <div class="bar"><div id="metric-cost-bar"></div></div>
+              <small id="metric-cost-value">—</small>
+            </div>
+          </div>
+          <button id="refresh-metrics-btn" type="button">Refresh metrics</button>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Operator Session</h2>
+            <p>Authenticate + select an agent for actions</p>
+          </div>
+          <div class="form-stack">
+            <label for="auth-token-input">Gateway Token</label>
+            <input id="auth-token-input" type="password" placeholder="Paste GATEWAY_AUTH_TOKEN" />
+            <button id="save-token-btn" type="button">Save token</button>
+
+            <label for="operator-agent-input">Operator Agent ID</label>
+            <select id="operator-agent-select"></select>
+            <input id="operator-agent-input" type="text" placeholder="agent-id" />
+            <button id="set-operator-btn" type="button">Use agent</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Social Layer</h2>
+            <p>Forums, jobs, and reputation snapshot</p>
+          </div>
+          <div class="form-stack">
+            <label for="directory-query-input">Agent directory filter</label>
+            <input id="directory-query-input" type="text" placeholder="Search agent name" />
+            <input id="directory-status-input" type="text" placeholder="Status (running/ready/error)" />
+            <input id="directory-limit-input" type="number" min="1" placeholder="Directory limit (default 10)" />
+            <input id="directory-offset-input" type="number" min="0" placeholder="Directory offset (default 0)" />
+          </div>
+          <div class="stat-grid">
+            <div>
+              <span class="label">Forums</span>
+              <strong id="forum-count">—</strong>
+            </div>
+            <div>
+              <span class="label">Jobs</span>
+              <strong id="job-count">—</strong>
+            </div>
+            <div>
+              <span class="label">Reputation</span>
+              <strong id="reputation-score">—</strong>
+            </div>
+          </div>
+          <button id="refresh-social-btn" type="button">Refresh social</button>
+          <div class="list" id="social-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Governance</h2>
+            <p>Policies, moderation, sanctions, audit</p>
+          </div>
+          <button id="refresh-governance-btn" type="button">Refresh governance</button>
+          <div class="list" id="governance-list"></div>
+          <div class="form-stack">
+            <label for="case-subject-input">Open moderation case</label>
+            <input id="case-subject-input" type="text" placeholder="subject agent id" />
+            <input id="case-policy-input" type="text" placeholder="policy id (optional)" />
+            <input id="case-reason-input" type="text" placeholder="reason (optional)" />
+            <button id="open-case-btn" type="button">Open case</button>
+
+            <label for="sanction-subject-input">Apply sanction</label>
+            <input id="sanction-subject-input" type="text" placeholder="subject agent id" />
+            <select id="sanction-type-select">
+              <option value="warn">warn</option>
+              <option value="throttle">throttle</option>
+              <option value="quarantine">quarantine</option>
+              <option value="ban">ban</option>
+            </select>
+            <button id="apply-sanction-btn" type="button">Apply sanction</button>
+
+            <label for="resolve-case-input">Resolve case</label>
+            <input id="resolve-case-input" type="text" placeholder="case id" />
+            <input id="resolve-case-status-input" type="text" placeholder="status (resolved/dismissed)" />
+            <input id="resolve-case-notes-input" type="text" placeholder="resolution notes" />
+            <button id="resolve-case-btn" type="button">Resolve case</button>
+
+            <label for="lift-sanction-input">Lift sanction</label>
+            <input id="lift-sanction-input" type="text" placeholder="sanction id" />
+            <button id="lift-sanction-btn" type="button">Lift sanction</button>
+
+            <label for="appeal-case-input">Open appeal</label>
+            <input id="appeal-case-input" type="text" placeholder="case id" />
+            <input id="appeal-reason-input" type="text" placeholder="reason (optional)" />
+            <button id="open-appeal-btn" type="button">Open appeal</button>
+
+            <label for="resolve-appeal-input">Resolve appeal</label>
+            <input id="resolve-appeal-input" type="text" placeholder="appeal id" />
+            <input id="resolve-appeal-status-input" type="text" placeholder="status (resolved/dismissed)" />
+            <input id="resolve-appeal-notes-input" type="text" placeholder="resolution notes" />
+            <button id="resolve-appeal-btn" type="button">Resolve appeal</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Permission Review</h2>
+            <p>Trust level + permissions + quick quarantine action</p>
+          </div>
+          <div class="list" id="permission-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Audit Log</h2>
+            <p>Query recent security events</p>
+          </div>
+          <div class="form-stack">
+            <input id="audit-action-input" type="text" placeholder="Action (optional)" />
+            <input id="audit-actor-input" type="text" placeholder="Actor ID (optional)" />
+            <input id="audit-limit-input" type="number" min="1" placeholder="Limit (default 50)" />
+            <button id="refresh-audit-btn" type="button">Refresh audit</button>
+          </div>
+          <div class="list" id="audit-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Incident Response</h2>
+            <p>Enable or disable a global lockdown policy</p>
+          </div>
+          <div class="form-stack">
+            <input id="lockdown-policy-input" type="text" value="Global Lockdown" />
+            <button id="enable-lockdown-btn" type="button">Enable lockdown</button>
+            <button id="disable-lockdown-btn" type="button">Disable lockdown</button>
+          </div>
+          <div class="list" id="incident-status"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

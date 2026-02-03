@@ -1,12 +1,14 @@
 // Webhooks — deliver events to external endpoints
 // HTTP callbacks for event notifications
 
+import { type Result, ok, err } from "@agent-os/shared";
+import { type Logger, createLogger } from "@agent-os/kernel";
 import type {
   AgentOSEvent,
   WebhookConfig,
   WebhookDeliveryResult,
 } from "./types.js";
-import { WebhookConfigSchema } from "./types.js";
+import { WebhookConfigSchema, EventError } from "./types.js";
 import { EventBus } from "./bus.js";
 
 /**
@@ -25,60 +27,112 @@ export class WebhookManager {
   private maxHistorySize: number = 100;
   private bus?: EventBus;
   private subscriptionIds: string[] = [];
+  private log: Logger;
+
+  constructor() {
+    this.log = createLogger({ name: "webhook-manager" });
+  }
 
   /**
    * Connect to an event bus.
    */
-  connect(bus: EventBus): void {
+  connect(bus: EventBus): Result<void, EventError> {
     this.bus = bus;
 
     // Subscribe to all channels
-    const subId = bus.subscribe("*", async (event) => {
+    const subResult = bus.subscribe("*", async (event) => {
       await this.processEvent(event);
     });
 
-    this.subscriptionIds.push(subId);
+    if (!subResult.ok) {
+      return err(
+        new EventError(
+          `Failed to connect to event bus: ${subResult.error.message}`,
+          "SUBSCRIPTION_ERROR"
+        )
+      );
+    }
+
+    this.subscriptionIds.push(subResult.value);
+    this.log.info("Connected to event bus");
+
+    return ok(undefined);
   }
 
   /**
    * Disconnect from the event bus.
    */
-  disconnect(): void {
+  disconnect(): Result<void, EventError> {
     if (this.bus) {
       for (const subId of this.subscriptionIds) {
         this.bus.unsubscribe(subId);
       }
       this.subscriptionIds = [];
       this.bus = undefined;
+      this.log.info("Disconnected from event bus");
     }
+    return ok(undefined);
   }
 
   /**
    * Register a webhook.
    */
-  register(config: WebhookConfig): boolean {
+  register(config: WebhookConfig): Result<void, EventError> {
     // Validate config
     const validation = WebhookConfigSchema.safeParse(config);
     if (!validation.success) {
-      return false;
+      return err(
+        new EventError(
+          `Invalid webhook config: ${validation.error.message}`,
+          "VALIDATION_ERROR"
+        )
+      );
     }
 
     this.webhooks.set(config.id, config);
-    return true;
+    this.log.info("Webhook registered", {
+      webhookId: config.id,
+      url: config.url,
+      channels: config.channels,
+      enabled: config.enabled,
+    });
+
+    return ok(undefined);
   }
 
   /**
    * Unregister a webhook.
    */
-  unregister(webhookId: string): boolean {
-    return this.webhooks.delete(webhookId);
+  unregister(webhookId: string): Result<void, EventError> {
+    if (!this.webhooks.has(webhookId)) {
+      return err(
+        new EventError(
+          `Webhook not found: ${webhookId}`,
+          "NOT_FOUND"
+        )
+      );
+    }
+
+    this.webhooks.delete(webhookId);
+    this.log.info("Webhook unregistered", { webhookId });
+
+    return ok(undefined);
   }
 
   /**
    * Get a webhook configuration.
    */
-  get(webhookId: string): WebhookConfig | null {
-    return this.webhooks.get(webhookId) ?? null;
+  get(webhookId: string): Result<WebhookConfig, EventError> {
+    const config = this.webhooks.get(webhookId);
+    if (!config) {
+      return err(
+        new EventError(
+          `Webhook not found: ${webhookId}`,
+          "NOT_FOUND"
+        )
+      );
+    }
+    return ok(config);
   }
 
   /**
@@ -91,21 +145,41 @@ export class WebhookManager {
   /**
    * Enable a webhook.
    */
-  enable(webhookId: string): boolean {
+  enable(webhookId: string): Result<void, EventError> {
     const config = this.webhooks.get(webhookId);
-    if (!config) return false;
+    if (!config) {
+      return err(
+        new EventError(
+          `Webhook not found: ${webhookId}`,
+          "NOT_FOUND"
+        )
+      );
+    }
+
     config.enabled = true;
-    return true;
+    this.log.debug("Webhook enabled", { webhookId });
+
+    return ok(undefined);
   }
 
   /**
    * Disable a webhook.
    */
-  disable(webhookId: string): boolean {
+  disable(webhookId: string): Result<void, EventError> {
     const config = this.webhooks.get(webhookId);
-    if (!config) return false;
+    if (!config) {
+      return err(
+        new EventError(
+          `Webhook not found: ${webhookId}`,
+          "NOT_FOUND"
+        )
+      );
+    }
+
     config.enabled = false;
-    return true;
+    this.log.debug("Webhook disabled", { webhookId });
+
+    return ok(undefined);
   }
 
   /**
@@ -114,19 +188,19 @@ export class WebhookManager {
   async deliver(
     webhookId: string,
     event: AgentOSEvent
-  ): Promise<WebhookDeliveryResult> {
+  ): Promise<Result<WebhookDeliveryResult, EventError>> {
     const config = this.webhooks.get(webhookId);
     if (!config) {
-      return {
-        webhookId,
-        eventId: event.id,
-        success: false,
-        error: "Webhook not found",
-        attempts: 0,
-      };
+      return err(
+        new EventError(
+          `Webhook not found: ${webhookId}`,
+          "NOT_FOUND"
+        )
+      );
     }
 
-    return this.deliverToWebhook(config, event);
+    const result = await this.deliverToWebhook(config, event);
+    return ok(result);
   }
 
   /**
@@ -144,6 +218,7 @@ export class WebhookManager {
    */
   clearHistory(): void {
     this.deliveryHistory = [];
+    this.log.debug("Delivery history cleared");
   }
 
   /** Process an event from the bus */
@@ -151,9 +226,21 @@ export class WebhookManager {
     const matchingWebhooks = this.findMatchingWebhooks(event);
 
     // Deliver to all matching webhooks in parallel
-    await Promise.all(
+    const results = await Promise.all(
       matchingWebhooks.map((config) => this.deliverToWebhook(config, event))
     );
+
+    // Log any failures
+    for (const result of results) {
+      if (!result.success) {
+        this.log.warn("Webhook delivery failed", {
+          webhookId: result.webhookId,
+          eventId: result.eventId,
+          error: result.error,
+          attempts: result.attempts,
+        });
+      }
+    }
   }
 
   /** Find webhooks that match an event */
@@ -228,12 +315,20 @@ export class WebhookManager {
             deliveredAt: new Date(),
           };
           this.addToHistory(result);
+
+          this.log.debug("Webhook delivered", {
+            webhookId: config.id,
+            eventId: event.id,
+            statusCode,
+            attempt,
+          });
+
           return result;
         }
 
         lastError = `HTTP ${response.status}: ${response.statusText}`;
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+      } catch (fetchErr) {
+        lastError = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
       }
 
       // Wait before retry (exponential backoff)
@@ -252,6 +347,14 @@ export class WebhookManager {
       attempts: maxAttempts,
     };
     this.addToHistory(result);
+
+    this.log.error("Webhook delivery failed after retries", {
+      webhookId: config.id,
+      eventId: event.id,
+      error: lastError,
+      attempts: maxAttempts,
+    });
+
     return result;
   }
 

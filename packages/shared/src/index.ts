@@ -27,12 +27,51 @@ export interface AgentManifest {
   readonly author: string;
   /** Which LLM model this agent prefers */
   readonly preferredModel?: string;
+  /** Optional manifest signature metadata */
+  readonly signedAt?: string;
+  readonly signedBy?: string;
+  readonly signature?: string;
+  /** Optional entry point for isolated agent runtime */
+  readonly entryPoint?: string;
   /** Skills this agent requires */
   readonly requiredSkills: string[];
   /** Permissions this agent needs */
   readonly permissions: string[];
+  /** Structured permission grants */
+  readonly permissionGrants?: Array<{
+    category: string;
+    actions: string[];
+    resource?: string;
+    constraints?: Record<string, unknown>;
+  }>;
+  /** Trust level for tool autonomy */
+  readonly trustLevel?: "supervised" | "semi-autonomous" | "monitored-autonomous";
+  /** A2A skills with optional input/output schemas */
+  readonly a2aSkills?: Array<{
+    id: string;
+    name?: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+  }>;
+  /** Resource and budget limits */
+  readonly limits?: {
+    maxTokensPerRequest?: number;
+    tokensPerMinute?: number;
+    requestsPerMinute?: number;
+    toolCallsPerMinute?: number;
+    costBudgetUSD?: number;
+    maxMemoryMB?: number;
+    cpuCores?: number;
+    diskQuotaMB?: number;
+  };
   /** MCP servers this agent connects to */
   readonly mcpServers?: McpServerConfig[];
+  /** Optional tool allowlist */
+  readonly tools?: Array<{
+    id: string;
+    enabled?: boolean;
+  }>;
 }
 
 export interface McpServerConfig {
@@ -79,6 +118,18 @@ export interface ChatResponse {
     readonly inputTokens: number;
     readonly outputTokens: number;
   };
+  /** Router-generated request ID */
+  readonly requestId?: string;
+  /** Provider that served the request */
+  readonly providerId?: string;
+  /** Total latency in ms */
+  readonly latencyMs?: number;
+  /** Number of retry attempts */
+  readonly retryCount?: number;
+  /** Number of failover attempts */
+  readonly failoverCount?: number;
+  /** Fallback model used (if any) */
+  readonly fallbackModel?: string;
 }
 
 // ─── Events ───
@@ -98,5 +149,3 @@ export interface Logger {
   warn(message: string, context?: Record<string, unknown>): void;
   error(message: string, context?: Record<string, unknown>): void;
 }
-
-console.log("✅ @agent-os/shared types loaded");

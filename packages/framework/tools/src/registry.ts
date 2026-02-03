@@ -2,27 +2,28 @@
 // Central registry for all tools available to agents
 
 import { z } from "zod";
-import type {
-  ToolId,
-  ToolDefinition,
-  ToolHandler,
-  ToolInvocation,
-  ToolResult,
-  ToolContext,
-  ToolExecutionEvent,
-  ToolSchema,
+import { type Result, ok, err } from "@agent-os/shared";
+import { type Logger, createLogger } from "@agent-os/kernel";
+import {
+  type ToolId,
+  type ToolDefinition,
+  type ToolHandler,
+  type ToolInvocation,
+  type ToolResult,
+  type ToolContext,
+  type ToolExecutionEvent,
+  type ToolSchema,
+  type RegisterToolOptions,
+  ToolError,
+  ToolDefinitionSchema,
+  ToolInvocationSchema,
+  RegisterToolOptionsSchema,
 } from "./types.js";
 
 /** Registered tool with handler */
 interface RegisteredTool {
   definition: ToolDefinition;
   handler: ToolHandler;
-}
-
-/** Tool registration options */
-export interface RegisterToolOptions {
-  /** Override existing tool */
-  overwrite?: boolean;
 }
 
 /**
@@ -37,17 +38,51 @@ export interface RegisterToolOptions {
 export class ToolRegistry {
   private tools: Map<ToolId, RegisteredTool> = new Map();
   private eventListeners: Array<(event: ToolExecutionEvent) => void> = [];
+  private log: Logger;
+
+  constructor() {
+    this.log = createLogger({ name: "tool-registry" });
+  }
 
   /**
    * Register a tool with the registry.
    */
   register<T extends z.ZodRawShape>(
-    definition: ToolDefinition & { inputSchema: z.ZodObject<T> },
+    definition: Omit<ToolDefinition, "inputSchema"> & { inputSchema: z.ZodObject<T> },
     handler: ToolHandler<z.infer<z.ZodObject<T>>>,
     options: RegisterToolOptions = {}
-  ): boolean {
+  ): Result<ToolId, ToolError> {
+    // Validate options
+    const optionsResult = RegisterToolOptionsSchema.safeParse(options);
+    if (!optionsResult.success) {
+      return err(
+        new ToolError(
+          `Invalid registration options: ${optionsResult.error.message}`,
+          "VALIDATION_ERROR"
+        )
+      );
+    }
+
+    // Validate definition
+    const defResult = ToolDefinitionSchema.safeParse(definition);
+    if (!defResult.success) {
+      return err(
+        new ToolError(
+          `Invalid tool definition: ${defResult.error.message}`,
+          "VALIDATION_ERROR",
+          definition.id
+        )
+      );
+    }
+
     if (this.tools.has(definition.id) && !options.overwrite) {
-      return false;
+      return err(
+        new ToolError(
+          `Tool already exists: ${definition.id}`,
+          "VALIDATION_ERROR",
+          definition.id
+        )
+      );
     }
 
     this.tools.set(definition.id, {
@@ -55,21 +90,37 @@ export class ToolRegistry {
       handler: handler as ToolHandler,
     });
 
-    return true;
+    this.log.debug("Tool registered", {
+      toolId: definition.id,
+      name: definition.name,
+      category: definition.category,
+    });
+
+    return ok(definition.id);
   }
 
   /**
    * Unregister a tool.
    */
-  unregister(toolId: ToolId): boolean {
-    return this.tools.delete(toolId);
+  unregister(toolId: ToolId): Result<void, ToolError> {
+    if (!this.tools.has(toolId)) {
+      return err(new ToolError(`Tool not found: ${toolId}`, "NOT_FOUND", toolId));
+    }
+
+    this.tools.delete(toolId);
+    this.log.debug("Tool unregistered", { toolId });
+    return ok(undefined);
   }
 
   /**
    * Get a tool definition by ID.
    */
-  get(toolId: ToolId): ToolDefinition | null {
-    return this.tools.get(toolId)?.definition ?? null;
+  get(toolId: ToolId): Result<ToolDefinition, ToolError> {
+    const tool = this.tools.get(toolId);
+    if (!tool) {
+      return err(new ToolError(`Tool not found: ${toolId}`, "NOT_FOUND", toolId));
+    }
+    return ok(tool.definition);
   }
 
   /**
@@ -115,16 +166,28 @@ export class ToolRegistry {
   /**
    * Invoke a tool with arguments.
    */
-  async invoke(invocation: ToolInvocation): Promise<ToolResult> {
+  async invoke(invocation: ToolInvocation): Promise<Result<ToolResult, ToolError>> {
     const startTime = Date.now();
+
+    // Validate invocation
+    const invocationResult = ToolInvocationSchema.safeParse(invocation);
+    if (!invocationResult.success) {
+      return err(
+        new ToolError(
+          `Invalid invocation: ${invocationResult.error.message}`,
+          "VALIDATION_ERROR",
+          invocation.toolId
+        )
+      );
+    }
+
     const requestId = invocation.requestId ?? `req-${Date.now()}`;
 
     const tool = this.tools.get(invocation.toolId);
     if (!tool) {
-      return {
-        success: false,
-        error: `Tool not found: ${invocation.toolId}`,
-      };
+      return err(
+        new ToolError(`Tool not found: ${invocation.toolId}`, "NOT_FOUND", invocation.toolId)
+      );
     }
 
     // Emit start event
@@ -140,7 +203,7 @@ export class ToolRegistry {
       // Validate input
       const validation = tool.definition.inputSchema.safeParse(invocation.arguments);
       if (!validation.success) {
-        const error = `Invalid arguments: ${validation.error.message}`;
+        const errorMsg = `Invalid arguments: ${validation.error.message}`;
         this.emitEvent({
           type: "error",
           toolId: invocation.toolId,
@@ -149,9 +212,11 @@ export class ToolRegistry {
           timestamp: new Date(),
           duration: Date.now() - startTime,
           success: false,
-          error,
+          error: errorMsg,
         });
-        return { success: false, error };
+        return err(
+          new ToolError(errorMsg, "VALIDATION_ERROR", invocation.toolId)
+        );
       }
 
       // Create context
@@ -177,9 +242,15 @@ export class ToolRegistry {
         success: result.success,
       });
 
-      return result;
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
+      this.log.debug("Tool invoked", {
+        toolId: invocation.toolId,
+        success: result.success,
+        executionTime: result.executionTime,
+      });
+
+      return ok(result);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       const duration = Date.now() - startTime;
 
       // Emit error event
@@ -191,14 +262,18 @@ export class ToolRegistry {
         timestamp: new Date(),
         duration,
         success: false,
-        error,
+        error: errorMsg,
       });
 
-      return {
-        success: false,
-        error,
-        executionTime: duration,
-      };
+      this.log.error("Tool invocation failed", {
+        toolId: invocation.toolId,
+        error: errorMsg,
+        duration,
+      });
+
+      return err(
+        new ToolError(errorMsg, "INVOCATION_ERROR", invocation.toolId)
+      );
     }
   }
 
@@ -230,10 +305,31 @@ export class ToolRegistry {
     };
   }
 
+  /**
+   * Clear all registered tools.
+   */
+  clear(): void {
+    this.tools.clear();
+    this.log.debug("All tools cleared");
+  }
+
+  /**
+   * Get the count of registered tools.
+   */
+  count(): number {
+    return this.tools.size;
+  }
+
   /** Emit an event to all listeners */
   private emitEvent(event: ToolExecutionEvent): void {
     for (const listener of this.eventListeners) {
-      listener(event);
+      try {
+        listener(event);
+      } catch (error) {
+        this.log.error("Event listener error", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 

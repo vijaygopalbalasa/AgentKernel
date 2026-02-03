@@ -1,6 +1,9 @@
 // A2A Client — sends tasks to other agents
 // Implements the Agent-to-Agent Protocol client side
 
+import { type Result, ok, err } from "@agent-os/shared";
+import { type Logger, createLogger } from "@agent-os/kernel";
+import { randomBytes } from "crypto";
 import type {
   A2ATask,
   A2ATaskState,
@@ -9,9 +12,20 @@ import type {
   A2ARequest,
   A2AResponse,
   TaskDelegationRequest,
-  TaskDelegationResult,
   CommunicationEvent,
 } from "./types.js";
+import {
+  CommunicationError,
+  TaskDelegationRequestSchema,
+} from "./types.js";
+
+/** Client configuration options */
+export interface A2AClientConfig {
+  /** Enable replay protection (adds nonce + timestamp to requests) */
+  replayProtection?: boolean;
+  /** Default request timeout in milliseconds */
+  defaultTimeout?: number;
+}
 
 /**
  * A2A Client — sends tasks to remote agents.
@@ -26,11 +40,44 @@ export class A2AClient {
   private eventListeners: Array<(event: CommunicationEvent) => void> = [];
   private defaultTimeout: number = 30000;
   private tasks: Map<string, A2ATask> = new Map();
+  private log: Logger;
+  private replayProtection: boolean = false;
+
+  constructor(config?: A2AClientConfig) {
+    this.log = createLogger({ name: "a2a-client" });
+    if (config?.replayProtection) {
+      this.replayProtection = true;
+    }
+    if (config?.defaultTimeout) {
+      this.defaultTimeout = config.defaultTimeout;
+    }
+  }
+
+  /**
+   * Generate a cryptographically secure nonce for replay protection.
+   */
+  private generateNonce(): string {
+    return randomBytes(16).toString("hex");
+  }
 
   /**
    * Send a task to an agent.
    */
-  async sendTask(request: TaskDelegationRequest): Promise<TaskDelegationResult> {
+  async sendTask(
+    request: TaskDelegationRequest
+  ): Promise<Result<A2ATask, CommunicationError>> {
+    // Validate input
+    const inputResult = TaskDelegationRequestSchema.safeParse(request);
+    if (!inputResult.success) {
+      return err(
+        new CommunicationError(
+          `Invalid task request: ${inputResult.error.message}`,
+          "VALIDATION_ERROR",
+          request.agentUrl
+        )
+      );
+    }
+
     const {
       agentUrl,
       message,
@@ -42,14 +89,24 @@ export class A2AClient {
     const taskId = this.generateTaskId();
 
     try {
+      // Build params with optional replay protection
+      const params: Record<string, unknown> = {
+        message,
+        sessionId,
+      };
+
+      // Add replay protection fields if enabled
+      if (this.replayProtection) {
+        params.nonce = this.generateNonce();
+        params.timestamp = Date.now();
+        this.log.debug("Replay protection enabled", { taskId, nonce: params.nonce });
+      }
+
       const rpcRequest: A2ARequest = {
         jsonrpc: "2.0",
         id: taskId,
         method: streaming ? "tasks/sendSubscribe" : "tasks/send",
-        params: {
-          message,
-          sessionId,
-        },
+        params,
       };
 
       this.emit({
@@ -60,11 +117,16 @@ export class A2AClient {
         data: { message },
       });
 
+      this.log.debug("Sending task", { agentUrl, taskId, streaming });
+
       if (streaming) {
         return this.sendStreamingTask(agentUrl, rpcRequest, timeout);
       }
 
-      const response = await this.sendRpcRequest(agentUrl, rpcRequest, timeout);
+      const responseResult = await this.sendRpcRequest(agentUrl, rpcRequest, timeout);
+      if (!responseResult.ok) return responseResult;
+
+      const response = responseResult.value;
 
       if (response.error) {
         this.emit({
@@ -74,10 +136,15 @@ export class A2AClient {
           timestamp: new Date(),
           data: { error: response.error },
         });
-        return {
-          success: false,
-          error: response.error.message,
-        };
+        this.log.warn("Task failed", { taskId, error: response.error.message });
+        return err(
+          new CommunicationError(
+            response.error.message,
+            "TASK_ERROR",
+            agentUrl,
+            taskId
+          )
+        );
       }
 
       const task = this.parseTaskResponse(taskId, response.result);
@@ -91,26 +158,51 @@ export class A2AClient {
           timestamp: new Date(),
           data: { task },
         });
+        this.log.debug("Task completed", { taskId });
       }
 
-      return { success: true, task };
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
+      return ok(task);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.emit({
         type: "task_failed",
         agentUrl,
         taskId,
         timestamp: new Date(),
-        data: { error },
+        data: { error: message },
       });
-      return { success: false, error };
+
+      if (message.includes("aborted")) {
+        this.log.warn("Task timed out", { taskId, agentUrl });
+        return err(
+          new CommunicationError(
+            `Task timed out: ${agentUrl}`,
+            "TIMEOUT_ERROR",
+            agentUrl,
+            taskId
+          )
+        );
+      }
+
+      this.log.error("Task send failed", { taskId, error: message });
+      return err(
+        new CommunicationError(
+          `Failed to send task: ${message}`,
+          "NETWORK_ERROR",
+          agentUrl,
+          taskId
+        )
+      );
     }
   }
 
   /**
    * Get the status of a task.
    */
-  async getTask(agentUrl: string, taskId: string): Promise<A2ATask | null> {
+  async getTask(
+    agentUrl: string,
+    taskId: string
+  ): Promise<Result<A2ATask, CommunicationError>> {
     try {
       const rpcRequest: A2ARequest = {
         jsonrpc: "2.0",
@@ -119,26 +211,49 @@ export class A2AClient {
         params: { taskId },
       };
 
-      const response = await this.sendRpcRequest(
+      const responseResult = await this.sendRpcRequest(
         agentUrl,
         rpcRequest,
         this.defaultTimeout
       );
 
+      if (!responseResult.ok) return responseResult;
+
+      const response = responseResult.value;
+
       if (response.error || !response.result) {
-        return null;
+        return err(
+          new CommunicationError(
+            response.error?.message ?? "Task not found",
+            "NOT_FOUND",
+            agentUrl,
+            taskId
+          )
+        );
       }
 
-      return this.parseTaskResponse(taskId, response.result);
-    } catch {
-      return null;
+      return ok(this.parseTaskResponse(taskId, response.result));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.log.warn("Failed to get task", { taskId, error: message });
+      return err(
+        new CommunicationError(
+          `Failed to get task: ${message}`,
+          "NETWORK_ERROR",
+          agentUrl,
+          taskId
+        )
+      );
     }
   }
 
   /**
    * Cancel a task.
    */
-  async cancelTask(agentUrl: string, taskId: string): Promise<boolean> {
+  async cancelTask(
+    agentUrl: string,
+    taskId: string
+  ): Promise<Result<boolean, CommunicationError>> {
     try {
       const rpcRequest: A2ARequest = {
         jsonrpc: "2.0",
@@ -147,23 +262,59 @@ export class A2AClient {
         params: { taskId },
       };
 
-      const response = await this.sendRpcRequest(
+      const responseResult = await this.sendRpcRequest(
         agentUrl,
         rpcRequest,
         this.defaultTimeout
       );
 
-      return !response.error;
-    } catch {
-      return false;
+      if (!responseResult.ok) return responseResult;
+
+      const response = responseResult.value;
+
+      if (response.error) {
+        return err(
+          new CommunicationError(
+            response.error.message,
+            "TASK_ERROR",
+            agentUrl,
+            taskId
+          )
+        );
+      }
+
+      this.log.debug("Task canceled", { taskId });
+      return ok(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.log.warn("Failed to cancel task", { taskId, error: message });
+      return err(
+        new CommunicationError(
+          `Failed to cancel task: ${message}`,
+          "NETWORK_ERROR",
+          agentUrl,
+          taskId
+        )
+      );
     }
   }
 
   /**
    * Get a locally cached task.
    */
-  getCachedTask(taskId: string): A2ATask | null {
-    return this.tasks.get(taskId) ?? null;
+  getCachedTask(taskId: string): Result<A2ATask, CommunicationError> {
+    const task = this.tasks.get(taskId);
+    if (!task) {
+      return err(
+        new CommunicationError(
+          `Task not found in cache: ${taskId}`,
+          "NOT_FOUND",
+          undefined,
+          taskId
+        )
+      );
+    }
+    return ok(task);
   }
 
   /**
@@ -178,6 +329,7 @@ export class A2AClient {
    */
   setDefaultTimeout(timeout: number): void {
     this.defaultTimeout = timeout;
+    this.log.debug("Default timeout updated", { timeout });
   }
 
   /**
@@ -198,7 +350,7 @@ export class A2AClient {
     agentUrl: string,
     request: A2ARequest,
     timeout: number
-  ): Promise<A2AResponse> {
+  ): Promise<Result<A2AResponse, CommunicationError>> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -213,17 +365,16 @@ export class A2AClient {
       });
 
       if (!response.ok) {
-        return {
-          jsonrpc: "2.0",
-          id: request.id,
-          error: {
-            code: response.status,
-            message: `HTTP ${response.status}: ${response.statusText}`,
-          },
-        };
+        return err(
+          new CommunicationError(
+            `HTTP ${response.status}: ${response.statusText}`,
+            "NETWORK_ERROR",
+            agentUrl
+          )
+        );
       }
 
-      return (await response.json()) as A2AResponse;
+      return ok((await response.json()) as A2AResponse);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -234,7 +385,7 @@ export class A2AClient {
     agentUrl: string,
     request: A2ARequest,
     timeout: number
-  ): Promise<TaskDelegationResult> {
+  ): Promise<Result<A2ATask, CommunicationError>> {
     const taskId = String(request.id);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -251,10 +402,14 @@ export class A2AClient {
       });
 
       if (!response.ok || !response.body) {
-        return {
-          success: false,
-          error: `HTTP ${response.status}: ${response.statusText}`,
-        };
+        return err(
+          new CommunicationError(
+            `HTTP ${response.status}: ${response.statusText}`,
+            "NETWORK_ERROR",
+            agentUrl,
+            taskId
+          )
+        );
       }
 
       // Create initial task
@@ -273,7 +428,19 @@ export class A2AClient {
       // Process SSE stream
       await this.processSSEStream(response.body, task, agentUrl);
 
-      return { success: true, task: this.tasks.get(taskId)! };
+      const finalTask = this.tasks.get(taskId);
+      if (!finalTask) {
+        return err(
+          new CommunicationError(
+            "Task lost during streaming",
+            "TASK_ERROR",
+            agentUrl,
+            taskId
+          )
+        );
+      }
+
+      return ok(finalTask);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -331,6 +498,7 @@ export class A2AClient {
             timestamp: new Date(),
             data: { task },
           });
+          this.log.debug("Streaming task completed", { taskId: task.id });
         } else if (task.status.state === "failed") {
           this.emit({
             type: "task_failed",
@@ -339,6 +507,7 @@ export class A2AClient {
             timestamp: new Date(),
             data: { status: task.status },
           });
+          this.log.warn("Streaming task failed", { taskId: task.id });
         }
       }
 
@@ -363,6 +532,7 @@ export class A2AClient {
       this.tasks.set(task.id, task);
     } catch {
       // Invalid JSON, ignore
+      this.log.debug("Invalid SSE data received", { taskId: task.id });
     }
   }
 
@@ -373,8 +543,8 @@ export class A2AClient {
       id: taskId,
       sessionId: data.sessionId as string | undefined,
       status: {
-        state: (data.status as any)?.state ?? "completed",
-        message: (data.status as any)?.message,
+        state: ((data.status as Record<string, unknown>)?.state as A2ATaskState) ?? "completed",
+        message: (data.status as Record<string, unknown>)?.message as string | undefined,
         timestamp: new Date(),
       },
       message: data.message as A2AMessage,
@@ -399,6 +569,6 @@ export class A2AClient {
 }
 
 /** Create a new A2A client */
-export function createA2AClient(): A2AClient {
-  return new A2AClient();
+export function createA2AClient(config?: A2AClientConfig): A2AClient {
+  return new A2AClient(config);
 }

@@ -1,31 +1,128 @@
 // Identity System tests
 import { describe, it, expect, beforeEach } from "vitest";
-import { IdentityManager } from "./identity-manager.js";
-import { validateAgentCard, A2A_PROTOCOL_VERSION } from "./agent-card.js";
+import { IdentityManager, InMemoryIdentityStorage, IdentityError } from "./identity-manager.js";
+import {
+  validateAgentCard,
+  A2A_PROTOCOL_VERSION,
+  createAgentCard,
+  parseAgentCard,
+  serializeAgentCard,
+  AgentCardError,
+} from "./agent-card.js";
+
+function getFirst<T>(items: T[]): T {
+  const first = items[0];
+  if (!first) {
+    throw new Error("Expected at least one item");
+  }
+  return first;
+}
+
+describe("AgentCard", () => {
+  describe("createAgentCard", () => {
+    it("should create a valid agent card", () => {
+      const result = createAgentCard("did:agentos:test-1", {
+        name: "Test Agent",
+        description: "A test agent",
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.id).toBe("did:agentos:test-1");
+        expect(result.value.name).toBe("Test Agent");
+        expect(result.value.protocolVersion).toBe(A2A_PROTOCOL_VERSION);
+      }
+    });
+
+    it("should fail with invalid input", () => {
+      const result = createAgentCard("did:agentos:test-1", {
+        name: "", // Empty name is invalid
+        description: "Test",
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(AgentCardError);
+        expect(result.error.code).toBe("VALIDATION_ERROR");
+      }
+    });
+  });
+
+  describe("validateAgentCard", () => {
+    it("should validate a correct card", () => {
+      const result = createAgentCard("did:agentos:test-1", {
+        name: "Test",
+        description: "Test",
+      });
+
+      if (result.ok) {
+        const validationResult = validateAgentCard(result.value);
+        expect(validationResult.ok).toBe(true);
+      }
+    });
+
+    it("should reject invalid card", () => {
+      const result = validateAgentCard({ invalid: "data" });
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  describe("parseAgentCard", () => {
+    it("should parse valid JSON", () => {
+      const createResult = createAgentCard("did:agentos:test-1", {
+        name: "Test",
+        description: "Test",
+      });
+
+      if (createResult.ok) {
+        const json = serializeAgentCard(createResult.value);
+        const parseResult = parseAgentCard(json);
+
+        expect(parseResult.ok).toBe(true);
+        if (parseResult.ok) {
+          expect(parseResult.value.id).toBe("did:agentos:test-1");
+        }
+      }
+    });
+
+    it("should fail on invalid JSON", () => {
+      const result = parseAgentCard("not json");
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PARSE_ERROR");
+      }
+    });
+  });
+});
 
 describe("IdentityManager", () => {
   let manager: IdentityManager;
+  let storage: InMemoryIdentityStorage;
 
   beforeEach(() => {
-    manager = new IdentityManager({ baseUrl: "https://example.com" });
+    storage = new InMemoryIdentityStorage();
+    manager = new IdentityManager({ baseUrl: "https://example.com" }, storage);
   });
 
   describe("Registration", () => {
-    it("should register a new agent identity", () => {
-      const result = manager.register({
+    it("should register a new agent identity", async () => {
+      const result = await manager.register({
         name: "Test Agent",
         description: "A test agent for unit testing",
       });
 
-      expect(result.identity).toBeDefined();
-      expect(result.identity.did).toMatch(/^did:agentos:/);
-      expect(result.identity.shortId).toMatch(/^agent-/);
-      expect(result.identity.active).toBe(true);
-      expect(result.secretKey).toMatch(/^sk-/);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.identity).toBeDefined();
+        expect(result.value.identity.did).toMatch(/^did:agentos:/);
+        expect(result.value.identity.shortId).toMatch(/^agent-/);
+        expect(result.value.identity.active).toBe(true);
+        expect(result.value.secretKey).toMatch(/^sk-/);
+      }
     });
 
-    it("should create a valid Agent Card", () => {
-      const result = manager.register({
+    it("should create a valid Agent Card", async () => {
+      const result = await manager.register({
         name: "My Agent",
         description: "Helpful assistant",
         skills: [
@@ -38,155 +135,318 @@ describe("IdentityManager", () => {
         tags: ["assistant", "chat"],
       });
 
-      const card = result.identity.card;
-      expect(validateAgentCard(card)).toBe(true);
-      expect(card.protocolVersion).toBe(A2A_PROTOCOL_VERSION);
-      expect(card.name).toBe("My Agent");
-      expect(card.skills.length).toBe(1);
-      expect(card.tags).toContain("assistant");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const card = result.value.identity.card;
+        const validationResult = validateAgentCard(card);
+        expect(validationResult.ok).toBe(true);
+        expect(card.protocolVersion).toBe(A2A_PROTOCOL_VERSION);
+        expect(card.name).toBe("My Agent");
+        expect(card.skills.length).toBe(1);
+        expect(card.tags).toContain("assistant");
+      }
+    });
+
+    it("should reject invalid registration input", async () => {
+      const result = await manager.register({
+        name: "", // Empty name is invalid
+        description: "Test",
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(IdentityError);
+        expect(result.error.code).toBe("VALIDATION_ERROR");
+      }
     });
   });
 
   describe("Retrieval", () => {
-    it("should get identity by short ID", () => {
-      const result = manager.register({ name: "Test", description: "Test" });
+    it("should get identity by short ID", async () => {
+      const regResult = await manager.register({ name: "Test", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
 
-      const identity = manager.getById(result.identity.shortId);
-      expect(identity).not.toBeNull();
-      expect(identity!.did).toBe(result.identity.did);
+      const result = await manager.getById(regResult.value.identity.shortId);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.did).toBe(regResult.value.identity.did);
+      }
     });
 
-    it("should get identity by DID", () => {
-      const result = manager.register({ name: "Test", description: "Test" });
+    it("should get identity by DID", async () => {
+      const regResult = await manager.register({ name: "Test", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
 
-      const identity = manager.getByDID(result.identity.did);
-      expect(identity).not.toBeNull();
-      expect(identity!.shortId).toBe(result.identity.shortId);
+      const result = await manager.getByDID(regResult.value.identity.did);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.shortId).toBe(regResult.value.identity.shortId);
+      }
     });
 
-    it("should return null for non-existent ID", () => {
-      expect(manager.getById("non-existent")).toBeNull();
-      expect(manager.getByDID("did:agentos:fake")).toBeNull();
+    it("should return error for non-existent ID", async () => {
+      const byIdResult = await manager.getById("non-existent");
+      expect(byIdResult.ok).toBe(false);
+      if (!byIdResult.ok) {
+        expect(byIdResult.error.code).toBe("NOT_FOUND");
+      }
+
+      const byDIDResult = await manager.getByDID("did:agentos:fake");
+      expect(byDIDResult.ok).toBe(false);
+      if (!byDIDResult.ok) {
+        expect(byDIDResult.error.code).toBe("NOT_FOUND");
+      }
     });
   });
 
   describe("Updates", () => {
-    it("should update card with valid secret key", () => {
-      const result = manager.register({ name: "Original", description: "Test" });
+    it("should update card with valid secret key", async () => {
+      const regResult = await manager.register({ name: "Original", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
 
-      const updated = manager.updateCard(result.identity.shortId, result.secretKey, {
-        name: "Updated Name",
-        description: "Updated description",
-      });
+      const updateResult = await manager.updateCard(
+        regResult.value.identity.shortId,
+        regResult.value.secretKey,
+        {
+          name: "Updated Name",
+          description: "Updated description",
+        }
+      );
 
-      expect(updated).toBe(true);
-      const card = manager.getAgentCard(result.identity.shortId);
-      expect(card!.name).toBe("Updated Name");
+      expect(updateResult.ok).toBe(true);
+
+      const cardResult = await manager.getAgentCard(regResult.value.identity.shortId);
+      expect(cardResult.ok).toBe(true);
+      if (cardResult.ok) {
+        expect(cardResult.value.name).toBe("Updated Name");
+      }
     });
 
-    it("should reject update with invalid secret key", () => {
-      const result = manager.register({ name: "Test", description: "Test" });
+    it("should reject update with invalid secret key", async () => {
+      const regResult = await manager.register({ name: "Test", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
 
-      const updated = manager.updateCard(result.identity.shortId, "wrong-key", {
-        name: "Hacked",
-      });
+      const updateResult = await manager.updateCard(
+        regResult.value.identity.shortId,
+        "wrong-key",
+        { name: "Hacked" }
+      );
 
-      expect(updated).toBe(false);
-      const card = manager.getAgentCard(result.identity.shortId);
-      expect(card!.name).toBe("Test");
+      expect(updateResult.ok).toBe(false);
+      if (!updateResult.ok) {
+        expect(updateResult.error.code).toBe("UNAUTHORIZED");
+      }
+
+      // Verify name wasn't changed
+      const cardResult = await manager.getAgentCard(regResult.value.identity.shortId);
+      expect(cardResult.ok).toBe(true);
+      if (cardResult.ok) {
+        expect(cardResult.value.name).toBe("Test");
+      }
     });
   });
 
   describe("Skills", () => {
-    it("should add skills to agent", () => {
-      const result = manager.register({ name: "Test", description: "Test" });
+    it("should add skills to agent", async () => {
+      const regResult = await manager.register({ name: "Test", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
 
-      const added = manager.addSkill(result.identity.shortId, result.secretKey, {
-        id: "code",
-        name: "Code Generation",
-        description: "Generate code",
-      });
+      const addResult = await manager.addSkill(
+        regResult.value.identity.shortId,
+        regResult.value.secretKey,
+        {
+          id: "code",
+          name: "Code Generation",
+          description: "Generate code",
+        }
+      );
 
-      expect(added).toBe(true);
-      const card = manager.getAgentCard(result.identity.shortId);
-      expect(card!.skills.length).toBe(1);
-      expect(card!.skills[0].id).toBe("code");
+      expect(addResult.ok).toBe(true);
+
+      const cardResult = await manager.getAgentCard(regResult.value.identity.shortId);
+      expect(cardResult.ok).toBe(true);
+      if (cardResult.ok) {
+        expect(cardResult.value.skills.length).toBe(1);
+        expect(getFirst(cardResult.value.skills).id).toBe("code");
+      }
     });
 
-    it("should remove skills from agent", () => {
-      const result = manager.register({
+    it("should remove skills from agent", async () => {
+      const regResult = await manager.register({
         name: "Test",
         description: "Test",
         skills: [{ id: "skill1", name: "Skill 1", description: "First skill" }],
       });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
 
-      const removed = manager.removeSkill(result.identity.shortId, result.secretKey, "skill1");
+      const removeResult = await manager.removeSkill(
+        regResult.value.identity.shortId,
+        regResult.value.secretKey,
+        "skill1"
+      );
 
-      expect(removed).toBe(true);
-      const card = manager.getAgentCard(result.identity.shortId);
-      expect(card!.skills.length).toBe(0);
+      expect(removeResult.ok).toBe(true);
+
+      const cardResult = await manager.getAgentCard(regResult.value.identity.shortId);
+      expect(cardResult.ok).toBe(true);
+      if (cardResult.ok) {
+        expect(cardResult.value.skills.length).toBe(0);
+      }
     });
   });
 
   describe("Lifecycle", () => {
-    it("should deactivate and reactivate agent", () => {
-      const result = manager.register({ name: "Test", description: "Test" });
+    it("should deactivate and reactivate agent", async () => {
+      const regResult = await manager.register({ name: "Test", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
 
       // Deactivate
-      manager.deactivate(result.identity.shortId, result.secretKey);
-      expect(manager.getAgentCard(result.identity.shortId)).toBeNull();
+      const deactivateResult = await manager.deactivate(
+        regResult.value.identity.shortId,
+        regResult.value.secretKey
+      );
+      expect(deactivateResult.ok).toBe(true);
+
+      // Should not be able to get card for inactive agent
+      const cardResult1 = await manager.getAgentCard(regResult.value.identity.shortId);
+      expect(cardResult1.ok).toBe(false);
 
       // Reactivate
-      manager.reactivate(result.identity.shortId, result.secretKey);
-      expect(manager.getAgentCard(result.identity.shortId)).not.toBeNull();
+      const reactivateResult = await manager.reactivate(
+        regResult.value.identity.shortId,
+        regResult.value.secretKey
+      );
+      expect(reactivateResult.ok).toBe(true);
+
+      // Should be able to get card again
+      const cardResult2 = await manager.getAgentCard(regResult.value.identity.shortId);
+      expect(cardResult2.ok).toBe(true);
     });
 
-    it("should delete agent permanently", () => {
-      const result = manager.register({ name: "Test", description: "Test" });
+    it("should delete agent permanently", async () => {
+      const regResult = await manager.register({ name: "Test", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
 
-      manager.delete(result.identity.shortId, result.secretKey);
+      const deleteResult = await manager.delete(
+        regResult.value.identity.shortId,
+        regResult.value.secretKey
+      );
+      expect(deleteResult.ok).toBe(true);
 
-      expect(manager.getById(result.identity.shortId)).toBeNull();
-      expect(manager.getByDID(result.identity.did)).toBeNull();
+      const byIdResult = await manager.getById(regResult.value.identity.shortId);
+      expect(byIdResult.ok).toBe(false);
+
+      const byDIDResult = await manager.getByDID(regResult.value.identity.did);
+      expect(byDIDResult.ok).toBe(false);
     });
   });
 
   describe("Discovery", () => {
-    it("should find agents by skill", () => {
-      manager.register({
+    it("should find agents by skill", async () => {
+      await manager.register({
         name: "Coder",
         description: "Codes",
         skills: [{ id: "code", name: "Code", description: "Write code" }],
       });
-      manager.register({
+      await manager.register({
         name: "Writer",
         description: "Writes",
         skills: [{ id: "write", name: "Write", description: "Write text" }],
       });
 
-      const coders = manager.findBySkill("code");
+      const coders = await manager.findBySkill("code");
       expect(coders.length).toBe(1);
-      expect(coders[0].card.name).toBe("Coder");
+      expect(getFirst(coders).card.name).toBe("Coder");
     });
 
-    it("should find agents by tag", () => {
-      manager.register({ name: "Agent 1", description: "Test", tags: ["helper", "chat"] });
-      manager.register({ name: "Agent 2", description: "Test", tags: ["coder"] });
+    it("should find agents by tag", async () => {
+      await manager.register({ name: "Agent 1", description: "Test", tags: ["helper", "chat"] });
+      await manager.register({ name: "Agent 2", description: "Test", tags: ["coder"] });
 
-      const helpers = manager.findByTag("helper");
+      const helpers = await manager.findByTag("helper");
       expect(helpers.length).toBe(1);
-      expect(helpers[0].card.name).toBe("Agent 1");
+      expect(getFirst(helpers).card.name).toBe("Agent 1");
     });
 
-    it("should list all active agents", () => {
-      const r1 = manager.register({ name: "Active", description: "Test" });
-      const r2 = manager.register({ name: "Inactive", description: "Test" });
+    it("should list all active agents", async () => {
+      const r1 = await manager.register({ name: "Active", description: "Test" });
+      const r2 = await manager.register({ name: "Inactive", description: "Test" });
 
-      manager.deactivate(r2.identity.shortId, r2.secretKey);
+      expect(r1.ok).toBe(true);
+      expect(r2.ok).toBe(true);
+      if (!r1.ok || !r2.ok) return;
 
-      const active = manager.listActive();
+      await manager.deactivate(r2.value.identity.shortId, r2.value.secretKey);
+
+      const active = await manager.listActive();
       expect(active.length).toBe(1);
-      expect(active[0].card.name).toBe("Active");
+      expect(getFirst(active).card.name).toBe("Active");
+    });
+  });
+
+  describe("Ownership Verification", () => {
+    it("should verify ownership with correct key", async () => {
+      const regResult = await manager.register({ name: "Test", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
+
+      const isOwner = await manager.verifyOwnership(
+        regResult.value.identity.shortId,
+        regResult.value.secretKey
+      );
+      expect(isOwner).toBe(true);
+    });
+
+    it("should reject verification with wrong key", async () => {
+      const regResult = await manager.register({ name: "Test", description: "Test" });
+      expect(regResult.ok).toBe(true);
+      if (!regResult.ok) return;
+
+      const isOwner = await manager.verifyOwnership(
+        regResult.value.identity.shortId,
+        "wrong-key"
+      );
+      expect(isOwner).toBe(false);
+    });
+  });
+
+  describe("DID Methods", () => {
+    it("should generate did:agentos by default", async () => {
+      const manager = new IdentityManager();
+      const result = await manager.register({ name: "Test", description: "Test" });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.identity.did).toMatch(/^did:agentos:/);
+      }
+    });
+
+    it("should generate did:key when configured", async () => {
+      const manager = new IdentityManager({ didMethod: "key" });
+      const result = await manager.register({ name: "Test", description: "Test" });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.identity.did).toMatch(/^did:key:z/);
+      }
+    });
+
+    it("should generate did:web when configured", async () => {
+      const manager = new IdentityManager({ didMethod: "web", domain: "example.com" });
+      const result = await manager.register({ name: "Test", description: "Test" });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.identity.did).toMatch(/^did:web:example\.com:agents:/);
+      }
     });
   });
 });

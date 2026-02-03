@@ -2,6 +2,7 @@
 // Starts with in-memory, can be swapped for Qdrant/PostgreSQL
 
 import { randomUUID } from "crypto";
+import { type Result, ok, err } from "@agent-os/shared";
 import type { AgentId } from "@agent-os/runtime";
 import type {
   MemoryId,
@@ -11,36 +12,60 @@ import type {
   MemoryQuery,
   MemoryQueryResult,
   MemoryStats,
-  MemoryEntry,
-  Importance,
   Strength,
+  Importance,
 } from "./types.js";
 
 /** Union type for all memory types */
 export type Memory = EpisodicMemory | SemanticMemory | ProceduralMemory;
 
+// ─── ERROR CLASS ────────────────────────────────────────────
+
+/** Memory error codes */
+export type MemoryErrorCode =
+  | "NOT_FOUND"
+  | "VALIDATION_ERROR"
+  | "STORE_ERROR"
+  | "QUERY_ERROR";
+
+/**
+ * Error class for memory operations.
+ */
+export class MemoryError extends Error {
+  constructor(
+    message: string,
+    public readonly code: MemoryErrorCode,
+    public readonly memoryId?: MemoryId
+  ) {
+    super(message);
+    this.name = "MemoryError";
+  }
+}
+
+// ─── STORE INTERFACE ────────────────────────────────────────
+
 /** Interface for memory storage backends */
 export interface MemoryStore {
   // ─── CRUD Operations ───
-  save(memory: Memory): Promise<MemoryId>;
-  get(id: MemoryId): Promise<Memory | null>;
-  update(id: MemoryId, updates: Partial<Memory>): Promise<boolean>;
-  delete(id: MemoryId): Promise<boolean>;
+  save(memory: Memory): Promise<Result<MemoryId, MemoryError>>;
+  get(id: MemoryId): Promise<Result<Memory, MemoryError>>;
+  update(id: MemoryId, updates: Partial<Memory>): Promise<Result<void, MemoryError>>;
+  delete(id: MemoryId): Promise<Result<void, MemoryError>>;
 
   // ─── Query Operations ───
-  query(agentId: AgentId, query: MemoryQuery): Promise<MemoryQueryResult>;
-  getByAgent(agentId: AgentId, type?: Memory["type"]): Promise<Memory[]>;
+  query(agentId: AgentId, query: MemoryQuery): Promise<Result<MemoryQueryResult, MemoryError>>;
+  getByAgent(agentId: AgentId, type?: Memory["type"]): Promise<Result<Memory[], MemoryError>>;
 
   // ─── Stats ───
-  getStats(agentId: AgentId): Promise<MemoryStats>;
+  getStats(agentId: AgentId): Promise<Result<MemoryStats, MemoryError>>;
 
   // ─── Maintenance ───
   /** Decay strength of old memories */
-  decayStrength(agentId: AgentId, decayRate: number): Promise<number>;
+  decayStrength(agentId: AgentId, decayRate: number): Promise<Result<number, MemoryError>>;
   /** Remove memories below strength threshold */
-  prune(agentId: AgentId, minStrength: number): Promise<number>;
+  prune(agentId: AgentId, minStrength: number): Promise<Result<number, MemoryError>>;
   /** Clear all memories for an agent */
-  clear(agentId: AgentId): Promise<void>;
+  clear(agentId: AgentId): Promise<Result<void, MemoryError>>;
 }
 
 // ─── STRENGTH DECAY CALCULATION ──────────────────────────────
@@ -90,13 +115,14 @@ export class InMemoryStore implements MemoryStore {
   private memories: Map<MemoryId, Memory> = new Map();
   private agentIndex: Map<AgentId, Set<MemoryId>> = new Map();
 
-  async save(memory: Memory): Promise<MemoryId> {
-    const id = memory.id || `mem-${randomUUID().slice(0, 12)}`;
+  async save(memory: Memory): Promise<Result<MemoryId, MemoryError>> {
+    const id = memory.id || randomUUID();
     const now = new Date();
 
     const entry: Memory = {
       ...memory,
       id,
+      scope: memory.scope ?? "private",
       createdAt: memory.createdAt || now,
       lastAccessedAt: memory.lastAccessedAt || now,
       accessCount: memory.accessCount || 0,
@@ -112,45 +138,51 @@ export class InMemoryStore implements MemoryStore {
     }
     this.agentIndex.get(memory.agentId)!.add(id);
 
-    return id;
+    return ok(id);
   }
 
-  async get(id: MemoryId): Promise<Memory | null> {
+  async get(id: MemoryId): Promise<Result<Memory, MemoryError>> {
     const memory = this.memories.get(id);
-    if (!memory) return null;
+    if (!memory) {
+      return err(new MemoryError(`Memory not found: ${id}`, "NOT_FOUND", id));
+    }
 
     // Update access stats
     memory.lastAccessedAt = new Date();
     memory.accessCount += 1;
     memory.strength = calculateStrength(memory.lastAccessedAt, memory.accessCount);
 
-    return memory;
+    return ok(memory);
   }
 
-  async update(id: MemoryId, updates: Partial<Memory>): Promise<boolean> {
+  async update(id: MemoryId, updates: Partial<Memory>): Promise<Result<void, MemoryError>> {
     const memory = this.memories.get(id);
-    if (!memory) return false;
+    if (!memory) {
+      return err(new MemoryError(`Memory not found: ${id}`, "NOT_FOUND", id));
+    }
 
     // Merge updates (type-safe partial update)
     Object.assign(memory, updates, { id }); // Preserve ID
-    return true;
+    return ok(undefined);
   }
 
-  async delete(id: MemoryId): Promise<boolean> {
+  async delete(id: MemoryId): Promise<Result<void, MemoryError>> {
     const memory = this.memories.get(id);
-    if (!memory) return false;
+    if (!memory) {
+      return err(new MemoryError(`Memory not found: ${id}`, "NOT_FOUND", id));
+    }
 
     this.memories.delete(id);
     this.agentIndex.get(memory.agentId)?.delete(id);
-    return true;
+    return ok(undefined);
   }
 
-  async query(agentId: AgentId, query: MemoryQuery): Promise<MemoryQueryResult> {
+  async query(agentId: AgentId, query: MemoryQuery): Promise<Result<MemoryQueryResult, MemoryError>> {
     const startTime = Date.now();
     const agentMemoryIds = this.agentIndex.get(agentId);
 
     if (!agentMemoryIds) {
-      return { memories: [], total: 0, queryTime: Date.now() - startTime };
+      return ok({ memories: [], total: 0, queryTime: Date.now() - startTime });
     }
 
     let results: Memory[] = [];
@@ -206,22 +238,27 @@ export class InMemoryStore implements MemoryStore {
       });
     }
 
-    return {
+    return ok({
       memories: results,
       total,
       queryTime: Date.now() - startTime,
-    };
+    });
   }
 
-  async getByAgent(agentId: AgentId, type?: Memory["type"]): Promise<Memory[]> {
+  async getByAgent(agentId: AgentId, type?: Memory["type"]): Promise<Result<Memory[], MemoryError>> {
     const result = await this.query(agentId, {
       types: type ? [type] : undefined,
     });
-    return result.memories;
+
+    if (!result.ok) return result;
+    return ok(result.value.memories);
   }
 
-  async getStats(agentId: AgentId): Promise<MemoryStats> {
-    const memories = await this.getByAgent(agentId);
+  async getStats(agentId: AgentId): Promise<Result<MemoryStats, MemoryError>> {
+    const memoriesResult = await this.getByAgent(agentId);
+    if (!memoriesResult.ok) return memoriesResult;
+
+    const memories = memoriesResult.value;
 
     const stats: MemoryStats = {
       agentId,
@@ -233,7 +270,7 @@ export class InMemoryStore implements MemoryStore {
       averageStrength: 0,
     };
 
-    if (memories.length === 0) return stats;
+    if (memories.length === 0) return ok(stats);
 
     let totalImportance = 0;
     let totalStrength = 0;
@@ -260,12 +297,12 @@ export class InMemoryStore implements MemoryStore {
     stats.oldestMemory = oldest;
     stats.newestMemory = newest;
 
-    return stats;
+    return ok(stats);
   }
 
-  async decayStrength(agentId: AgentId, decayRate: number): Promise<number> {
+  async decayStrength(agentId: AgentId, decayRate: number): Promise<Result<number, MemoryError>> {
     const agentMemoryIds = this.agentIndex.get(agentId);
-    if (!agentMemoryIds) return 0;
+    if (!agentMemoryIds) return ok(0);
 
     let updated = 0;
     for (const id of agentMemoryIds) {
@@ -279,12 +316,12 @@ export class InMemoryStore implements MemoryStore {
       }
     }
 
-    return updated;
+    return ok(updated);
   }
 
-  async prune(agentId: AgentId, minStrength: number): Promise<number> {
+  async prune(agentId: AgentId, minStrength: number): Promise<Result<number, MemoryError>> {
     const agentMemoryIds = this.agentIndex.get(agentId);
-    if (!agentMemoryIds) return 0;
+    if (!agentMemoryIds) return ok(0);
 
     const toDelete: MemoryId[] = [];
     for (const id of agentMemoryIds) {
@@ -298,17 +335,19 @@ export class InMemoryStore implements MemoryStore {
       await this.delete(id);
     }
 
-    return toDelete.length;
+    return ok(toDelete.length);
   }
 
-  async clear(agentId: AgentId): Promise<void> {
+  async clear(agentId: AgentId): Promise<Result<void, MemoryError>> {
     const agentMemoryIds = this.agentIndex.get(agentId);
-    if (!agentMemoryIds) return;
+    if (!agentMemoryIds) return ok(undefined);
 
     for (const id of agentMemoryIds) {
       this.memories.delete(id);
     }
     this.agentIndex.delete(agentId);
+
+    return ok(undefined);
   }
 
   /** Get searchable text from any memory type */

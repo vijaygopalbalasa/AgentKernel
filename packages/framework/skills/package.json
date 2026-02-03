@@ -8,9 +8,11 @@
     "@agent-os/kernel": "workspace:*",
     "@agent-os/tools": "workspace:*",
     "@agent-os/permissions": "workspace:*",
+    "semver": "^7.6.3",
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@types/semver": "^7.5.8",
     "typescript": "^5.9.3",
     "tsup": "^8.5.1",
     "vitest": "^4.0.18"

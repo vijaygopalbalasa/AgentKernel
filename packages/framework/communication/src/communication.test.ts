@@ -1,14 +1,21 @@
 // Communication System tests
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { AgentRegistry, createAgentRegistry } from "./agent-registry.js";
 import { A2AClient, createA2AClient } from "./a2a-client.js";
 import { A2AServer, createA2AServer } from "./a2a-server.js";
 import type {
   A2AAgentCard,
   A2ARequest,
-  A2AMessage,
   CommunicationEvent,
 } from "./types.js";
+
+function getFirst<T>(items: T[]): T {
+  const first = items[0];
+  if (!first) {
+    throw new Error("Expected at least one item");
+  }
+  return first;
+}
 
 describe("AgentRegistry", () => {
   let registry: AgentRegistry;
@@ -25,13 +32,36 @@ describe("AgentRegistry", () => {
         description: "A test agent",
       };
 
+      const result = registry.registerLocal("agent-1", card);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.value.card.name).toBe("Test Agent");
+      expect(result.value.localAgentId).toBe("agent-1");
+      expect(result.value.isOnline).toBe(true);
+    });
+
+    it("should get registered agent by URL", () => {
+      const card: A2AAgentCard = {
+        name: "Test Agent",
+        url: "http://localhost:3000",
+        description: "A test agent",
+      };
+
       registry.registerLocal("agent-1", card);
 
-      const entry = registry.get("http://localhost:3000");
-      expect(entry).not.toBeNull();
-      expect(entry!.card.name).toBe("Test Agent");
-      expect(entry!.localAgentId).toBe("agent-1");
-      expect(entry!.isOnline).toBe(true);
+      const result = registry.get("http://localhost:3000");
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.card.name).toBe("Test Agent");
+    });
+
+    it("should return error for nonexistent agent", () => {
+      const result = registry.get("http://nonexistent");
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("NOT_FOUND");
     });
 
     it("should list local agents", () => {
@@ -58,8 +88,20 @@ describe("AgentRegistry", () => {
       });
 
       expect(events.length).toBe(1);
-      expect(events[0].type).toBe("agent_registered");
-      expect(events[0].agentId).toBe("agent-1");
+      const firstEvent = getFirst(events);
+      expect(firstEvent.type).toBe("agent_registered");
+      expect(firstEvent.agentId).toBe("agent-1");
+    });
+
+    it("should reject registration with invalid card", () => {
+      const result = registry.registerLocal("agent-1", {
+        name: "",  // Invalid: empty name
+        url: "http://localhost:3000",
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("VALIDATION_ERROR");
     });
   });
 
@@ -87,25 +129,25 @@ describe("AgentRegistry", () => {
     it("should find by skill", () => {
       const results = registry.findBySkill("calculate");
       expect(results.length).toBe(1);
-      expect(results[0].card.name).toBe("Math Agent");
+      expect(getFirst(results).card.name).toBe("Math Agent");
     });
 
     it("should find by capability", () => {
       const results = registry.findByCapability("streaming");
       expect(results.length).toBe(1);
-      expect(results[0].card.name).toBe("Math Agent");
+      expect(getFirst(results).card.name).toBe("Math Agent");
     });
 
     it("should search by name", () => {
       const results = registry.search("math");
       expect(results.length).toBe(1);
-      expect(results[0].card.name).toBe("Math Agent");
+      expect(getFirst(results).card.name).toBe("Math Agent");
     });
 
     it("should search by description", () => {
       const results = registry.search("content");
       expect(results.length).toBe(1);
-      expect(results[0].card.name).toBe("Writer Agent");
+      expect(getFirst(results).card.name).toBe("Writer Agent");
     });
 
     it("should list all agents", () => {
@@ -125,10 +167,20 @@ describe("AgentRegistry", () => {
         url: "http://localhost:3000",
       });
 
-      registry.markOffline("http://localhost:3000");
+      const result = registry.markOffline("http://localhost:3000");
+      expect(result.ok).toBe(true);
 
-      const entry = registry.get("http://localhost:3000");
-      expect(entry!.isOnline).toBe(false);
+      const getResult = registry.get("http://localhost:3000");
+      expect(getResult.ok).toBe(true);
+      if (!getResult.ok) return;
+      expect(getResult.value.isOnline).toBe(false);
+    });
+
+    it("should return error when marking nonexistent agent offline", () => {
+      const result = registry.markOffline("http://nonexistent");
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("NOT_FOUND");
     });
 
     it("should mark agent online", () => {
@@ -138,10 +190,13 @@ describe("AgentRegistry", () => {
       });
 
       registry.markOffline("http://localhost:3000");
-      registry.markOnline("http://localhost:3000");
+      const result = registry.markOnline("http://localhost:3000");
+      expect(result.ok).toBe(true);
 
-      const entry = registry.get("http://localhost:3000");
-      expect(entry!.isOnline).toBe(true);
+      const getResult = registry.get("http://localhost:3000");
+      expect(getResult.ok).toBe(true);
+      if (!getResult.ok) return;
+      expect(getResult.value.isOnline).toBe(true);
     });
 
     it("should list online agents", () => {
@@ -158,7 +213,7 @@ describe("AgentRegistry", () => {
 
       const online = registry.listOnline();
       expect(online.length).toBe(1);
-      expect(online[0].card.name).toBe("Agent 2");
+      expect(getFirst(online).card.name).toBe("Agent 2");
     });
 
     it("should emit offline event", () => {
@@ -172,7 +227,7 @@ describe("AgentRegistry", () => {
       registry.markOffline("http://localhost:3000");
 
       const offlineEvent = events.find((e) => e.type === "agent_offline");
-      expect(offlineEvent).not.toBeUndefined();
+      expect(offlineEvent).toBeDefined();
     });
   });
 
@@ -183,10 +238,18 @@ describe("AgentRegistry", () => {
         url: "http://localhost:3000",
       });
 
-      const removed = registry.unregister("http://localhost:3000");
-
-      expect(removed).toBe(true);
+      const result = registry.unregister("http://localhost:3000");
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value).toBe(true);
       expect(registry.has("http://localhost:3000")).toBe(false);
+    });
+
+    it("should return false when unregistering nonexistent agent", () => {
+      const result = registry.unregister("http://nonexistent");
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value).toBe(false);
     });
   });
 });
@@ -204,6 +267,13 @@ describe("A2AClient", () => {
       expect(client.listCachedTasks().length).toBe(0);
     });
 
+    it("should return error for nonexistent cached task", () => {
+      const result = client.getCachedTask("nonexistent");
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("NOT_FOUND");
+    });
+
     it("should set default timeout", () => {
       client.setDefaultTimeout(60000);
       // No direct way to test, but should not throw
@@ -215,6 +285,31 @@ describe("A2AClient", () => {
 
       // Unsubscribe works
       unsubscribe();
+    });
+  });
+
+  describe("Client Replay Protection", () => {
+    it("should create client without replay protection by default", () => {
+      const defaultClient = createA2AClient();
+      expect(defaultClient).toBeDefined();
+    });
+
+    it("should create client with replay protection enabled", () => {
+      const protectedClient = createA2AClient({ replayProtection: true });
+      expect(protectedClient).toBeDefined();
+    });
+
+    it("should create client with custom timeout", () => {
+      const customClient = createA2AClient({ defaultTimeout: 60000 });
+      expect(customClient).toBeDefined();
+    });
+
+    it("should create client with both options", () => {
+      const fullClient = createA2AClient({
+        replayProtection: true,
+        defaultTimeout: 60000,
+      });
+      expect(fullClient).toBeDefined();
     });
   });
 });
@@ -277,13 +372,16 @@ describe("A2AServer", () => {
         },
       };
 
-      const response = await server.handleRequest(request);
+      const result = await server.handleRequest(request);
 
-      expect(response.error).toBeUndefined();
-      expect(response.result).toBeDefined();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
 
-      const result = response.result as any;
-      expect(result.status.state).toBe("completed");
+      expect(result.value.error).toBeUndefined();
+      expect(result.value.result).toBeDefined();
+
+      const taskResult = result.value.result as Record<string, unknown>;
+      expect((taskResult.status as Record<string, unknown>).state).toBe("completed");
     });
 
     it("should reject invalid tasks/send without message", async () => {
@@ -294,10 +392,13 @@ describe("A2AServer", () => {
         params: {},
       };
 
-      const response = await server.handleRequest(request);
+      const result = await server.handleRequest(request);
 
-      expect(response.error).toBeDefined();
-      expect(response.error!.code).toBe(-32602);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.value.error).toBeDefined();
+      expect(result.value.error!.code).toBe(-32602);
     });
 
     it("should handle tasks/get", async () => {
@@ -313,8 +414,10 @@ describe("A2AServer", () => {
           },
         },
       };
-      const createResponse = await server.handleRequest(createRequest);
-      const taskId = (createResponse.result as any).id;
+      const createResult = await server.handleRequest(createRequest);
+      expect(createResult.ok).toBe(true);
+      if (!createResult.ok) return;
+      const taskId = (createResult.value.result as Record<string, unknown>).id;
 
       // Then get it
       const getRequest: A2ARequest = {
@@ -323,10 +426,12 @@ describe("A2AServer", () => {
         method: "tasks/get",
         params: { taskId },
       };
-      const getResponse = await server.handleRequest(getRequest);
+      const getResult = await server.handleRequest(getRequest);
 
-      expect(getResponse.error).toBeUndefined();
-      expect((getResponse.result as any).id).toBe(taskId);
+      expect(getResult.ok).toBe(true);
+      if (!getResult.ok) return;
+      expect(getResult.value.error).toBeUndefined();
+      expect((getResult.value.result as Record<string, unknown>).id).toBe(taskId);
     });
 
     it("should handle tasks/get for nonexistent task", async () => {
@@ -337,10 +442,12 @@ describe("A2AServer", () => {
         params: { taskId: "nonexistent" },
       };
 
-      const response = await server.handleRequest(request);
+      const result = await server.handleRequest(request);
 
-      expect(response.error).toBeDefined();
-      expect(response.error!.code).toBe(-32001);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.error).toBeDefined();
+      expect(result.value.error!.code).toBe(-32001);
     });
 
     it("should handle tasks/cancel", async () => {
@@ -356,8 +463,10 @@ describe("A2AServer", () => {
           },
         },
       };
-      const createResponse = await server.handleRequest(createRequest);
-      const taskId = (createResponse.result as any).id;
+      const createResult = await server.handleRequest(createRequest);
+      expect(createResult.ok).toBe(true);
+      if (!createResult.ok) return;
+      const taskId = (createResult.value.result as Record<string, unknown>).id;
 
       // Then cancel it
       const cancelRequest: A2ARequest = {
@@ -366,10 +475,12 @@ describe("A2AServer", () => {
         method: "tasks/cancel",
         params: { taskId },
       };
-      const cancelResponse = await server.handleRequest(cancelRequest);
+      const cancelResult = await server.handleRequest(cancelRequest);
 
-      expect(cancelResponse.error).toBeUndefined();
-      expect((cancelResponse.result as any).success).toBe(true);
+      expect(cancelResult.ok).toBe(true);
+      if (!cancelResult.ok) return;
+      expect(cancelResult.value.error).toBeUndefined();
+      expect((cancelResult.value.result as Record<string, unknown>).success).toBe(true);
     });
 
     it("should handle tasks/list", async () => {
@@ -397,23 +508,28 @@ describe("A2AServer", () => {
         id: "list-1",
         method: "tasks/list",
       };
-      const listResponse = await server.handleRequest(listRequest);
+      const listResult = await server.handleRequest(listRequest);
 
-      expect(listResponse.error).toBeUndefined();
-      expect((listResponse.result as any).tasks.length).toBe(2);
+      expect(listResult.ok).toBe(true);
+      if (!listResult.ok) return;
+      expect(listResult.value.error).toBeUndefined();
+      const tasks = (listResult.value.result as Record<string, unknown[]>).tasks ?? [];
+      expect(tasks.length).toBe(2);
     });
 
     it("should handle unknown method", async () => {
       const request: A2ARequest = {
         jsonrpc: "2.0",
         id: "test-1",
-        method: "unknown/method" as any,
+        method: "unknown/method" as "tasks/send",
       };
 
-      const response = await server.handleRequest(request);
+      const result = await server.handleRequest(request);
 
-      expect(response.error).toBeDefined();
-      expect(response.error!.code).toBe(-32601);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.error).toBeDefined();
+      expect(result.value.error!.code).toBe(-32601);
     });
   });
 
@@ -433,16 +549,20 @@ describe("A2AServer", () => {
 
       const result = await server.handleHttpRequest(body);
 
-      expect(result.status).toBe(200);
-      expect(result.contentType).toBe("application/json");
-      expect(JSON.parse(result.body).error).toBeUndefined();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.status).toBe(200);
+      expect(result.value.contentType).toBe("application/json");
+      expect(JSON.parse(result.value.body).error).toBeUndefined();
     });
 
     it("should handle invalid JSON", async () => {
       const result = await server.handleHttpRequest("not json");
 
-      expect(result.status).toBe(400);
-      expect(JSON.parse(result.body).error.code).toBe(-32700);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.status).toBe(400);
+      expect(JSON.parse(result.value.body).error.code).toBe(-32700);
     });
   });
 
@@ -459,18 +579,23 @@ describe("A2AServer", () => {
           },
         },
       };
-      const createResponse = await server.handleRequest(createRequest);
-      const taskId = (createResponse.result as any).id;
+      const createResult = await server.handleRequest(createRequest);
+      expect(createResult.ok).toBe(true);
+      if (!createResult.ok) return;
+      const taskId = (createResult.value.result as Record<string, unknown>).id as string;
 
-      const task = server.getTask(taskId);
+      const result = server.getTask(taskId);
 
-      expect(task).not.toBeNull();
-      expect(task!.id).toBe(taskId);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.id).toBe(taskId);
     });
 
-    it("should return null for nonexistent task", () => {
-      const task = server.getTask("nonexistent");
-      expect(task).toBeNull();
+    it("should return error for nonexistent task", () => {
+      const result = server.getTask("nonexistent");
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("NOT_FOUND");
     });
 
     it("should list tasks by session", async () => {
@@ -561,13 +686,241 @@ describe("Integration", () => {
     });
 
     // Register the server's card
-    registry.registerLocal("int-agent", server.getAgentCard());
+    const registerResult = registry.registerLocal("int-agent", server.getAgentCard());
+    expect(registerResult.ok).toBe(true);
 
     // Find it
     const agents = registry.findBySkill("test");
     expect(agents.length).toBe(1);
 
     // The client would use this URL to send tasks
-    expect(agents[0].card.url).toBe("http://localhost:4000");
+    expect(getFirst(agents).card.url).toBe("http://localhost:4000");
+  });
+});
+
+describe("A2AServer Replay Protection", () => {
+  let serverWithReplayProtection: A2AServer;
+
+  beforeEach(() => {
+    serverWithReplayProtection = createA2AServer({
+      card: {
+        name: "Protected Server",
+        url: "http://localhost:5000",
+      },
+      taskHandler: async () => ({ state: "completed" }),
+      replayProtection: {
+        enabled: true,
+        maxAgeMs: 5 * 60 * 1000, // 5 minutes
+        nonceTtlMs: 10 * 60 * 1000, // 10 minutes
+      },
+    });
+  });
+
+  afterEach(() => {
+    serverWithReplayProtection.stopCleanup();
+  });
+
+  it("should reject task without nonce when replay protection is enabled", async () => {
+    const request: A2ARequest = {
+      jsonrpc: "2.0",
+      id: "test-no-nonce",
+      method: "tasks/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "Hello" }],
+        },
+        // Missing nonce and timestamp
+      },
+    };
+
+    const result = await serverWithReplayProtection.handleRequest(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.error).toBeDefined();
+    expect(result.value.error!.code).toBe(-32602);
+  });
+
+  it("should reject task without timestamp when replay protection is enabled", async () => {
+    const request: A2ARequest = {
+      jsonrpc: "2.0",
+      id: "test-no-timestamp",
+      method: "tasks/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "Hello" }],
+        },
+        nonce: "unique-nonce-1",
+        // Missing timestamp
+      },
+    };
+
+    const result = await serverWithReplayProtection.handleRequest(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.error).toBeDefined();
+    expect(result.value.error!.code).toBe(-32602);
+  });
+
+  it("should reject task with old timestamp", async () => {
+    const oldTimestamp = Date.now() - 10 * 60 * 1000; // 10 minutes ago
+
+    const request: A2ARequest = {
+      jsonrpc: "2.0",
+      id: "test-old-timestamp",
+      method: "tasks/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "Hello" }],
+        },
+        nonce: "unique-nonce-2",
+        timestamp: oldTimestamp,
+      },
+    };
+
+    const result = await serverWithReplayProtection.handleRequest(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.error).toBeDefined();
+    expect(result.value.error!.code).toBe(-32602);
+    expect(result.value.error!.message).toContain("too old");
+  });
+
+  it("should reject task with duplicate nonce", async () => {
+    const nonce = "duplicate-nonce-test";
+    const timestamp = Date.now();
+
+    // First request should succeed
+    const firstRequest: A2ARequest = {
+      jsonrpc: "2.0",
+      id: "test-first",
+      method: "tasks/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "First" }],
+        },
+        nonce,
+        timestamp,
+      },
+    };
+
+    const firstResult = await serverWithReplayProtection.handleRequest(firstRequest);
+    expect(firstResult.ok).toBe(true);
+    if (!firstResult.ok) return;
+    expect(firstResult.value.error).toBeUndefined();
+
+    // Second request with same nonce should fail
+    const secondRequest: A2ARequest = {
+      jsonrpc: "2.0",
+      id: "test-second",
+      method: "tasks/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "Second" }],
+        },
+        nonce, // Same nonce
+        timestamp: Date.now(),
+      },
+    };
+
+    const secondResult = await serverWithReplayProtection.handleRequest(secondRequest);
+    expect(secondResult.ok).toBe(true);
+    if (!secondResult.ok) return;
+    expect(secondResult.value.error).toBeDefined();
+    expect(secondResult.value.error!.code).toBe(-32602);
+    expect(secondResult.value.error!.message).toContain("Duplicate nonce");
+  });
+
+  it("should accept valid task with nonce and timestamp", async () => {
+    const request: A2ARequest = {
+      jsonrpc: "2.0",
+      id: "test-valid",
+      method: "tasks/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "Valid request" }],
+        },
+        nonce: "valid-unique-nonce",
+        timestamp: Date.now(),
+      },
+    };
+
+    const result = await serverWithReplayProtection.handleRequest(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.error).toBeUndefined();
+    expect(result.value.result).toBeDefined();
+  });
+
+  it("should reject task with future timestamp", async () => {
+    const futureTimestamp = Date.now() + 5 * 60 * 1000; // 5 minutes in future
+
+    const request: A2ARequest = {
+      jsonrpc: "2.0",
+      id: "test-future",
+      method: "tasks/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "Future request" }],
+        },
+        nonce: "future-nonce",
+        timestamp: futureTimestamp,
+      },
+    };
+
+    const result = await serverWithReplayProtection.handleRequest(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.error).toBeDefined();
+    expect(result.value.error!.code).toBe(-32602);
+    expect(result.value.error!.message).toContain("future");
+  });
+});
+
+describe("A2AServer without Replay Protection", () => {
+  let serverWithoutProtection: A2AServer;
+
+  beforeEach(() => {
+    serverWithoutProtection = createA2AServer({
+      card: {
+        name: "Unprotected Server",
+        url: "http://localhost:6000",
+      },
+      taskHandler: async () => ({ state: "completed" }),
+      // No replay protection configured
+    });
+  });
+
+  it("should accept task without nonce when replay protection is disabled", async () => {
+    const request: A2ARequest = {
+      jsonrpc: "2.0",
+      id: "test-no-protection",
+      method: "tasks/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "Hello without protection" }],
+        },
+        // No nonce or timestamp
+      },
+    };
+
+    const result = await serverWithoutProtection.handleRequest(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.error).toBeUndefined();
+    expect(result.value.result).toBeDefined();
   });
 });

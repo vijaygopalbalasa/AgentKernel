@@ -1,0 +1,239 @@
+# Agent OS Production Docker Compose
+# Full stack with PostgreSQL, Qdrant, Redis, and Gateway
+
+services:
+  # PostgreSQL - Primary database
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-os-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agentuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentpass}
+      POSTGRES_DB: ${POSTGRES_DB:-agentdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentuser} -d ${POSTGRES_DB:-agentdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent-os-network
+
+  # Qdrant - Vector database for memory
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: agent-os-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    networks:
+      - agent-os-network
+
+  # Redis - Cache and pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: agent-os-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent-os-network
+
+  # Agent OS Gateway
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agent-os-gateway:latest
+    container_name: agent-os-gateway
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 18800
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: 18800
+      GATEWAY_URL: ws://127.0.0.1:18800
+      GATEWAY_AUTH_TOKEN: ${GATEWAY_AUTH_TOKEN:-}
+      INTERNAL_AUTH_TOKEN: ${INTERNAL_AUTH_TOKEN:-}
+      GATEWAY_MAX_PAYLOAD_BYTES: ${GATEWAY_MAX_PAYLOAD_BYTES:-10485760}
+      GATEWAY_MAX_CONNECTIONS: ${GATEWAY_MAX_CONNECTIONS:-500}
+      GATEWAY_MESSAGE_RATE_LIMIT: ${GATEWAY_MESSAGE_RATE_LIMIT:-600}
+      MONITOR_AGENT_INTERVAL_MS: ${MONITOR_AGENT_INTERVAL_MS:-60000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PERMISSION_SECRET: ${PERMISSION_SECRET:-}
+      PERMISSION_TOKEN_DURATION_MS: ${PERMISSION_TOKEN_DURATION_MS:-2592000000}
+      MAX_AGENT_ERRORS: ${MAX_AGENT_ERRORS:-5}
+      MAX_AGENT_RESTARTS: ${MAX_AGENT_RESTARTS:-3}
+      AGENT_WORKER_HEARTBEAT_TIMEOUT_MS: ${AGENT_WORKER_HEARTBEAT_TIMEOUT_MS:-30000}
+      MAX_AGENT_TASK_TIMEOUT_MS: ${MAX_AGENT_TASK_TIMEOUT_MS:-60000}
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-365}
+      EVENTS_RETENTION_DAYS: ${EVENTS_RETENTION_DAYS:-90}
+      TASK_MESSAGES_RETENTION_DAYS: ${TASK_MESSAGES_RETENTION_DAYS:-90}
+      EPISODIC_RETENTION_DAYS: ${EPISODIC_RETENTION_DAYS:-365}
+      SEMANTIC_RETENTION_DAYS: ${SEMANTIC_RETENTION_DAYS:-365}
+      PROCEDURAL_RETENTION_DAYS: ${PROCEDURAL_RETENTION_DAYS:-365}
+      EPISODIC_ARCHIVE_DAYS: ${EPISODIC_ARCHIVE_DAYS:-0}
+      SEMANTIC_ARCHIVE_DAYS: ${SEMANTIC_ARCHIVE_DAYS:-0}
+      PROCEDURAL_ARCHIVE_DAYS: ${PROCEDURAL_ARCHIVE_DAYS:-0}
+      MEMORY_ARCHIVE_RETENTION_DAYS: ${MEMORY_ARCHIVE_RETENTION_DAYS:-0}
+      MANIFEST_SIGNING_SECRET: ${MANIFEST_SIGNING_SECRET:-}
+      REQUIRE_MANIFEST_SIGNATURE: ${REQUIRE_MANIFEST_SIGNATURE:-true}
+
+      # Database
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${POSTGRES_USER:-agentuser}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-agentpass}
+      DATABASE_NAME: ${POSTGRES_DB:-agentdb}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
+
+      # Qdrant
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      QDRANT_HTTPS: ${QDRANT_HTTPS:-false}
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # LLM Providers
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+
+      # Optional: Ollama for local models
+      OLLAMA_URL: ${OLLAMA_URL:-}
+
+      # Sandboxing / Access Control
+      ALLOWED_PATHS: ${ALLOWED_PATHS:-/tmp/agent-os}
+      ALLOWED_DOMAINS: ${ALLOWED_DOMAINS:-}
+      ALLOW_ALL_PATHS: ${ALLOW_ALL_PATHS:-false}
+      ALLOW_ALL_DOMAINS: ${ALLOW_ALL_DOMAINS:-false}
+      MAX_MEMORY_PER_AGENT_MB: ${MAX_MEMORY_PER_AGENT_MB:-512}
+      MEMORY_ENCRYPTION_ENABLED: ${MEMORY_ENCRYPTION_ENABLED:-false}
+      MEMORY_ENCRYPTION_KEY: ${MEMORY_ENCRYPTION_KEY:-}
+      AGENT_EGRESS_PROXY_URL: ${AGENT_EGRESS_PROXY_URL:-}
+      ENFORCE_PRODUCTION_HARDENING: ${ENFORCE_PRODUCTION_HARDENING:-true}
+
+      # Agent worker runtime (docker isolation)
+      AGENT_WORKER_RUNTIME: ${AGENT_WORKER_RUNTIME:-docker}
+      AGENT_WORKER_IMAGE: ${AGENT_WORKER_IMAGE:-agent-os-gateway:latest}
+      AGENT_WORKER_DOCKER_NETWORK: ${AGENT_WORKER_DOCKER_NETWORK:-agent-os-internal}
+      AGENT_WORKER_GATEWAY_HOST: ${AGENT_WORKER_GATEWAY_HOST:-gateway}
+      AGENT_WORKER_DOCKER_READONLY: ${AGENT_WORKER_DOCKER_READONLY:-true}
+      AGENT_WORKER_DOCKER_TMPFS: ${AGENT_WORKER_DOCKER_TMPFS:-/tmp:rw,size=64m,/var/tmp:rw,size=64m}
+      AGENT_WORKER_DOCKER_CAP_DROP: ${AGENT_WORKER_DOCKER_CAP_DROP:-ALL}
+      AGENT_WORKER_DOCKER_NO_NEW_PRIVS: ${AGENT_WORKER_DOCKER_NO_NEW_PRIVS:-true}
+      AGENT_WORKER_DOCKER_SECCOMP_PROFILE: ${AGENT_WORKER_DOCKER_SECCOMP_PROFILE:-${PWD}/docker/seccomp/agentos-worker.json}
+      AGENT_WORKER_DOCKER_APPARMOR: ${AGENT_WORKER_DOCKER_APPARMOR:-}
+      AGENT_WORKER_REQUIRE_APPARMOR: ${AGENT_WORKER_REQUIRE_APPARMOR:-false}
+      AGENT_WORKER_DOCKER_ULIMITS: ${AGENT_WORKER_DOCKER_ULIMITS:-nofile=1024:2048,fsize=10485760}
+      AGENT_WORKER_DOCKER_PIDS_LIMIT: ${AGENT_WORKER_DOCKER_PIDS_LIMIT:-128}
+      AGENT_WORKER_DOCKER_STORAGE_OPTS: ${AGENT_WORKER_DOCKER_STORAGE_OPTS:-size=2G}
+
+      # Storage requirements
+      REQUIRE_PERSISTENT_STORE: ${REQUIRE_PERSISTENT_STORE:-true}
+      REQUIRE_VECTOR_STORE: ${REQUIRE_VECTOR_STORE:-false}
+
+      # MCP Servers (JSON array)
+      MCP_SERVERS: ${MCP_SERVERS:-}
+      TRACING_ENABLED: ${TRACING_ENABLED:-false}
+      TRACING_SAMPLE_RATE: ${TRACING_SAMPLE_RATE:-1}
+      TRACING_EXPORTER_URL: ${TRACING_EXPORTER_URL:-}
+    ports:
+      - "18800:18800"
+      - "18801:18801"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:18801/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    networks:
+      - agent-os-network
+      - agent-os-internal
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # Agent OS Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    container_name: agent-os-dashboard
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_started
+    ports:
+      - "3000:80"
+    networks:
+      - agent-os-network
+
+  agent-bootstrap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-os-bootstrap
+    restart: "no"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    environment:
+      GATEWAY_URL: ws://gateway:18800
+      GATEWAY_PORT: 18800
+      GATEWAY_AUTH_TOKEN: ${GATEWAY_AUTH_TOKEN:-}
+    command: ["node", "docker/bootstrap-agents.mjs"]
+    networks:
+      - agent-os-network
+
+volumes:
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  agent-os-network:
+    driver: bridge
+  agent-os-internal:
+    driver: bridge
+    internal: true

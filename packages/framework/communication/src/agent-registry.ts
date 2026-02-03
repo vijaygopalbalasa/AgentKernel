@@ -1,10 +1,18 @@
 // Agent Registry — discovers and tracks agents
 // Central registry for both local and remote agents
 
+import { type Result, ok, err } from "@agent-os/shared";
+import { type Logger, createLogger } from "@agent-os/kernel";
 import type {
   A2AAgentCard,
   AgentRegistryEntry,
   CommunicationEvent,
+} from "./types.js";
+import {
+  CommunicationError,
+  A2AAgentCardSchema,
+  RegisterLocalInputSchema,
+  DiscoverAgentInputSchema,
 } from "./types.js";
 
 /**
@@ -20,11 +28,30 @@ export class AgentRegistry {
   private agents: Map<string, AgentRegistryEntry> = new Map();
   private eventListeners: Array<(event: CommunicationEvent) => void> = [];
   private fetchTimeout: number = 5000;
+  private log: Logger;
+
+  constructor() {
+    this.log = createLogger({ name: "agent-registry" });
+  }
 
   /**
    * Register a local agent with its Agent Card.
    */
-  registerLocal(agentId: string, card: A2AAgentCard): void {
+  registerLocal(
+    agentId: string,
+    card: A2AAgentCard
+  ): Result<AgentRegistryEntry, CommunicationError> {
+    // Validate input
+    const inputResult = RegisterLocalInputSchema.safeParse({ agentId, card });
+    if (!inputResult.success) {
+      return err(
+        new CommunicationError(
+          `Invalid registration input: ${inputResult.error.message}`,
+          "VALIDATION_ERROR"
+        )
+      );
+    }
+
     const entry: AgentRegistryEntry = {
       card,
       registeredAt: new Date(),
@@ -40,27 +67,60 @@ export class AgentRegistry {
       agentUrl: card.url,
       timestamp: new Date(),
     });
+
+    this.log.debug("Local agent registered", { agentId, url: card.url });
+    return ok(entry);
   }
 
   /**
    * Discover a remote agent by fetching its Agent Card.
    */
-  async discover(agentUrl: string): Promise<AgentRegistryEntry | null> {
+  async discover(
+    agentUrl: string
+  ): Promise<Result<AgentRegistryEntry, CommunicationError>> {
+    // Validate input
+    const inputResult = DiscoverAgentInputSchema.safeParse({ agentUrl });
+    if (!inputResult.success) {
+      return err(
+        new CommunicationError(
+          `Invalid agent URL: ${inputResult.error.message}`,
+          "VALIDATION_ERROR",
+          agentUrl
+        )
+      );
+    }
+
     const wellKnownUrl = this.getWellKnownUrl(agentUrl);
 
     try {
+      this.log.debug("Discovering agent", { url: wellKnownUrl });
       const response = await this.fetchWithTimeout(wellKnownUrl, this.fetchTimeout);
 
       if (!response.ok) {
-        return null;
+        return err(
+          new CommunicationError(
+            `Failed to fetch agent card: HTTP ${response.status}`,
+            "NETWORK_ERROR",
+            agentUrl
+          )
+        );
       }
 
-      const card = (await response.json()) as A2AAgentCard;
+      const cardData = await response.json();
 
-      // Validate the card has required fields
-      if (!card.name || !card.url) {
-        return null;
+      // Validate the card
+      const cardResult = A2AAgentCardSchema.safeParse(cardData);
+      if (!cardResult.success) {
+        return err(
+          new CommunicationError(
+            `Invalid agent card: ${cardResult.error.message}`,
+            "VALIDATION_ERROR",
+            agentUrl
+          )
+        );
       }
+
+      const card = cardData as A2AAgentCard;
 
       const entry: AgentRegistryEntry = {
         card,
@@ -77,17 +137,46 @@ export class AgentRegistry {
         data: { card },
       });
 
-      return entry;
-    } catch {
-      return null;
+      this.log.info("Agent discovered", { url: agentUrl, name: card.name });
+      return ok(entry);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("aborted")) {
+        this.log.warn("Agent discovery timed out", { url: agentUrl });
+        return err(
+          new CommunicationError(
+            `Discovery timed out for ${agentUrl}`,
+            "TIMEOUT_ERROR",
+            agentUrl
+          )
+        );
+      }
+      this.log.warn("Agent discovery failed", { url: agentUrl, error: message });
+      return err(
+        new CommunicationError(
+          `Failed to discover agent: ${message}`,
+          "NETWORK_ERROR",
+          agentUrl
+        )
+      );
     }
   }
 
   /**
    * Get an agent by URL.
    */
-  get(agentUrl: string): AgentRegistryEntry | null {
-    return this.agents.get(agentUrl) ?? null;
+  get(agentUrl: string): Result<AgentRegistryEntry, CommunicationError> {
+    const entry = this.agents.get(agentUrl);
+    if (!entry) {
+      return err(
+        new CommunicationError(
+          `Agent not found: ${agentUrl}`,
+          "NOT_FOUND",
+          agentUrl
+        )
+      );
+    }
+    return ok(entry);
   }
 
   /**
@@ -150,7 +239,7 @@ export class AgentRegistry {
    */
   findByInputMode(mode: string): AgentRegistryEntry[] {
     return this.list().filter((entry) =>
-      entry.card.defaultInputModes?.includes(mode as any)
+      entry.card.defaultInputModes?.includes(mode as "text" | "audio" | "video" | "file")
     );
   }
 
@@ -169,49 +258,80 @@ export class AgentRegistry {
   /**
    * Mark an agent as offline.
    */
-  markOffline(agentUrl: string): void {
+  markOffline(agentUrl: string): Result<void, CommunicationError> {
     const entry = this.agents.get(agentUrl);
-    if (entry) {
-      entry.isOnline = false;
-      this.emit({
-        type: "agent_offline",
-        agentUrl,
-        timestamp: new Date(),
-      });
+    if (!entry) {
+      return err(
+        new CommunicationError(
+          `Agent not found: ${agentUrl}`,
+          "NOT_FOUND",
+          agentUrl
+        )
+      );
     }
+    entry.isOnline = false;
+    this.emit({
+      type: "agent_offline",
+      agentUrl,
+      timestamp: new Date(),
+    });
+    this.log.debug("Agent marked offline", { url: agentUrl });
+    return ok(undefined);
   }
 
   /**
    * Mark an agent as online.
    */
-  markOnline(agentUrl: string): void {
+  markOnline(agentUrl: string): Result<void, CommunicationError> {
     const entry = this.agents.get(agentUrl);
-    if (entry) {
-      entry.isOnline = true;
+    if (!entry) {
+      return err(
+        new CommunicationError(
+          `Agent not found: ${agentUrl}`,
+          "NOT_FOUND",
+          agentUrl
+        )
+      );
     }
+    entry.isOnline = true;
+    this.log.debug("Agent marked online", { url: agentUrl });
+    return ok(undefined);
   }
 
   /**
    * Refresh an agent's card.
    */
-  async refresh(agentUrl: string): Promise<boolean> {
+  async refresh(agentUrl: string): Promise<Result<boolean, CommunicationError>> {
     const entry = this.agents.get(agentUrl);
-    if (!entry) return false;
+    if (!entry) {
+      return err(
+        new CommunicationError(
+          `Agent not found: ${agentUrl}`,
+          "NOT_FOUND",
+          agentUrl
+        )
+      );
+    }
 
     // Local agents don't need refreshing
     if (entry.localAgentId) {
-      return true;
+      this.log.debug("Skipping refresh for local agent", { url: agentUrl });
+      return ok(true);
     }
 
-    const updated = await this.discover(agentUrl);
-    return updated !== null;
+    const result = await this.discover(agentUrl);
+    return ok(result.ok);
   }
 
   /**
    * Remove an agent from the registry.
    */
-  unregister(agentUrl: string): boolean {
-    return this.agents.delete(agentUrl);
+  unregister(agentUrl: string): Result<boolean, CommunicationError> {
+    const existed = this.agents.delete(agentUrl);
+    if (existed) {
+      this.log.debug("Agent unregistered", { url: agentUrl });
+    }
+    return ok(existed);
   }
 
   /**
@@ -232,6 +352,7 @@ export class AgentRegistry {
    */
   setFetchTimeout(timeout: number): void {
     this.fetchTimeout = timeout;
+    this.log.debug("Fetch timeout updated", { timeout });
   }
 
   /** Get the well-known URL for an agent */

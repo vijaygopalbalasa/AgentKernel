@@ -1,5 +1,8 @@
 # Agent OS — Starting with Claude Code
 
+If you want to install and use AgentOS normally (without Claude Code),
+see `docs/INSTALL.md` and `docs/USAGE.md`.
+
 ## Step 1: Install Claude Code (one time)
 
 ```bash

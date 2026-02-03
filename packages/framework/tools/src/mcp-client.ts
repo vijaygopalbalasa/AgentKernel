@@ -1,16 +1,38 @@
 // MCP Client — connects to Model Context Protocol servers
 // Wraps the official @modelcontextprotocol/sdk
 
-import type {
-  MCPServerConfig,
-  MCPResource,
-  MCPPrompt,
-  ToolDefinition,
-  ToolResult,
+import { type Result, ok, err } from "@agent-os/shared";
+import { type Logger, createLogger } from "@agent-os/kernel";
+import { z } from "zod";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  CallToolResultSchema,
+  ListToolsResultSchema,
+  ListResourcesResultSchema,
+  ListPromptsResultSchema,
+  ReadResourceResultSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+import {
+  type MCPServerConfig,
+  type MCPResource,
+  type MCPPrompt,
+  type ToolDefinition,
+  type ToolResult,
+  ToolError,
+  MCPServerConfigSchema,
 } from "./types.js";
 
 /** MCP Connection state */
 export type MCPConnectionState = "disconnected" | "connecting" | "connected" | "error";
+
+/** Manager options */
+export interface MCPClientManagerOptions {
+  mode?: "real" | "mock";
+  clientInfo?: { name: string; version: string };
+}
 
 /** MCP Server connection */
 export interface MCPConnection {
@@ -28,6 +50,10 @@ export interface MCPConnection {
   error?: string;
   /** When the connection was established */
   connectedAt?: Date;
+  /** MCP client instance (real mode) */
+  client?: Client;
+  /** MCP transport instance (real mode) */
+  transport?: { close?: () => Promise<void> | void };
 }
 
 /**
@@ -38,18 +64,36 @@ export interface MCPConnection {
  * - Discover tools, resources, and prompts
  * - Invoke tools on remote servers
  * - Handle reconnection and errors
- *
- * Note: This is a simplified implementation.
- * Production would use the full @modelcontextprotocol/sdk.
+ * - Optional mock mode for tests
  */
 export class MCPClientManager {
   private connections: Map<string, MCPConnection> = new Map();
   private eventListeners: Array<(event: MCPClientEvent) => void> = [];
+  private log: Logger;
+  private mode: "real" | "mock";
+  private clientInfo: { name: string; version: string };
+
+  constructor(options: MCPClientManagerOptions = {}) {
+    this.log = createLogger({ name: "mcp-client-manager" });
+    this.mode = options.mode ?? "real";
+    this.clientInfo = options.clientInfo ?? { name: "agent-os", version: "0.1.0" };
+  }
 
   /**
    * Register an MCP server configuration.
    */
-  registerServer(config: MCPServerConfig): void {
+  registerServer(config: MCPServerConfig): Result<void, ToolError> {
+    // Validate config
+    const configResult = MCPServerConfigSchema.safeParse(config);
+    if (!configResult.success) {
+      return err(
+        new ToolError(
+          `Invalid server config: ${configResult.error.message}`,
+          "VALIDATION_ERROR"
+        )
+      );
+    }
+
     const connection: MCPConnection = {
       config,
       state: "disconnected",
@@ -60,46 +104,36 @@ export class MCPClientManager {
 
     this.connections.set(config.name, connection);
     this.emit({ type: "server_registered", serverName: config.name });
+    this.log.debug("MCP server registered", { serverName: config.name });
+    return ok(undefined);
   }
 
   /**
    * Connect to a registered MCP server.
    */
-  async connect(serverName: string): Promise<boolean> {
+  async connect(serverName: string): Promise<Result<void, ToolError>> {
     const connection = this.connections.get(serverName);
     if (!connection) {
-      return false;
+      return err(
+        new ToolError(`Server not found: ${serverName}`, "NOT_FOUND")
+      );
     }
 
     connection.state = "connecting";
     this.emit({ type: "connecting", serverName });
+    this.log.debug("Connecting to MCP server", { serverName });
 
     try {
-      // In production, this would use the actual MCP SDK to connect
-      // For now, we simulate the connection process
-
-      if (connection.config.transport === "http" || connection.config.transport === "sse") {
-        // HTTP/SSE transport — would fetch from URL
-        if (!connection.config.url) {
-          throw new Error("URL required for HTTP transport");
-        }
-
-        // Simulate fetching server capabilities
-        // In production: const client = new Client(...); await client.connect();
-        await this.simulateHttpConnect(connection);
-      } else if (connection.config.transport === "stdio") {
-        // Stdio transport — would spawn process
-        if (!connection.config.command) {
-          throw new Error("Command required for stdio transport");
-        }
-
-        // Simulate spawning and connecting
-        // In production: const transport = new StdioClientTransport(...);
-        await this.simulateStdioConnect(connection);
+      if (this.mode === "mock") {
+        await this.connectMock(connection);
+      } else {
+        await this.connectReal(connection);
       }
 
       connection.state = "connected";
       connection.connectedAt = new Date();
+      connection.error = undefined;
+
       this.emit({
         type: "connected",
         serverName,
@@ -107,37 +141,57 @@ export class MCPClientManager {
         resources: connection.resources.length,
       });
 
-      return true;
-    } catch (err) {
+      this.log.info("Connected to MCP server", {
+        serverName,
+        tools: connection.tools.length,
+        resources: connection.resources.length,
+      });
+
+      return ok(undefined);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       connection.state = "error";
-      connection.error = err instanceof Error ? err.message : String(err);
-      this.emit({ type: "error", serverName, error: connection.error });
-      return false;
+      connection.error = errorMsg;
+      this.emit({ type: "error", serverName, error: errorMsg });
+      this.log.error("Failed to connect to MCP server", { serverName, error: errorMsg });
+      return err(new ToolError(errorMsg, "CONNECTION_ERROR"));
     }
   }
 
   /**
    * Disconnect from an MCP server.
    */
-  async disconnect(serverName: string): Promise<void> {
+  async disconnect(serverName: string): Promise<Result<void, ToolError>> {
     const connection = this.connections.get(serverName);
-    if (!connection) return;
+    if (!connection) {
+      return err(new ToolError(`Server not found: ${serverName}`, "NOT_FOUND"));
+    }
 
-    // In production, this would properly close the connection
+    await this.closeConnection(connection);
+
     connection.state = "disconnected";
     connection.tools = [];
     connection.resources = [];
     connection.prompts = [];
     connection.connectedAt = undefined;
+    connection.error = undefined;
+    connection.client = undefined;
+    connection.transport = undefined;
 
     this.emit({ type: "disconnected", serverName });
+    this.log.debug("Disconnected from MCP server", { serverName });
+    return ok(undefined);
   }
 
   /**
    * Get connection status for a server.
    */
-  getConnection(serverName: string): MCPConnection | null {
-    return this.connections.get(serverName) ?? null;
+  getConnection(serverName: string): Result<MCPConnection, ToolError> {
+    const connection = this.connections.get(serverName);
+    if (!connection) {
+      return err(new ToolError(`Server not found: ${serverName}`, "NOT_FOUND"));
+    }
+    return ok(connection);
   }
 
   /**
@@ -188,86 +242,107 @@ export class MCPClientManager {
     serverName: string,
     toolName: string,
     args: Record<string, unknown>
-  ): Promise<ToolResult> {
+  ): Promise<Result<ToolResult, ToolError>> {
     const connection = this.connections.get(serverName);
 
     if (!connection) {
-      return { success: false, error: `Server not found: ${serverName}` };
+      return err(new ToolError(`Server not found: ${serverName}`, "NOT_FOUND"));
     }
 
     if (connection.state !== "connected") {
-      return { success: false, error: `Server not connected: ${serverName}` };
+      return err(new ToolError(`Server not connected: ${serverName}`, "CONNECTION_ERROR"));
     }
 
     const tool = connection.tools.find((t) => t.id === toolName || t.name === toolName);
     if (!tool) {
-      return { success: false, error: `Tool not found: ${toolName}` };
+      return err(new ToolError(`Tool not found: ${toolName}`, "NOT_FOUND", toolName));
     }
 
     try {
-      // In production, this would use the MCP SDK to call the tool
-      // const result = await client.callTool({ name: toolName, arguments: args });
+      if (this.mode === "mock") {
+        this.emit({ type: "tool_invoked", serverName, toolName, args });
+        this.log.debug("Mock tool invoked on MCP server", { serverName, toolName });
+        return ok({
+          success: true,
+          content: {
+            message: `Tool ${toolName} invoked on ${serverName}`,
+            args,
+          },
+        });
+      }
 
-      // Simulate tool execution
-      this.emit({
-        type: "tool_invoked",
-        serverName,
-        toolName,
-        args,
-      });
+      if (!connection.client) {
+        return err(new ToolError(`Server not connected: ${serverName}`, "CONNECTION_ERROR"));
+      }
 
-      // For now, return a simulated success
-      return {
-        success: true,
-        content: {
-          message: `Tool ${toolName} invoked on ${serverName}`,
-          args,
-          note: "This is simulated. Production would execute the actual MCP tool.",
+      const result = await connection.client.request(
+        {
+          method: "tools/call",
+          params: { name: tool.name, arguments: args },
         },
-      };
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
+        CallToolResultSchema
+      );
+
+      this.emit({ type: "tool_invoked", serverName, toolName, args });
+      this.log.debug("Tool invoked on MCP server", { serverName, toolName });
+
+      const isError = (result as { isError?: boolean }).isError === true;
+      return ok({
+        success: !isError,
+        content: (result as { content?: unknown }).content ?? result,
+        error: isError ? "MCP tool error" : undefined,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.log.error("Tool invocation failed", { serverName, toolName, error: errorMsg });
+      return err(new ToolError(errorMsg, "INVOCATION_ERROR", toolName));
     }
   }
 
   /**
    * Read a resource from a server.
    */
-  async readResource(serverName: string, uri: string): Promise<ToolResult> {
+  async readResource(serverName: string, uri: string): Promise<Result<ToolResult, ToolError>> {
     const connection = this.connections.get(serverName);
 
     if (!connection) {
-      return { success: false, error: `Server not found: ${serverName}` };
+      return err(new ToolError(`Server not found: ${serverName}`, "NOT_FOUND"));
     }
 
     if (connection.state !== "connected") {
-      return { success: false, error: `Server not connected: ${serverName}` };
+      return err(new ToolError(`Server not connected: ${serverName}`, "CONNECTION_ERROR"));
     }
 
     try {
-      // In production: const result = await client.readResource({ uri });
+      if (this.mode === "mock") {
+        this.emit({ type: "resource_read", serverName, uri });
+        this.log.debug("Mock resource read from MCP server", { serverName, uri });
+        return ok({
+          success: true,
+          content: { uri },
+        });
+      }
 
-      this.emit({
-        type: "resource_read",
-        serverName,
-        uri,
-      });
+      if (!connection.client) {
+        return err(new ToolError(`Server not connected: ${serverName}`, "CONNECTION_ERROR"));
+      }
 
-      return {
+      const result = await connection.client.request(
+        { method: "resources/read", params: { uri } },
+        ReadResourceResultSchema
+      );
+
+      this.emit({ type: "resource_read", serverName, uri });
+      this.log.debug("Resource read from MCP server", { serverName, uri });
+
+      return ok({
         success: true,
-        content: {
-          uri,
-          note: "This is simulated. Production would read the actual MCP resource.",
-        },
-      };
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
+        content: result,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.log.error("Resource read failed", { serverName, uri, error: errorMsg });
+      return err(new ToolError(errorMsg, "SERVER_ERROR"));
     }
   }
 
@@ -291,45 +366,196 @@ export class MCPClientManager {
     for (const serverName of this.connections.keys()) {
       await this.disconnect(serverName);
     }
+    this.log.info("MCP client manager shut down");
+  }
+
+  /**
+   * Get the count of registered servers.
+   */
+  count(): number {
+    return this.connections.size;
+  }
+
+  /**
+   * Get the count of connected servers.
+   */
+  connectedCount(): number {
+    let count = 0;
+    for (const connection of this.connections.values()) {
+      if (connection.state === "connected") {
+        count++;
+      }
+    }
+    return count;
   }
 
   /** Emit an event to listeners */
   private emit(event: MCPClientEvent): void {
     for (const listener of this.eventListeners) {
-      listener(event);
+      try {
+        listener(event);
+      } catch (error) {
+        this.log.error("Event listener error", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
-  /** Simulate HTTP connection (placeholder for actual SDK) */
-  private async simulateHttpConnect(connection: MCPConnection): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  private async connectReal(connection: MCPConnection): Promise<void> {
+    const { transport, client } = this.createClientAndTransport(connection.config);
+    await client.connect(transport as never);
+    connection.client = client;
+    connection.transport = transport;
 
-    // Simulate discovered capabilities
+    const { tools, resources, prompts } = await this.loadCapabilities(client);
+    connection.tools = tools;
+    connection.resources = resources;
+    connection.prompts = prompts;
+  }
+
+  private async connectMock(connection: MCPConnection): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     connection.tools = [
       {
         id: `${connection.config.name}:sample_tool`,
         name: "Sample Tool",
         description: "A sample tool from the MCP server",
-        inputSchema: {} as any,
+        inputSchema: z.object({}).passthrough(),
         category: "mcp",
       },
     ];
+    connection.resources = [];
+    connection.prompts = [];
   }
 
-  /** Simulate stdio connection (placeholder for actual SDK) */
-  private async simulateStdioConnect(connection: MCPConnection): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  private createClientAndTransport(config: MCPServerConfig): {
+    client: Client;
+    transport: { close?: () => Promise<void> | void };
+  } {
+    const client = new Client(this.clientInfo, { capabilities: {} });
 
-    // Simulate discovered capabilities
-    connection.tools = [
-      {
-        id: `${connection.config.name}:stdio_tool`,
-        name: "Stdio Tool",
-        description: "A tool from the stdio MCP server",
-        inputSchema: {} as any,
-        category: "mcp",
-      },
-    ];
+    if (config.transport === "stdio") {
+      if (!config.command) {
+        throw new Error("Command required for stdio transport");
+      }
+      const transport = new StdioClientTransport({
+        command: config.command,
+        args: config.args ?? [],
+        env: config.env,
+      });
+      return { client, transport };
+    }
+
+    if (!config.url) {
+      throw new Error("URL required for HTTP transport");
+    }
+
+    const headers = this.buildAuthHeaders(config);
+    const url = new URL(config.url);
+    const requestInit = Object.keys(headers).length > 0 ? { headers } : undefined;
+
+    if (config.transport === "sse") {
+      const transport = new SSEClientTransport(
+        url,
+        requestInit ? { requestInit } : undefined
+      );
+      return { client, transport };
+    }
+
+    const transport = new StreamableHTTPClientTransport(
+      url,
+      requestInit ? { requestInit } : undefined
+    );
+    return { client, transport };
+  }
+
+  private async loadCapabilities(client: Client): Promise<{
+    tools: ToolDefinition[];
+    resources: MCPResource[];
+    prompts: MCPPrompt[];
+  }> {
+    const tools: ToolDefinition[] = [];
+    const resources: MCPResource[] = [];
+    const prompts: MCPPrompt[] = [];
+
+    try {
+      const toolList = await client.request({ method: "tools/list" }, ListToolsResultSchema);
+      for (const tool of toolList.tools ?? []) {
+        tools.push({
+          id: tool.name,
+          name: tool.name,
+          description: tool.description ?? tool.name,
+          inputSchema: z.object({}).passthrough(),
+          category: "mcp",
+        });
+      }
+    } catch (error) {
+      this.log.warn("Failed to list MCP tools", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const resourceList = await client.request(
+        { method: "resources/list" },
+        ListResourcesResultSchema
+      );
+      for (const resource of resourceList.resources ?? []) {
+        resources.push({
+          uri: resource.uri,
+          name: resource.name ?? resource.uri,
+          description: resource.description,
+          mimeType: resource.mimeType,
+        });
+      }
+    } catch (error) {
+      this.log.warn("Failed to list MCP resources", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const promptList = await client.request(
+        { method: "prompts/list" },
+        ListPromptsResultSchema
+      );
+      for (const prompt of promptList.prompts ?? []) {
+        prompts.push({
+          name: prompt.name,
+          description: prompt.description,
+          arguments: prompt.arguments,
+        });
+      }
+    } catch (error) {
+      this.log.warn("Failed to list MCP prompts", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return { tools, resources, prompts };
+  }
+
+  private buildAuthHeaders(config: MCPServerConfig): Record<string, string> {
+    if (!config.auth?.token) return {};
+    if (config.auth.type === "api_key") {
+      return { "x-api-key": config.auth.token };
+    }
+    if (config.auth.type === "bearer") {
+      return { Authorization: `Bearer ${config.auth.token}` };
+    }
+    if (config.auth.type === "oauth2") {
+      return { Authorization: `Bearer ${config.auth.token}` };
+    }
+    return {};
+  }
+
+  private async closeConnection(connection: MCPConnection): Promise<void> {
+    const closeTransport = connection.transport?.close?.();
+    await Promise.resolve(closeTransport);
+    const clientClose = (connection.client as { close?: () => Promise<void> | void })?.close?.();
+    await Promise.resolve(clientClose);
   }
 }
 
@@ -344,6 +570,6 @@ export type MCPClientEvent =
   | { type: "resource_read"; serverName: string; uri: string };
 
 /** Create a new MCP client manager */
-export function createMCPClientManager(): MCPClientManager {
-  return new MCPClientManager();
+export function createMCPClientManager(options: MCPClientManagerOptions = {}): MCPClientManager {
+  return new MCPClientManager(options);
 }

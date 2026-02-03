@@ -2,6 +2,9 @@
 // Like Android's ContentProvider but for agent memories
 
 import { randomUUID } from "crypto";
+import { z } from "zod";
+import { type Result, ok, err } from "@agent-os/shared";
+import { type Logger, createLogger } from "@agent-os/kernel";
 import type { AgentId } from "@agent-os/runtime";
 import type {
   MemoryId,
@@ -16,8 +19,34 @@ import type {
   KnowledgeTriple,
   ProcedureStep,
   Importance,
+  EpisodeInput,
+  FactInput,
+  ProcedureInput,
 } from "./types.js";
-import { type MemoryStore, type Memory, InMemoryStore, calculateRelevance } from "./store.js";
+import {
+  EpisodeInputSchema,
+  FactInputSchema,
+  ProcedureInputSchema,
+  KnowledgeTripleSchema,
+  MemoryQuerySchema,
+} from "./types.js";
+import { type MemoryStore, type Memory, InMemoryStore, MemoryError } from "./store.js";
+
+// ─── MANAGER OPTIONS ────────────────────────────────────────
+
+/** Options schema for the memory manager */
+export const MemoryManagerOptionsSchema = z.object({
+  /** Working memory capacity (default: 10) */
+  workingMemoryCapacity: z.number().int().min(1).optional(),
+  /** Enable automatic strength decay */
+  enableDecay: z.boolean().optional(),
+  /** Decay interval in ms (default: 1 hour) */
+  decayIntervalMs: z.number().int().min(1000).optional(),
+  /** Decay rate per interval (default: 0.1) */
+  decayRate: z.number().min(0).max(1).optional(),
+  /** Minimum strength before pruning (default: 0.1) */
+  pruneThreshold: z.number().min(0).max(1).optional(),
+});
 
 /** Options for the memory manager */
 export interface MemoryManagerOptions {
@@ -43,19 +72,20 @@ export interface MemoryManagerOptions {
 export class MemoryManager {
   private store: MemoryStore;
   private workingMemories: Map<AgentId, WorkingMemory> = new Map();
-  private options: Required<MemoryManagerOptions>;
+  private options: Required<Omit<MemoryManagerOptions, "store">>;
   private decayTimer?: ReturnType<typeof setInterval>;
+  private log: Logger;
 
   constructor(options: MemoryManagerOptions = {}) {
     this.store = options.store ?? new InMemoryStore();
     this.options = {
-      store: this.store,
       workingMemoryCapacity: options.workingMemoryCapacity ?? 10,
       enableDecay: options.enableDecay ?? false,
       decayIntervalMs: options.decayIntervalMs ?? 60 * 60 * 1000, // 1 hour
       decayRate: options.decayRate ?? 0.1,
       pruneThreshold: options.pruneThreshold ?? 0.1,
     };
+    this.log = createLogger({ name: "memory-manager" });
 
     // Start decay timer if enabled
     if (this.options.enableDecay) {
@@ -73,25 +103,33 @@ export class MemoryManager {
     agentId: AgentId,
     event: string,
     context: string,
-    options: {
-      outcome?: string;
-      success?: boolean;
-      importance?: Importance;
-      tags?: string[];
-      sessionId?: string;
-      relatedEpisodes?: MemoryId[];
-    } = {}
-  ): Promise<MemoryId> {
+    options: Omit<EpisodeInput, "event" | "context"> = {}
+  ): Promise<Result<MemoryId, MemoryError>> {
+    const input: EpisodeInput = { event, context, ...options };
+
+    // Validate input
+    const inputResult = EpisodeInputSchema.safeParse(input);
+    if (!inputResult.success) {
+      return err(
+        new MemoryError(
+          `Invalid episode input: ${inputResult.error.message}`,
+          "VALIDATION_ERROR"
+        )
+      );
+    }
+
     const memory: EpisodicMemory = {
-      id: `ep-${randomUUID().slice(0, 12)}`,
+      id: randomUUID(),
       type: "episodic",
       agentId,
+      scope: options.scope ?? "private",
       event,
       context,
       outcome: options.outcome,
       success: options.success,
       importance: options.importance ?? this.calculateEpisodeImportance(event, options.success),
       strength: 1.0,
+      embedding: options.embedding,
       tags: options.tags,
       sessionId: options.sessionId,
       relatedEpisodes: options.relatedEpisodes,
@@ -100,7 +138,11 @@ export class MemoryManager {
       accessCount: 0,
     };
 
-    return this.store.save(memory);
+    const result = await this.store.save(memory);
+    if (result.ok) {
+      this.log.debug("Episode recorded", { agentId, memoryId: result.value, event: event.slice(0, 50) });
+    }
+    return result;
   }
 
   /**
@@ -110,7 +152,7 @@ export class MemoryManager {
     agentId: AgentId,
     query: string,
     options: { limit?: number; minImportance?: number; sessionId?: string } = {}
-  ): Promise<EpisodicMemory[]> {
+  ): Promise<Result<EpisodicMemory[], MemoryError>> {
     const result = await this.store.query(agentId, {
       query,
       types: ["episodic"],
@@ -118,7 +160,8 @@ export class MemoryManager {
       minImportance: options.minImportance,
     });
 
-    return result.memories as EpisodicMemory[];
+    if (!result.ok) return result;
+    return ok(result.value.memories as EpisodicMemory[]);
   }
 
   // ─── SEMANTIC MEMORY ─────────────────────────────────────────
@@ -132,31 +175,44 @@ export class MemoryManager {
     subject: string,
     predicate: string,
     object: string,
-    options: {
-      confidence?: number;
-      source?: string;
-      importance?: Importance;
-      tags?: string[];
-    } = {}
-  ): Promise<MemoryId> {
+    options: Omit<FactInput, "subject" | "predicate" | "object"> = {}
+  ): Promise<Result<MemoryId, MemoryError>> {
+    const input: FactInput = { subject, predicate, object, ...options };
+
+    // Validate input
+    const inputResult = FactInputSchema.safeParse(input);
+    if (!inputResult.success) {
+      return err(
+        new MemoryError(
+          `Invalid fact input: ${inputResult.error.message}`,
+          "VALIDATION_ERROR"
+        )
+      );
+    }
+
     // Check for existing fact with same triple
-    const existing = await this.findFact(agentId, subject, predicate);
-    if (existing) {
+    const existingResult = await this.findFact(agentId, subject, predicate);
+    if (existingResult.ok && existingResult.value) {
+      const existing = existingResult.value;
       // Update existing fact
-      await this.store.update(existing.id, {
+      const updateResult = await this.store.update(existing.id, {
         object,
         confidence: options.confidence ?? existing.confidence,
         verifiedAt: new Date(),
         lastAccessedAt: new Date(),
         accessCount: existing.accessCount + 1,
       });
-      return existing.id;
+      if (!updateResult.ok) return err(updateResult.error);
+
+      this.log.debug("Fact updated", { agentId, memoryId: existing.id, subject, predicate });
+      return ok(existing.id);
     }
 
     const memory: SemanticMemory = {
-      id: `sem-${randomUUID().slice(0, 12)}`,
+      id: randomUUID(),
       type: "semantic",
       agentId,
+      scope: options.scope ?? "private",
       subject,
       predicate,
       object,
@@ -164,13 +220,18 @@ export class MemoryManager {
       source: options.source,
       importance: options.importance ?? 0.5,
       strength: 1.0,
+      embedding: options.embedding,
       tags: options.tags,
       createdAt: new Date(),
       lastAccessedAt: new Date(),
       accessCount: 0,
     };
 
-    return this.store.save(memory);
+    const result = await this.store.save(memory);
+    if (result.ok) {
+      this.log.debug("Fact stored", { agentId, memoryId: result.value, subject, predicate });
+    }
+    return result;
   }
 
   /**
@@ -180,17 +241,39 @@ export class MemoryManager {
     agentId: AgentId,
     triples: KnowledgeTriple[],
     options: { source?: string; tags?: string[] } = {}
-  ): Promise<MemoryId[]> {
+  ): Promise<Result<MemoryId[], MemoryError>> {
+    // Validate all triples
+    for (const triple of triples) {
+      const validResult = KnowledgeTripleSchema.safeParse(triple);
+      if (!validResult.success) {
+        return err(
+          new MemoryError(
+            `Invalid knowledge triple: ${validResult.error.message}`,
+            "VALIDATION_ERROR"
+          )
+        );
+      }
+    }
+
     const ids: MemoryId[] = [];
     for (const triple of triples) {
-      const id = await this.storeFact(agentId, triple.subject, triple.predicate, triple.object, {
-        confidence: triple.confidence,
-        source: options.source,
-        tags: options.tags,
-      });
-      ids.push(id);
+      const result = await this.storeFact(
+        agentId,
+        triple.subject,
+        triple.predicate,
+        triple.object,
+        {
+          confidence: triple.confidence,
+          source: options.source,
+          tags: options.tags,
+        }
+      );
+      if (!result.ok) return result;
+      ids.push(result.value);
     }
-    return ids;
+
+    this.log.debug("Knowledge stored", { agentId, count: ids.length });
+    return ok(ids);
   }
 
   /**
@@ -200,21 +283,24 @@ export class MemoryManager {
     agentId: AgentId,
     subject: string,
     predicate: string
-  ): Promise<SemanticMemory | null> {
+  ): Promise<Result<SemanticMemory | null, MemoryError>> {
     const result = await this.store.query(agentId, {
       query: `${subject} ${predicate}`,
       types: ["semantic"],
       limit: 10,
     });
 
-    const facts = result.memories as SemanticMemory[];
-    return (
+    if (!result.ok) return result;
+
+    const facts = result.value.memories as SemanticMemory[];
+    const found =
       facts.find(
         (f) =>
           f.subject.toLowerCase() === subject.toLowerCase() &&
           f.predicate.toLowerCase() === predicate.toLowerCase()
-      ) ?? null
-    );
+      ) ?? null;
+
+    return ok(found);
   }
 
   /**
@@ -224,21 +310,23 @@ export class MemoryManager {
     agentId: AgentId,
     query: string,
     options: { limit?: number; minConfidence?: number } = {}
-  ): Promise<SemanticMemory[]> {
+  ): Promise<Result<SemanticMemory[], MemoryError>> {
     const result = await this.store.query(agentId, {
       query,
       types: ["semantic"],
       limit: options.limit ?? 10,
     });
 
-    let facts = result.memories as SemanticMemory[];
+    if (!result.ok) return result;
+
+    let facts = result.value.memories as SemanticMemory[];
 
     // Filter by confidence if specified
     if (options.minConfidence !== undefined) {
       facts = facts.filter((f) => f.confidence >= options.minConfidence!);
     }
 
-    return facts;
+    return ok(facts);
   }
 
   // ─── PROCEDURAL MEMORY ───────────────────────────────────────
@@ -253,18 +341,27 @@ export class MemoryManager {
     description: string,
     trigger: string,
     steps: ProcedureStep[],
-    options: {
-      inputs?: ProceduralMemory["inputs"];
-      outputs?: ProceduralMemory["outputs"];
-      importance?: Importance;
-      tags?: string[];
-    } = {}
-  ): Promise<MemoryId> {
+    options: Omit<ProcedureInput, "name" | "description" | "trigger" | "steps"> = {}
+  ): Promise<Result<MemoryId, MemoryError>> {
+    const input: ProcedureInput = { name, description, trigger, steps, ...options };
+
+    // Validate input
+    const inputResult = ProcedureInputSchema.safeParse(input);
+    if (!inputResult.success) {
+      return err(
+        new MemoryError(
+          `Invalid procedure input: ${inputResult.error.message}`,
+          "VALIDATION_ERROR"
+        )
+      );
+    }
+
     // Check for existing procedure with same name
-    const existing = await this.findProcedure(agentId, name);
-    if (existing) {
+    const existingResult = await this.findProcedure(agentId, name);
+    if (existingResult.ok && existingResult.value) {
+      const existing = existingResult.value;
       // Update existing procedure (increment version)
-      await this.store.update(existing.id, {
+      const updateResult = await this.store.update(existing.id, {
         description,
         trigger,
         steps,
@@ -273,13 +370,17 @@ export class MemoryManager {
         version: existing.version + 1,
         lastAccessedAt: new Date(),
       });
-      return existing.id;
+      if (!updateResult.ok) return err(updateResult.error);
+
+      this.log.debug("Procedure updated", { agentId, memoryId: existing.id, name, version: existing.version + 1 });
+      return ok(existing.id);
     }
 
     const memory: ProceduralMemory = {
-      id: `proc-${randomUUID().slice(0, 12)}`,
+      id: randomUUID(),
       type: "procedural",
       agentId,
+      scope: options.scope ?? "private",
       name,
       description,
       trigger,
@@ -298,22 +399,32 @@ export class MemoryManager {
       accessCount: 0,
     };
 
-    return this.store.save(memory);
+    const result = await this.store.save(memory);
+    if (result.ok) {
+      this.log.debug("Procedure learned", { agentId, memoryId: result.value, name });
+    }
+    return result;
   }
 
   /**
    * Find a procedure by name.
    */
-  async findProcedure(agentId: AgentId, name: string): Promise<ProceduralMemory | null> {
+  async findProcedure(
+    agentId: AgentId,
+    name: string
+  ): Promise<Result<ProceduralMemory | null, MemoryError>> {
     const result = await this.store.query(agentId, {
       types: ["procedural"],
       limit: 100,
     });
 
-    const procedures = result.memories as ProceduralMemory[];
-    return (
-      procedures.find((p) => p.name.toLowerCase() === name.toLowerCase() && p.active) ?? null
-    );
+    if (!result.ok) return result;
+
+    const procedures = result.value.memories as ProceduralMemory[];
+    const found =
+      procedures.find((p) => p.name.toLowerCase() === name.toLowerCase() && p.active) ?? null;
+
+    return ok(found);
   }
 
   /**
@@ -323,21 +434,23 @@ export class MemoryManager {
     agentId: AgentId,
     situation: string,
     options: { limit?: number; minSuccessRate?: number } = {}
-  ): Promise<ProceduralMemory[]> {
+  ): Promise<Result<ProceduralMemory[], MemoryError>> {
     const result = await this.store.query(agentId, {
       query: situation,
       types: ["procedural"],
       limit: options.limit ?? 5,
     });
 
-    let procedures = (result.memories as ProceduralMemory[]).filter((p) => p.active);
+    if (!result.ok) return result;
+
+    let procedures = (result.value.memories as ProceduralMemory[]).filter((p) => p.active);
 
     // Filter by success rate if specified
     if (options.minSuccessRate !== undefined) {
       procedures = procedures.filter((p) => p.successRate >= options.minSuccessRate!);
     }
 
-    return procedures;
+    return ok(procedures);
   }
 
   /**
@@ -346,9 +459,14 @@ export class MemoryManager {
   async recordProcedureExecution(
     procedureId: MemoryId,
     success: boolean
-  ): Promise<void> {
-    const memory = await this.store.get(procedureId);
-    if (!memory || memory.type !== "procedural") return;
+  ): Promise<Result<void, MemoryError>> {
+    const memoryResult = await this.store.get(procedureId);
+    if (!memoryResult.ok) return memoryResult;
+
+    const memory = memoryResult.value;
+    if (memory.type !== "procedural") {
+      return err(new MemoryError("Memory is not a procedure", "VALIDATION_ERROR", procedureId));
+    }
 
     const procedure = memory as ProceduralMemory;
     const newExecutionCount = procedure.executionCount + 1;
@@ -357,11 +475,21 @@ export class MemoryManager {
     const alpha = 0.1; // Weight for new observation
     const newSuccessRate = procedure.successRate * (1 - alpha) + (success ? 1 : 0) * alpha;
 
-    await this.store.update(procedureId, {
+    const updateResult = await this.store.update(procedureId, {
       executionCount: newExecutionCount,
       successRate: newSuccessRate,
       lastAccessedAt: new Date(),
     });
+
+    if (updateResult.ok) {
+      this.log.debug("Procedure execution recorded", {
+        procedureId,
+        success,
+        newSuccessRate: newSuccessRate.toFixed(2),
+      });
+    }
+
+    return updateResult;
   }
 
   // ─── WORKING MEMORY ──────────────────────────────────────────
@@ -443,21 +571,26 @@ export class MemoryManager {
       types?: Memory["type"][];
       limit?: number;
       minImportance?: number;
+      embedding?: number[];
+      minSimilarity?: number;
+      includeEmbeddings?: boolean;
       includeWorkingMemory?: boolean;
     } = {}
-  ): Promise<{
-    memories: Memory[];
-    workingMemory?: WorkingMemory;
-  }> {
+  ): Promise<Result<{ memories: Memory[]; workingMemory?: WorkingMemory }, MemoryError>> {
     const result = await this.store.query(agentId, {
       query,
       types: options.types,
       limit: options.limit ?? 10,
       minImportance: options.minImportance,
+      embedding: options.embedding,
+      minSimilarity: options.minSimilarity,
+      includeEmbeddings: options.includeEmbeddings,
     });
 
+    if (!result.ok) return result;
+
     const response: { memories: Memory[]; workingMemory?: WorkingMemory } = {
-      memories: result.memories,
+      memories: result.value.memories,
     };
 
     // Include working memory if requested
@@ -465,7 +598,7 @@ export class MemoryManager {
       response.workingMemory = this.getWorkingMemory(agentId);
     }
 
-    return response;
+    return ok(response);
   }
 
   // ─── STATS & MAINTENANCE ─────────────────────────────────────
@@ -473,16 +606,40 @@ export class MemoryManager {
   /**
    * Get memory statistics for an agent.
    */
-  async getStats(agentId: AgentId): Promise<MemoryStats> {
+  async getStats(agentId: AgentId): Promise<Result<MemoryStats, MemoryError>> {
     return this.store.getStats(agentId);
   }
 
   /**
    * Clear all memories for an agent.
    */
-  async clearMemories(agentId: AgentId): Promise<void> {
-    await this.store.clear(agentId);
-    this.clearWorkingMemory(agentId);
+  async clearMemories(agentId: AgentId): Promise<Result<void, MemoryError>> {
+    const result = await this.store.clear(agentId);
+    if (result.ok) {
+      this.clearWorkingMemory(agentId);
+      this.log.info("Memories cleared", { agentId });
+    }
+    return result;
+  }
+
+  /**
+   * Low-level memory search with full query options.
+   */
+  async search(
+    agentId: AgentId,
+    query: MemoryQuery
+  ): Promise<Result<MemoryQueryResult, MemoryError>> {
+    const queryResult = MemoryQuerySchema.safeParse(query);
+    if (!queryResult.success) {
+      return err(
+        new MemoryError(
+          `Invalid memory query: ${queryResult.error.message}`,
+          "VALIDATION_ERROR"
+        )
+      );
+    }
+
+    return this.store.query(agentId, queryResult.data);
   }
 
   /**
@@ -492,6 +649,7 @@ export class MemoryManager {
     if (this.decayTimer) {
       clearInterval(this.decayTimer);
       this.decayTimer = undefined;
+      this.log.debug("Memory manager stopped");
     }
   }
 
@@ -527,4 +685,9 @@ export class MemoryManager {
       }
     }, this.options.decayIntervalMs);
   }
+}
+
+/** Factory function to create a memory manager */
+export function createMemoryManager(options?: MemoryManagerOptions): MemoryManager {
+  return new MemoryManager(options);
 }

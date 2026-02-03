@@ -1,6 +1,8 @@
 // Event Bus — pub/sub for Agent OS events
 // Central event hub for all system events
 
+import { type Result, ok, err } from "@agent-os/shared";
+import { type Logger, createLogger } from "@agent-os/kernel";
 import type {
   AgentOSEvent,
   EventSubscription,
@@ -8,7 +10,10 @@ import type {
   SubscriptionOptions,
   EventBusStats,
   EventHistoryEntry,
+  HistoryQueryOptions,
+  ReplayOptions,
 } from "./types.js";
+import { EventError } from "./types.js";
 
 /**
  * Event Bus — central pub/sub system for Agent OS events.
@@ -29,11 +34,16 @@ export class EventBus {
     channelCounts: {},
   };
   private maxHistorySize: number = 1000;
+  private log: Logger;
+
+  constructor() {
+    this.log = createLogger({ name: "event-bus" });
+  }
 
   /**
    * Publish an event to the bus.
    */
-  async publish(event: AgentOSEvent): Promise<void> {
+  async publish(event: AgentOSEvent): Promise<Result<void, EventError>> {
     // Ensure event has required fields
     if (!event.id) {
       event.id = this.generateEventId();
@@ -64,15 +74,20 @@ export class EventBus {
 
     // Execute handlers
     const subscriptionsToRemove: string[] = [];
+    const errors: string[] = [];
 
     for (const subscription of matchingSubscriptions) {
       try {
         await subscription.handler(event);
-      } catch (err) {
-        console.error(
-          `Event handler error [${subscription.id}]:`,
-          err instanceof Error ? err.message : err
-        );
+      } catch (handlerErr) {
+        const errorMessage =
+          handlerErr instanceof Error ? handlerErr.message : String(handlerErr);
+        this.log.error("Event handler error", {
+          subscriptionId: subscription.id,
+          eventId: event.id,
+          error: errorMessage,
+        });
+        errors.push(`Handler ${subscription.id}: ${errorMessage}`);
       }
 
       // Mark for removal if once: true
@@ -84,7 +99,18 @@ export class EventBus {
     // Remove one-time subscriptions
     for (const id of subscriptionsToRemove) {
       this.subscriptions.delete(id);
+      this.stats.totalSubscriptions = this.subscriptions.size;
     }
+
+    this.log.debug("Event published", {
+      eventId: event.id,
+      channel: event.channel,
+      type: event.type,
+      deliveredTo: matchingSubscriptions.length,
+    });
+
+    // Return success even if some handlers failed (logged errors)
+    return ok(undefined);
   }
 
   /**
@@ -94,7 +120,16 @@ export class EventBus {
     channelPattern: string,
     handler: EventHandler,
     options: SubscriptionOptions = {}
-  ): string {
+  ): Result<string, EventError> {
+    if (!channelPattern) {
+      return err(
+        new EventError(
+          "Channel pattern is required",
+          "VALIDATION_ERROR"
+        )
+      );
+    }
+
     const subscriptionId = this.generateSubscriptionId();
 
     const subscription: EventSubscription = {
@@ -109,7 +144,14 @@ export class EventBus {
     this.subscriptions.set(subscriptionId, subscription);
     this.stats.totalSubscriptions = this.subscriptions.size;
 
-    return subscriptionId;
+    this.log.debug("Subscription created", {
+      subscriptionId,
+      channelPattern,
+      priority: subscription.priority,
+      once: subscription.once,
+    });
+
+    return ok(subscriptionId);
   }
 
   /**
@@ -120,7 +162,7 @@ export class EventBus {
     eventType: string,
     handler: EventHandler,
     options: SubscriptionOptions = {}
-  ): string {
+  ): Result<string, EventError> {
     const filter = (event: AgentOSEvent) => {
       if (event.type !== eventType) return false;
       if (options.filter) return options.filter(event);
@@ -137,23 +179,35 @@ export class EventBus {
     channelPattern: string,
     handler: EventHandler,
     options: SubscriptionOptions = {}
-  ): string {
+  ): Result<string, EventError> {
     return this.subscribe(channelPattern, handler, { ...options, once: true });
   }
 
   /**
    * Unsubscribe by subscription ID.
    */
-  unsubscribe(subscriptionId: string): boolean {
-    const result = this.subscriptions.delete(subscriptionId);
+  unsubscribe(subscriptionId: string): Result<void, EventError> {
+    if (!this.subscriptions.has(subscriptionId)) {
+      return err(
+        new EventError(
+          `Subscription not found: ${subscriptionId}`,
+          "NOT_FOUND"
+        )
+      );
+    }
+
+    this.subscriptions.delete(subscriptionId);
     this.stats.totalSubscriptions = this.subscriptions.size;
-    return result;
+
+    this.log.debug("Subscription removed", { subscriptionId });
+
+    return ok(undefined);
   }
 
   /**
    * Unsubscribe all handlers for a channel pattern.
    */
-  unsubscribeAll(channelPattern: string): number {
+  unsubscribeAll(channelPattern: string): Result<number, EventError> {
     let removed = 0;
     for (const [id, subscription] of this.subscriptions) {
       if (subscription.channelPattern === channelPattern) {
@@ -162,18 +216,19 @@ export class EventBus {
       }
     }
     this.stats.totalSubscriptions = this.subscriptions.size;
-    return removed;
+
+    this.log.debug("Subscriptions removed by pattern", {
+      channelPattern,
+      removed,
+    });
+
+    return ok(removed);
   }
 
   /**
    * Get event history.
    */
-  getHistory(options: {
-    channel?: string;
-    eventType?: string;
-    limit?: number;
-    since?: Date;
-  } = {}): EventHistoryEntry[] {
+  getHistory(options: HistoryQueryOptions = {}): Result<EventHistoryEntry[], EventError> {
     let entries = [...this.history];
 
     if (options.channel) {
@@ -194,7 +249,7 @@ export class EventBus {
       entries = entries.slice(-options.limit);
     }
 
-    return entries;
+    return ok(entries);
   }
 
   /**
@@ -202,10 +257,17 @@ export class EventBus {
    */
   async replay(
     subscriptionId: string,
-    options: { since?: Date; eventTypes?: string[] } = {}
-  ): Promise<number> {
+    options: ReplayOptions = {}
+  ): Promise<Result<number, EventError>> {
     const subscription = this.subscriptions.get(subscriptionId);
-    if (!subscription) return 0;
+    if (!subscription) {
+      return err(
+        new EventError(
+          `Subscription not found: ${subscriptionId}`,
+          "NOT_FOUND"
+        )
+      );
+    }
 
     let events = this.history.map((h) => h.event);
 
@@ -223,13 +285,20 @@ export class EventBus {
         try {
           await subscription.handler(event);
           replayed++;
-        } catch {
-          // Ignore errors during replay
+        } catch (handlerErr) {
+          this.log.warn("Replay handler error", {
+            subscriptionId,
+            eventId: event.id,
+            error: handlerErr instanceof Error ? handlerErr.message : String(handlerErr),
+          });
+          // Continue with other events during replay
         }
       }
     }
 
-    return replayed;
+    this.log.debug("Events replayed", { subscriptionId, replayed });
+
+    return ok(replayed);
   }
 
   /**
@@ -251,6 +320,7 @@ export class EventBus {
    */
   clearHistory(): void {
     this.history = [];
+    this.log.debug("Event history cleared");
   }
 
   /**
@@ -259,6 +329,7 @@ export class EventBus {
   setMaxHistorySize(size: number): void {
     this.maxHistorySize = size;
     this.trimHistory();
+    this.log.debug("Max history size updated", { maxHistorySize: size });
   }
 
   /**
@@ -270,6 +341,7 @@ export class EventBus {
       totalSubscriptions: this.subscriptions.size,
       channelCounts: {},
     };
+    this.log.debug("Statistics reset");
   }
 
   /** Find subscriptions matching an event */

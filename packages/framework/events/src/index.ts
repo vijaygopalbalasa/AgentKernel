@@ -1,7 +1,9 @@
 // @agent-os/events — Event System (Layer 4: Framework)
 // Pub/sub for agent lifecycle, tools, skills, and system events
 
-console.log("✅ @agent-os/events loaded");
+// Error class
+export { EventError } from "./types.js";
+export type { EventErrorCode } from "./types.js";
 
 // Types
 export type {
@@ -21,9 +23,54 @@ export type {
   WebhookDeliveryResult,
   EventBusStats,
   EventHistoryEntry,
+  HistoryQueryOptions,
+  ReplayOptions,
 } from "./types.js";
 
-export { BaseEventSchema, WebhookConfigSchema } from "./types.js";
+// Zod Schemas
+export {
+  // Base
+  BaseEventSchema,
+  // Lifecycle events
+  AgentLifecycleTypeSchema,
+  AgentLifecycleDataSchema,
+  AgentLifecycleEventSchema,
+  // Tool events
+  ToolEventTypeSchema,
+  ToolEventDataSchema,
+  ToolEventSchema,
+  // Skill events
+  SkillEventTypeSchema,
+  SkillEventDataSchema,
+  SkillEventSchema,
+  // Memory events
+  MemoryEventTypeSchema,
+  MemoryEventDataSchema,
+  MemoryEventSchema,
+  // Communication events
+  CommunicationEventTypeSchema,
+  CommunicationEventDataSchema,
+  CommunicationEventSchema,
+  // System events
+  SystemEventTypeSchema,
+  HealthStatusSchema,
+  SystemEventDataSchema,
+  SystemEventSchema,
+  // Union schema
+  AgentOSEventSchema,
+  // Subscription schemas
+  SubscriptionOptionsSchema,
+  // Webhook schemas
+  WebhookRetrySchema,
+  WebhookConfigSchema,
+  WebhookDeliveryResultSchema,
+  // Stats schemas
+  EventBusStatsSchema,
+  EventHistoryEntrySchema,
+  // Query schemas
+  HistoryQueryOptionsSchema,
+  ReplayOptionsSchema,
+} from "./types.js";
 
 // Event Bus
 export { EventBus, createEventBus } from "./bus.js";

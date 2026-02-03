@@ -1,18 +1,31 @@
 // Skill Manager — manages skill installation and lifecycle
 // The central manager for all skills on an agent
 
+import { z } from "zod";
+import { satisfies, valid } from "semver";
+import { type Result, ok, err } from "@agent-os/shared";
+import { type Logger, createLogger } from "@agent-os/kernel";
 import type {
   SkillId,
   SkillManifest,
   SkillInstance,
-  SkillState,
   SkillModule,
   SkillActivationContext,
   SkillInstallOptions,
   SkillEvent,
   SkillLogger,
 } from "./types.js";
+import { SkillError, SkillManifestSchema } from "./types.js";
 import type { ToolDefinition, ToolHandler, ToolRegistry } from "@agent-os/tools";
+
+// ─── ZOD SCHEMAS ────────────────────────────────────────────
+
+/** Schema for skill manager configuration */
+export const SkillManagerConfigSchema = z.object({
+  agentId: z.string().min(1),
+  toolRegistry: z.custom<ToolRegistry>((val) => typeof val === "object" && val !== null),
+  dataStore: z.custom<SkillDataStore>((val) => typeof val === "object" && val !== null).optional(),
+});
 
 /** Skill manager configuration */
 export interface SkillManagerConfig {
@@ -47,30 +60,50 @@ export class SkillManager {
   private modules: Map<SkillId, SkillModule> = new Map();
   private skillConfigs: Map<SkillId, Record<string, unknown>> = new Map();
   private eventListeners: Array<(event: SkillEvent) => void> = [];
+  private log: Logger;
 
   constructor(config: SkillManagerConfig) {
     this.config = config;
+    this.log = createLogger({ name: "skill-manager" });
   }
 
   /**
    * Install a skill from a module.
    */
-  install(module: SkillModule, options: Partial<SkillInstallOptions> = {}): boolean {
+  install(module: SkillModule, options: Partial<SkillInstallOptions> = {}): Result<SkillId, SkillError> {
     const { manifest } = module;
 
     // Check if already installed
     if (this.skills.has(manifest.id)) {
-      return false;
+      return err(
+        new SkillError(
+          `Skill already installed: ${manifest.id}`,
+          "ALREADY_EXISTS",
+          manifest.id
+        )
+      );
     }
 
-    // Validate manifest
-    if (!manifest.id || !manifest.name || !manifest.version) {
-      return false;
+    // Validate manifest using Zod schema
+    const manifestResult = SkillManifestSchema.safeParse(manifest);
+    if (!manifestResult.success) {
+      this.log.warn("Invalid manifest", {
+        skillId: manifest.id,
+        error: manifestResult.error.message,
+      });
+      return err(
+        new SkillError(
+          `Invalid manifest: ${manifestResult.error.message}`,
+          "VALIDATION_ERROR",
+          manifest.id
+        )
+      );
     }
 
     // Check dependencies
-    if (!this.checkDependencies(manifest)) {
-      return false;
+    const depResult = this.checkDependencies(manifest);
+    if (!depResult.ok) {
+      return depResult;
     }
 
     // Create skill instance
@@ -96,31 +129,50 @@ export class SkillManager {
       data: { manifest },
     });
 
+    this.log.info("Skill installed", { skillId: manifest.id, name: manifest.name });
+
     // Activate if requested
     if (options.activate) {
       this.activate(manifest.id);
     }
 
-    return true;
+    return ok(manifest.id);
   }
 
   /**
    * Uninstall a skill.
    */
-  async uninstall(skillId: SkillId): Promise<boolean> {
+  async uninstall(skillId: SkillId): Promise<Result<void, SkillError>> {
     const instance = this.skills.get(skillId);
     if (!instance) {
-      return false;
+      return err(
+        new SkillError(`Skill not found: ${skillId}`, "NOT_FOUND", skillId)
+      );
     }
 
     // Deactivate first if active
     if (instance.state === "active") {
-      await this.deactivate(skillId);
+      const deactivateResult = await this.deactivate(skillId);
+      if (!deactivateResult.ok) {
+        this.log.warn("Failed to deactivate skill during uninstall", {
+          skillId,
+          error: deactivateResult.error.message,
+        });
+        // Continue with uninstall anyway
+      }
     }
 
     // Clear skill data
     if (this.config.dataStore) {
-      await this.config.dataStore.clear(skillId);
+      try {
+        await this.config.dataStore.clear(skillId);
+      } catch (e) {
+        this.log.warn("Failed to clear skill data during uninstall", {
+          skillId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        // Continue with uninstall anyway
+      }
     }
 
     // Remove from maps
@@ -134,25 +186,29 @@ export class SkillManager {
       timestamp: new Date(),
     });
 
-    return true;
+    this.log.info("Skill uninstalled", { skillId });
+    return ok(undefined);
   }
 
   /**
    * Activate a skill.
    */
-  async activate(skillId: SkillId): Promise<boolean> {
+  async activate(skillId: SkillId): Promise<Result<void, SkillError>> {
     const instance = this.skills.get(skillId);
     const module = this.modules.get(skillId);
 
     if (!instance || !module) {
-      return false;
+      return err(
+        new SkillError(`Skill not found: ${skillId}`, "NOT_FOUND", skillId)
+      );
     }
 
     if (instance.state === "active") {
-      return true; // Already active
+      return ok(undefined); // Already active
     }
 
     instance.state = "activating";
+    this.log.debug("Activating skill", { skillId });
 
     try {
       // Create activation context
@@ -163,15 +219,20 @@ export class SkillManager {
         await module.activate(context);
       }
 
-      // Register manifest-defined tools
+      // Verify manifest-defined tools were registered
+      // Skills declare tools in their manifest and must register handlers in activate()
       if (module.manifest.tools) {
-        for (const tool of module.manifest.tools) {
-          // Register with a no-op handler (tools should be registered in activate)
-          this.config.toolRegistry.register(tool, async () => ({
-            success: false,
-            error: "Tool handler not implemented",
-          }));
-          instance.registeredTools.push(tool.id);
+        const expectedTools = module.manifest.tools.map((t) => `${skillId}:${t.id}`);
+        const missingTools = expectedTools.filter(
+          (toolId) => !instance.registeredTools.includes(toolId)
+        );
+
+        if (missingTools.length > 0) {
+          this.log.warn("Skill declared tools in manifest but did not register handlers", {
+            skillId,
+            missingTools,
+            hint: "Use context.registerTool() in the activate() function to register tool handlers",
+          });
         }
       }
 
@@ -184,10 +245,11 @@ export class SkillManager {
         timestamp: new Date(),
       });
 
-      return true;
-    } catch (err) {
+      this.log.info("Skill activated", { skillId, toolCount: instance.registeredTools.length });
+      return ok(undefined);
+    } catch (e) {
       instance.state = "error";
-      instance.error = err instanceof Error ? err.message : String(err);
+      instance.error = e instanceof Error ? e.message : String(e);
 
       this.emit({
         type: "skill_error",
@@ -196,26 +258,36 @@ export class SkillManager {
         data: { error: instance.error },
       });
 
-      return false;
+      this.log.error("Failed to activate skill", { skillId, error: instance.error });
+      return err(
+        new SkillError(
+          `Failed to activate skill: ${instance.error}`,
+          "ACTIVATION_ERROR",
+          skillId
+        )
+      );
     }
   }
 
   /**
    * Deactivate a skill.
    */
-  async deactivate(skillId: SkillId): Promise<boolean> {
+  async deactivate(skillId: SkillId): Promise<Result<void, SkillError>> {
     const instance = this.skills.get(skillId);
     const module = this.modules.get(skillId);
 
     if (!instance) {
-      return false;
+      return err(
+        new SkillError(`Skill not found: ${skillId}`, "NOT_FOUND", skillId)
+      );
     }
 
     if (instance.state !== "active") {
-      return true; // Already inactive
+      return ok(undefined); // Already inactive
     }
 
     instance.state = "deactivating";
+    this.log.debug("Deactivating skill", { skillId });
 
     try {
       // Call module's deactivate handler
@@ -238,10 +310,11 @@ export class SkillManager {
         timestamp: new Date(),
       });
 
-      return true;
-    } catch (err) {
+      this.log.info("Skill deactivated", { skillId });
+      return ok(undefined);
+    } catch (e) {
       instance.state = "error";
-      instance.error = err instanceof Error ? err.message : String(err);
+      instance.error = e instanceof Error ? e.message : String(e);
 
       this.emit({
         type: "skill_error",
@@ -250,15 +323,28 @@ export class SkillManager {
         data: { error: instance.error },
       });
 
-      return false;
+      this.log.error("Failed to deactivate skill", { skillId, error: instance.error });
+      return err(
+        new SkillError(
+          `Failed to deactivate skill: ${instance.error}`,
+          "DEACTIVATION_ERROR",
+          skillId
+        )
+      );
     }
   }
 
   /**
    * Get a skill instance.
    */
-  get(skillId: SkillId): SkillInstance | null {
-    return this.skills.get(skillId) ?? null;
+  get(skillId: SkillId): Result<SkillInstance, SkillError> {
+    const instance = this.skills.get(skillId);
+    if (!instance) {
+      return err(
+        new SkillError(`Skill not found: ${skillId}`, "NOT_FOUND", skillId)
+      );
+    }
+    return ok(instance);
   }
 
   /**
@@ -352,22 +438,56 @@ export class SkillManager {
   }
 
   /** Check if all dependencies are met */
-  private checkDependencies(manifest: SkillManifest): boolean {
+  private checkDependencies(manifest: SkillManifest): Result<void, SkillError> {
     if (!manifest.dependencies) {
-      return true;
+      return ok(undefined);
     }
 
+    const missingDeps: string[] = [];
+    const incompatibleDeps: string[] = [];
     for (const dep of manifest.dependencies) {
       if (dep.required !== false) {
         const instance = this.skills.get(dep.skillId);
         if (!instance) {
-          return false;
+          missingDeps.push(dep.skillId);
         }
-        // TODO: Check version compatibility
+        if (instance && dep.versionRange) {
+          const installedVersion = instance.manifest.version;
+          const parsedVersion = valid(installedVersion);
+          const matches = parsedVersion
+            ? satisfies(parsedVersion, dep.versionRange, { includePrerelease: true })
+            : false;
+
+          if (!matches) {
+            incompatibleDeps.push(`${dep.skillId}@${installedVersion} (${dep.versionRange})`);
+          }
+        }
       }
     }
 
-    return true;
+    if (missingDeps.length > 0 || incompatibleDeps.length > 0) {
+      this.log.warn("Missing required dependencies", {
+        skillId: manifest.id,
+        missingDeps,
+        incompatibleDeps,
+      });
+      return err(
+        new SkillError(
+          [
+            missingDeps.length > 0 ? `Missing required dependencies: ${missingDeps.join(", ")}` : null,
+            incompatibleDeps.length > 0
+              ? `Incompatible dependency versions: ${incompatibleDeps.join(", ")}`
+              : null,
+          ]
+            .filter((message): message is string => Boolean(message))
+            .join("; "),
+          "DEPENDENCY_ERROR",
+          manifest.id
+        )
+      );
+    }
+
+    return ok(undefined);
   }
 
   /** Create activation context for a skill */
@@ -428,18 +548,19 @@ export class SkillManager {
 
   /** Create a logger for a skill */
   private createLogger(skillId: SkillId): SkillLogger {
+    const skillLog = createLogger({ name: `skill:${skillId}` });
     return {
       debug: (message: string, data?: unknown) => {
-        console.debug(`[${skillId}] ${message}`, data ?? "");
+        skillLog.debug(message, data ? { data } : undefined);
       },
       info: (message: string, data?: unknown) => {
-        console.info(`[${skillId}] ${message}`, data ?? "");
+        skillLog.info(message, data ? { data } : undefined);
       },
       warn: (message: string, data?: unknown) => {
-        console.warn(`[${skillId}] ${message}`, data ?? "");
+        skillLog.warn(message, data ? { data } : undefined);
       },
       error: (message: string, data?: unknown) => {
-        console.error(`[${skillId}] ${message}`, data ?? "");
+        skillLog.error(message, data ? { data } : undefined);
       },
     };
   }

@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { SkillManager, createSkillManager } from "./manager.js";
 import { SkillRegistry, createSkillRegistry } from "./registry.js";
+import { SkillError } from "./types.js";
 import { createToolRegistry } from "@agent-os/tools";
 import type {
   SkillManifest,
@@ -10,6 +11,14 @@ import type {
   SkillActivationContext,
 } from "./types.js";
 import { z } from "zod";
+
+function getFirst<T>(items: T[]): T {
+  const first = items[0];
+  if (!first) {
+    throw new Error("Expected at least one item");
+  }
+  return first;
+}
 
 describe("SkillManager", () => {
   let manager: SkillManager;
@@ -32,9 +41,12 @@ describe("SkillManager", () => {
         },
       };
 
-      const installed = manager.install(module);
+      const result = manager.install(module);
 
-      expect(installed).toBe(true);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toBe("test-skill");
+      }
       expect(manager.has("test-skill")).toBe(true);
     });
 
@@ -49,9 +61,13 @@ describe("SkillManager", () => {
       };
 
       manager.install(module);
-      const duplicate = manager.install(module);
+      const result = manager.install(module);
 
-      expect(duplicate).toBe(false);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("ALREADY_EXISTS");
+      }
     });
 
     it("should reject invalid manifests", () => {
@@ -64,16 +80,20 @@ describe("SkillManager", () => {
         },
       };
 
-      const installed = manager.install(module);
+      const result = manager.install(module);
 
-      expect(installed).toBe(false);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("VALIDATION_ERROR");
+      }
     });
 
     it("should emit event on installation", () => {
       const events: SkillEvent[] = [];
       manager.onEvent((e) => events.push(e));
 
-      manager.install({
+      const result = manager.install({
         manifest: {
           id: "test-skill",
           name: "Test",
@@ -82,8 +102,9 @@ describe("SkillManager", () => {
         },
       });
 
+      expect(result.ok).toBe(true);
       expect(events.length).toBe(1);
-      expect(events[0].type).toBe("skill_installed");
+      expect(getFirst(events).type).toBe("skill_installed");
     });
 
     it("should activate immediately if requested", async () => {
@@ -120,13 +141,18 @@ describe("SkillManager", () => {
     it("should uninstall a skill", async () => {
       const result = await manager.uninstall("test-skill");
 
-      expect(result).toBe(true);
+      expect(result.ok).toBe(true);
       expect(manager.has("test-skill")).toBe(false);
     });
 
-    it("should return false for non-existent skill", async () => {
+    it("should return error for non-existent skill", async () => {
       const result = await manager.uninstall("nonexistent");
-      expect(result).toBe(false);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("NOT_FOUND");
+      }
     });
 
     it("should emit event on uninstallation", async () => {
@@ -153,7 +179,7 @@ describe("SkillManager", () => {
 
       const result = await manager.activate("test-skill");
 
-      expect(result).toBe(true);
+      expect(result.ok).toBe(true);
       expect(manager.isActive("test-skill")).toBe(true);
     });
 
@@ -198,9 +224,14 @@ describe("SkillManager", () => {
       expect(typeof receivedContext!.log.info).toBe("function");
     });
 
-    it("should return false for non-existent skill", async () => {
+    it("should return error for non-existent skill", async () => {
       const result = await manager.activate("nonexistent");
-      expect(result).toBe(false);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("NOT_FOUND");
+      }
     });
 
     it("should handle activation errors", async () => {
@@ -218,8 +249,17 @@ describe("SkillManager", () => {
 
       const result = await manager.activate("test-skill");
 
-      expect(result).toBe(false);
-      expect(manager.get("test-skill")?.state).toBe("error");
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("ACTIVATION_ERROR");
+      }
+
+      const getResult = manager.get("test-skill");
+      expect(getResult.ok).toBe(true);
+      if (getResult.ok) {
+        expect(getResult.value.state).toBe("error");
+      }
     });
   });
 
@@ -239,7 +279,7 @@ describe("SkillManager", () => {
     it("should deactivate a skill", async () => {
       const result = await manager.deactivate("test-skill");
 
-      expect(result).toBe(true);
+      expect(result.ok).toBe(true);
       expect(manager.isActive("test-skill")).toBe(false);
     });
 
@@ -261,6 +301,37 @@ describe("SkillManager", () => {
       await manager.deactivate("test-skill");
 
       expect(deactivateFn).toHaveBeenCalled();
+    });
+  });
+
+  describe("Get Skill", () => {
+    it("should get a skill instance", () => {
+      manager.install({
+        manifest: {
+          id: "test-skill",
+          name: "Test Skill",
+          description: "A test skill",
+          version: "1.0.0",
+        },
+      });
+
+      const result = manager.get("test-skill");
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.manifest.id).toBe("test-skill");
+        expect(result.value.state).toBe("installed");
+      }
+    });
+
+    it("should return error for non-existent skill", () => {
+      const result = manager.get("nonexistent");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("NOT_FOUND");
+      }
     });
   });
 
@@ -372,7 +443,7 @@ describe("SkillManager", () => {
     it("should find by tag", () => {
       const calc = manager.findByTag("calculator");
       expect(calc.length).toBe(1);
-      expect(calc[0].manifest.id).toBe("math-skill");
+      expect(getFirst(calc).manifest.id).toBe("math-skill");
     });
 
     it("should search by name", () => {
@@ -383,7 +454,7 @@ describe("SkillManager", () => {
     it("should search by description", () => {
       const results = manager.search("processing");
       expect(results.length).toBe(1);
-      expect(results[0].manifest.id).toBe("text-skill");
+      expect(getFirst(results).manifest.id).toBe("text-skill");
     });
   });
 
@@ -399,9 +470,13 @@ describe("SkillManager", () => {
         },
       };
 
-      const installed = manager.install(module);
+      const result = manager.install(module);
 
-      expect(installed).toBe(false);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("DEPENDENCY_ERROR");
+      }
     });
 
     it("should install skill when dependency is met", () => {
@@ -426,9 +501,38 @@ describe("SkillManager", () => {
         },
       };
 
-      const installed = manager.install(module);
+      const result = manager.install(module);
 
-      expect(installed).toBe(true);
+      expect(result.ok).toBe(true);
+    });
+
+    it("should reject skill with incompatible dependency version", () => {
+      manager.install({
+        manifest: {
+          id: "base-skill",
+          name: "Base Skill",
+          description: "Base",
+          version: "1.0.0",
+        },
+      });
+
+      const module: SkillModule = {
+        manifest: {
+          id: "dependent-skill",
+          name: "Dependent Skill",
+          description: "Requires newer base",
+          version: "1.0.0",
+          dependencies: [{ skillId: "base-skill", required: true, versionRange: ">=2.0.0" }],
+        },
+      };
+
+      const result = manager.install(module);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("DEPENDENCY_ERROR");
+      }
     });
   });
 });
@@ -451,7 +555,10 @@ describe("SkillRegistry", () => {
 
       const result = registry.register(manifest);
 
-      expect(result).toBe(true);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toBe("test-skill");
+      }
       expect(registry.has("test-skill")).toBe(true);
     });
 
@@ -463,7 +570,11 @@ describe("SkillRegistry", () => {
 
       const result = registry.register(manifest);
 
-      expect(result).toBe(false);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("VALIDATION_ERROR");
+      }
     });
 
     it("should unregister a skill", () => {
@@ -476,8 +587,46 @@ describe("SkillRegistry", () => {
 
       const result = registry.unregister("test-skill");
 
-      expect(result).toBe(true);
+      expect(result.ok).toBe(true);
       expect(registry.has("test-skill")).toBe(false);
+    });
+
+    it("should return error for unregistering non-existent skill", () => {
+      const result = registry.unregister("nonexistent");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("NOT_FOUND");
+      }
+    });
+  });
+
+  describe("Get Skill", () => {
+    it("should get a skill entry", () => {
+      registry.register({
+        id: "test-skill",
+        name: "Test",
+        description: "Test",
+        version: "1.0.0",
+      });
+
+      const result = registry.get("test-skill");
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.manifest.id).toBe("test-skill");
+      }
+    });
+
+    it("should return error for non-existent skill", () => {
+      const result = registry.get("nonexistent");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("NOT_FOUND");
+      }
     });
   });
 
@@ -529,7 +678,7 @@ describe("SkillRegistry", () => {
     it("should find by tag", () => {
       const web = registry.findByTag("web");
       expect(web.length).toBe(1);
-      expect(web[0].manifest.id).toBe("web-browse");
+      expect(getFirst(web).manifest.id).toBe("web-browse");
     });
 
     it("should find by author", () => {
@@ -540,7 +689,7 @@ describe("SkillRegistry", () => {
     it("should find by permission", () => {
       const networkSkills = registry.findByPermission("network:fetch");
       expect(networkSkills.length).toBe(1);
-      expect(networkSkills[0].manifest.id).toBe("web-browse");
+      expect(getFirst(networkSkills).manifest.id).toBe("web-browse");
     });
 
     it("should search by name", () => {
@@ -551,7 +700,7 @@ describe("SkillRegistry", () => {
     it("should search by tag", () => {
       const results = registry.search("calculator");
       expect(results.length).toBe(1);
-      expect(results[0].manifest.id).toBe("math-tools");
+      expect(getFirst(results).manifest.id).toBe("math-tools");
     });
   });
 
@@ -605,25 +754,33 @@ describe("SkillRegistry", () => {
 
     it("should export to JSON", () => {
       const json = registry.export();
-      const data = JSON.parse(json);
+      const data = JSON.parse(json) as Array<{ manifest: SkillManifest }>;
 
       expect(data.length).toBe(2);
-      expect(data[0].manifest.id).toBeDefined();
+      expect(getFirst(data).manifest.id).toBeDefined();
     });
 
     it("should import from JSON", () => {
       const json = registry.export();
       const newRegistry = createSkillRegistry();
 
-      const imported = newRegistry.import(json);
+      const result = newRegistry.import(json);
 
-      expect(imported).toBe(2);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toBe(2);
+      }
       expect(newRegistry.list().length).toBe(2);
     });
 
-    it("should handle invalid JSON", () => {
-      const imported = registry.import("not valid json");
-      expect(imported).toBe(0);
+    it("should return error for invalid JSON", () => {
+      const result = registry.import("not valid json");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(SkillError);
+        expect(result.error.code).toBe("PARSE_ERROR");
+      }
     });
   });
 

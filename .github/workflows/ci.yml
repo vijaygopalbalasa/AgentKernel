@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Integration tests (gateway)
+        run: |
+          docker compose -f docker/docker-compose.test.yml up -d
+          pnpm -C apps/gateway test:integration
+        env:
+          TEST_GATEWAY_PORT: 18811
+          TEST_HEALTH_PORT: 18812
+
+      - name: Integration cleanup
+        if: always()
+        run: docker compose -f docker/docker-compose.test.yml down --remove-orphans
+
+      - name: Docker smoke test
+        run: ./scripts/docker-smoke.sh

@@ -1,9 +1,7 @@
 // @agent-os/tools — Tool System with MCP Support (Layer 4: Framework)
 // Connect agents to tools via Model Context Protocol
 
-console.log("✅ @agent-os/tools loaded");
-
-// Types
+// ─── Types ──────────────────────────────────────────────────
 export type {
   ToolId,
   ToolSchema,
@@ -14,25 +12,51 @@ export type {
   ToolContext,
   ToolLogger,
   ToolExecutionEvent,
+  ToolExecutionEventType,
   MCPServerConfig,
   MCPResource,
   MCPPrompt,
+  MCPTransportType,
+  MCPAuthType,
+  ToolErrorCode,
+  RegisterToolOptions,
 } from "./types.js";
 
-// Registry
+// ─── Zod Schemas ────────────────────────────────────────────
+export {
+  ToolResultSchema,
+  ToolDefinitionSchema,
+  ToolInvocationSchema,
+  ToolContextSchema,
+  ToolExecutionEventSchema,
+  ToolExecutionEventTypeSchema,
+  MCPServerConfigSchema,
+  MCPResourceSchema,
+  MCPPromptSchema,
+  MCPPromptArgumentSchema,
+  MCPTransportTypeSchema,
+  MCPAuthTypeSchema,
+  MCPAuthConfigSchema,
+  RegisterToolOptionsSchema,
+} from "./types.js";
+
+// ─── Error Class ────────────────────────────────────────────
+export { ToolError } from "./types.js";
+
+// ─── Registry ───────────────────────────────────────────────
 export {
   ToolRegistry,
   createToolRegistry,
-  type RegisterToolOptions,
 } from "./registry.js";
 
-// Built-in tools
+// ─── Built-in tools ─────────────────────────────────────────
 export { BUILTIN_TOOLS, registerBuiltinTools } from "./builtin.js";
 
-// MCP Client
+// ─── MCP Client ─────────────────────────────────────────────
 export {
   MCPClientManager,
   createMCPClientManager,
+  type MCPClientManagerOptions,
   type MCPConnection,
   type MCPConnectionState,
   type MCPClientEvent,

@@ -1,0 +1,25 @@
+{
+  "name": "@agent-os/assistant",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agent-os/kernel": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/identity": "workspace:*",
+    "@agent-os/memory": "workspace:*",
+    "@agent-os/skills": "workspace:*",
+    "@agent-os/tools": "workspace:*",
+    "@agent-os/events": "workspace:*",
+    "@agent-os/permissions": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "vitest": "^4.0.0"
+  }
+}

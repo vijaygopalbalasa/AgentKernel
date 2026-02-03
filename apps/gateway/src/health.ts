@@ -1,32 +1,44 @@
 // Health Check HTTP Server for Agent OS Gateway
-// Provides /health endpoint for monitoring and orchestration
+// Provides /health endpoint for monitoring with Zod validation
 
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
-import type { Logger } from "@agent-os/shared";
+import { z } from "zod";
+import { type Logger, createLogger } from "@agent-os/kernel";
+import { type HealthStatus, HealthStatusSchema } from "./types.js";
 
-/** Health status response */
-export interface HealthStatus {
-  status: "ok" | "degraded" | "error";
-  version: string;
-  uptime: number;
-  providers: string[];
-  agents: number;
-  connections: number;
-  timestamp: number;
+/** Health server configuration schema */
+export const HealthServerConfigSchema = z.object({
+  port: z.number().int().min(1).max(65535),
+  host: z.string().min(1),
+});
+
+export type HealthServerConfig = z.infer<typeof HealthServerConfigSchema>;
+
+/** Health status provider function */
+export type HealthProvider = () => Omit<HealthStatus, "timestamp" | "uptime">;
+export type MetricsProvider = () => string[] | string;
+
+/** Health server interface */
+export interface HealthServer {
+  close(): void;
 }
 
-/** Health server configuration */
-export interface HealthServerConfig {
-  port: number;
-  host: string;
-}
-
-/** Create the health check HTTP server */
+/**
+ * Create the health check HTTP server.
+ * Provides /health, /ready, and /metrics endpoints.
+ */
 export function createHealthServer(
   config: HealthServerConfig,
-  logger: Logger,
-  getStatus: () => Omit<HealthStatus, "timestamp" | "uptime">
-) {
+  getStatus: HealthProvider,
+  getMetrics?: MetricsProvider
+): HealthServer {
+  // Validate config
+  const configResult = HealthServerConfigSchema.safeParse(config);
+  if (!configResult.success) {
+    throw new Error(`Invalid health server config: ${configResult.error.message}`);
+  }
+
+  const log = createLogger({ name: "health-server" });
   const startTime = Date.now();
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -43,6 +55,8 @@ export function createHealthServer(
 
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
+    log.debug("Health request", { path: url.pathname, method: req.method });
+
     switch (url.pathname) {
       case "/health":
       case "/healthz":
@@ -54,8 +68,13 @@ export function createHealthServer(
         handleReady(res, getStatus);
         break;
 
+      case "/live":
+      case "/liveness":
+        handleLive(res);
+        break;
+
       case "/metrics":
-        handleMetrics(res, startTime, getStatus);
+        handleMetrics(res, startTime, getStatus, getMetrics);
         break;
 
       case "/":
@@ -69,19 +88,19 @@ export function createHealthServer(
   });
 
   server.listen(config.port, config.host, () => {
-    logger.info("Health server ready", {
+    log.info("Health server ready", {
       url: `http://${config.host}:${config.port}/health`,
     });
   });
 
   server.on("error", (error) => {
-    logger.error("Health server error", { error: error.message });
+    log.error("Health server error", { error: error.message });
   });
 
   return {
     close() {
       server.close();
-      logger.info("Health server closed");
+      log.info("Health server closed");
     },
   };
 }
@@ -90,14 +109,22 @@ export function createHealthServer(
 function handleHealth(
   res: ServerResponse,
   startTime: number,
-  getStatus: () => Omit<HealthStatus, "timestamp" | "uptime">
-) {
+  getStatus: HealthProvider
+): void {
   const status = getStatus();
   const health: HealthStatus = {
     ...status,
     uptime: Math.floor((Date.now() - startTime) / 1000),
     timestamp: Date.now(),
   };
+
+  // Validate output
+  const validation = HealthStatusSchema.safeParse(health);
+  if (!validation.success) {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid health status" }));
+    return;
+  }
 
   res.writeHead(health.status === "ok" ? 200 : 503, { "Content-Type": "application/json" });
   res.end(JSON.stringify(health, null, 2));
@@ -106,25 +133,36 @@ function handleHealth(
 /** Handle /ready endpoint */
 function handleReady(
   res: ServerResponse,
-  getStatus: () => Omit<HealthStatus, "timestamp" | "uptime">
-) {
+  getStatus: HealthProvider
+): void {
   const status = getStatus();
   const isReady = status.status !== "error" && status.providers.length > 0;
 
   res.writeHead(isReady ? 200 : 503, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ ready: isReady, providers: status.providers }));
+  res.end(JSON.stringify({
+    ready: isReady,
+    providers: status.providers,
+    agents: status.agents,
+  }));
+}
+
+/** Handle /live endpoint */
+function handleLive(res: ServerResponse): void {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ live: true }));
 }
 
 /** Handle /metrics endpoint (Prometheus format) */
 function handleMetrics(
   res: ServerResponse,
   startTime: number,
-  getStatus: () => Omit<HealthStatus, "timestamp" | "uptime">
-) {
+  getStatus: HealthProvider,
+  getMetrics?: MetricsProvider
+): void {
   const status = getStatus();
   const uptime = Math.floor((Date.now() - startTime) / 1000);
 
-  const metrics = [
+  const baseMetrics = [
     `# HELP agent_os_up Whether Agent OS gateway is up`,
     `# TYPE agent_os_up gauge`,
     `agent_os_up ${status.status === "error" ? 0 : 1}`,
@@ -144,20 +182,24 @@ function handleMetrics(
     `# HELP agent_os_connections_total Number of WebSocket connections`,
     `# TYPE agent_os_connections_total gauge`,
     `agent_os_connections_total ${status.connections}`,
-  ].join("\n");
+  ];
+
+  const extra = getMetrics ? getMetrics() : [];
+  const extraLines = Array.isArray(extra) ? extra : [extra];
+  const metrics = [...baseMetrics, ...extraLines].join("\n");
 
   res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
   res.end(metrics);
 }
 
 /** Handle root endpoint */
-function handleRoot(res: ServerResponse) {
+function handleRoot(res: ServerResponse): void {
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(
     JSON.stringify({
       name: "Agent OS Gateway",
       version: "0.1.0",
-      endpoints: ["/health", "/ready", "/metrics"],
+      endpoints: ["/health", "/ready", "/live", "/metrics"],
     })
   );
 }

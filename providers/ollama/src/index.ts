@@ -38,7 +38,12 @@ interface OllamaModelsResponse {
  * 3. Ollama runs on http://localhost:11434 by default
  */
 export function createOllamaProvider(baseUrl?: string): ProviderAdapter {
-  const url = baseUrl ?? process.env.OLLAMA_URL ?? "http://localhost:11434";
+  const url =
+    baseUrl ??
+    process.env.OLLAMA_URL ??
+    process.env.OLLAMA_BASE_URL ??
+    (process.env.OLLAMA_HOST ? `http://${process.env.OLLAMA_HOST}` : undefined) ??
+    "http://localhost:11434";
 
   // Cache available models
   let cachedModels: string[] | null = null;
@@ -136,7 +141,12 @@ export function createOllamaProvider(baseUrl?: string): ProviderAdapter {
  * Returns empty array if Ollama is not running.
  */
 export async function listOllamaModels(baseUrl?: string): Promise<string[]> {
-  const url = baseUrl ?? process.env.OLLAMA_URL ?? "http://localhost:11434";
+  const url =
+    baseUrl ??
+    process.env.OLLAMA_URL ??
+    process.env.OLLAMA_BASE_URL ??
+    (process.env.OLLAMA_HOST ? `http://${process.env.OLLAMA_HOST}` : undefined) ??
+    "http://localhost:11434";
 
   try {
     const response = await fetch(`${url}/api/tags`);
