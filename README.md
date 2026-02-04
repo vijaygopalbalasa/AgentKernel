@@ -187,7 +187,7 @@ agentkernel/
 ### Option 1: Docker (recommended)
 
 ```bash
-git clone https://github.com/anthropics/agentkernel.git
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
 cd agentkernel
 pnpm install
 pnpm -C apps/cli build
@@ -206,7 +206,7 @@ Services start at:
 ### Option 2: Local Development
 
 ```bash
-git clone https://github.com/anthropics/agentkernel.git
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
 cd agentkernel
 pnpm install
 pnpm -C apps/cli build
@@ -466,7 +466,7 @@ AgentKernel is functional and self-hostable today. Here's what's built:
 ## Contributing
 
 ```bash
-git clone https://github.com/anthropics/agentkernel.git
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
 cd agentkernel
 pnpm install
 pnpm build
