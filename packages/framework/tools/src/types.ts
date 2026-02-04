@@ -155,6 +155,18 @@ export const ToolContextSchema = z.object({
   signal: z.custom<AbortSignal>((val) => val === undefined || val instanceof AbortSignal).optional(),
   /** Logger instance (validated at runtime) */
   logger: z.custom<ToolLogger>((val) => val === undefined || typeof val === "object").optional(),
+  /** Allowed filesystem paths for sandboxing */
+  allowedPaths: z.array(z.string()).optional(),
+  /** If true, allow access to all paths (disables sandboxing) */
+  allowAllPaths: z.boolean().optional(),
+  /** Allowed shell commands (e.g. ["git", "ls", "cat"]) */
+  allowedCommands: z.array(z.string()).optional(),
+  /** If true, allow all commands (disables command allowlisting) */
+  allowAllCommands: z.boolean().optional(),
+  /** Allowed network domains (e.g. ["example.com", "*.github.com"]) */
+  allowedDomains: z.array(z.string()).optional(),
+  /** If true, allow all domains (disables domain allowlisting) */
+  allowAllDomains: z.boolean().optional(),
 });
 
 /** Context passed to tool handlers */

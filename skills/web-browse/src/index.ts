@@ -170,6 +170,7 @@ const fetchHandler: ToolHandler<z.infer<typeof fetchSchema>> = async (args, cont
       headers: args.headers,
       body,
       signal: controller.signal,
+      redirect: "error", // Block redirects to prevent SSRF bypass
     });
 
     const text = await response.text();
@@ -233,6 +234,7 @@ const extractHandler: ToolHandler<z.infer<typeof extractSchema>> = async (args, 
         "User-Agent": "AgentKernel/0.1 (web-browse skill)",
       },
       signal: controller.signal,
+      redirect: "error", // Block redirects to prevent SSRF bypass
     });
 
     if (!response.ok) {
@@ -305,6 +307,7 @@ const linksHandler: ToolHandler<z.infer<typeof linksSchema>> = async (args, cont
         "User-Agent": "AgentKernel/0.1 (web-browse skill)",
       },
       signal: controller.signal,
+      redirect: "error", // Block redirects to prevent SSRF bypass
     });
 
     if (!response.ok) {
