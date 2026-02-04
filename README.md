@@ -63,9 +63,9 @@ AgentKernel doesn't invent custom protocols. It implements the ones the industry
 ### Security by Default
 Follows the OWASP Top 10 for Agentic Applications (2026):
 - **Capability-based permissions** — Agents receive explicit, unforgeable tokens for each resource
-- **Sandboxed execution** — Each agent runs in process isolation (Docker containers in production)
+- **Sandboxed execution** — Capability-based permission enforcement per agent (OS-level process isolation planned)
 - **Just-in-time access** — Permissions granted only for required duration
-- **Human approval gates** — Required for high-risk actions
+- **Human approval gates** — Planned for high-risk actions
 - **Audit logging** — Immutable record of every agent action and decision
 - **Egress proxy** — Controlled outbound network access per agent
 
@@ -316,7 +316,7 @@ Full developer guide: [`docs/DEVELOPER.md`](docs/DEVELOPER.md)
 
 | Component | Technology |
 |-----------|-----------|
-| Language | TypeScript (strict mode, 65,000+ lines) |
+| Language | TypeScript (strict mode, ~46,000 lines source + ~23,000 lines tests) |
 | Runtime | Node.js 22+ |
 | Package Manager | pnpm with workspaces |
 | Database | PostgreSQL 16 (structured data + agent metadata) |
@@ -326,10 +326,10 @@ Full developer guide: [`docs/DEVELOPER.md`](docs/DEVELOPER.md)
 | Protocols | MCP SDK, A2A (JSON-RPC over HTTP) |
 | Dashboard | Next.js 15, React 19, Tailwind CSS |
 | Gateway | WebSocket (real-time) + HTTP (health/metrics) |
-| Testing | Vitest (1,154 tests passing) |
+| Testing | Vitest (~200 unit tests passing) |
 | Build | tsup (packages), Next.js (dashboard) |
 | Containers | Docker + Docker Compose |
-| Security | AppArmor, seccomp, egress proxy, AES-256 encryption |
+| Security | Capability permissions, egress proxy config, AES-256 memory encryption |
 
 ---
 
@@ -380,17 +380,17 @@ Full configuration reference: [`.env.example`](.env.example)
 
 | | AgentKernel | LangChain / CrewAI | AutoGPT | Custom Scripts |
 |---|---|---|---|---|
-| **What it is** | Secure runtime | Framework / library | Single agent | DIY |
-| **Agent isolation** | Process sandbox | In-process | In-process | None |
+| **What it is** | Agent runtime | Framework / library | Single agent | DIY |
+| **Agent isolation** | Capability permissions (process isolation planned) | In-process | In-process | None |
 | **Memory persistence** | Built-in (3 types) | Plugin required | File-based | Manual |
-| **Multi-agent** | Native (A2A protocol) | Framework-specific | No | Manual |
+| **Multi-agent** | A2A protocol client | Framework-specific | No | Manual |
 | **Model agnostic** | Yes (4 providers) | Yes | OpenAI-focused | Manual |
-| **Security** | Capability-based | None | None | None |
-| **Governance** | Built-in | None | None | None |
+| **Security** | Capability-based permissions | None | None | None |
+| **Governance** | DB schema exists (enforcement WIP) | None | None | None |
 | **Self-hosted** | Yes | N/A (library) | Yes | Yes |
-| **Monitoring** | Dashboard + metrics | External | External | None |
+| **Monitoring** | Dashboard + health endpoints | External | External | None |
 
-AgentKernel is infrastructure, not a framework. Frameworks help you write agent code. AgentKernel runs, manages, secures, and orchestrates agents — with adapters for OpenClaw, CrewAI, and more. It works — regardless of which framework they use internally.
+AgentKernel is infrastructure, not a framework. Frameworks help you write agent code. AgentKernel provides the runtime to run, manage, and monitor agents — regardless of which framework they use internally.
 
 ---
 
@@ -419,20 +419,20 @@ While frameworks like LangGraph, CrewAI, and AutoGen help you **build** agents, 
 
 ## Project Status
 
-AgentKernel is functional and self-hostable today. Here's what's built:
+AgentKernel is under active development. Some layers are production-quality; others are early-stage. Here's an honest breakdown:
 
-| Layer | Status | What's There |
-|-------|--------|-------------|
-| Kernel | Complete | PostgreSQL, Qdrant, Redis, structured logging, health checks, graceful shutdown |
-| Model Abstraction | Complete | 4 providers, routing, failover, rate limiting, token tracking, streaming |
-| Runtime | Complete | Process sandboxing, state machine, heartbeat monitoring, resource limits |
-| Framework | Complete | All 7 subsystems: identity, memory, skills, tools, events, permissions, communication |
-| Gateway | Complete | WebSocket + HTTP, authentication, rate limiting, event broadcasting |
-| CLI | Complete | 20+ commands, interactive shell, package manager, agent scaffolding |
-| Dashboard | Complete | 6 pages: home, chat, agents, memory, security, settings |
-| Agents | 5 examples | assistant, coder, monitor, researcher, system |
-| Skills | 3 built-in | file-system, shell-exec, web-browse |
-| Tests | 1,154 passing | Unit + integration across all layers |
+| Layer | Status | What's There | What's Missing |
+|-------|--------|-------------|----------------|
+| Kernel | ✅ Solid | PostgreSQL, Qdrant, Redis clients, structured logging, health checks, graceful shutdown | — |
+| Model Abstraction | ✅ Solid | 4 real providers (Anthropic, OpenAI, Google, Ollama), routing, rate limiting, streaming | Automatic failover not fully tested in production |
+| Runtime | ⚠️ Partial | State machine, lifecycle manager, capability-based permission checking, file persistence | **No real process isolation** — sandbox checks permissions in-memory, not via OS-level isolation. State machine is in-memory (file checkpointing exists but not automatic). |
+| Framework | ⚠️ Mixed | Memory (real SQL queries), Tools (real MCP client), Communication (real A2A client), Events (in-process pub/sub), Identity, Permissions, Skills manager | Framework EventBus is in-memory (kernel EventBus uses Redis). Skills manager works but skills were empty until v0.2. |
+| Gateway | ✅ Solid | WebSocket + HTTP, authentication, rate limiting, real LLM chat end-to-end | — |
+| CLI | ✅ Works | 20+ commands, `chat` and `status` verified working | `run` command needs Node 22+ or tsx for .ts files |
+| Dashboard | ✅ UI exists | Next.js app with 6 pages, real WebSocket hooks | Requires running gateway to be useful |
+| Agents | 5 examples | assistant, coder, monitor, researcher, system | Example agents, not production-tested |
+| Skills | 3 built-in | file-system (6 tools), shell-exec (2 tools), web-browse (3 tools) — all with real I/O | New in v0.2 |
+| Tests | ~200 passing | Unit tests across packages | Most tests use mocks; integration tests require Docker |
 
 ---
 
@@ -470,7 +470,7 @@ git clone https://github.com/vijaygopalbalasa/AgentKernel.git
 cd agentkernel
 pnpm install
 pnpm build
-pnpm test    # 1,154 tests should pass
+pnpm test    # Unit tests should pass
 pnpm dev     # Start gateway in dev mode
 ```
 

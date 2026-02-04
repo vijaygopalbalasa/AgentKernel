@@ -171,6 +171,14 @@ export interface ToolContext {
   allowedPaths?: string[];
   /** If true, allow access to all paths (disables sandboxing) */
   allowAllPaths?: boolean;
+  /** Allowed shell commands (e.g. ["git", "ls", "cat"]) */
+  allowedCommands?: string[];
+  /** If true, allow all commands (disables command allowlisting) */
+  allowAllCommands?: boolean;
+  /** Allowed network domains (e.g. ["example.com", "*.github.com"]) */
+  allowedDomains?: string[];
+  /** If true, allow all domains (disables domain allowlisting) */
+  allowAllDomains?: boolean;
 }
 
 // ─── TOOL LOGGER ────────────────────────────────────────────

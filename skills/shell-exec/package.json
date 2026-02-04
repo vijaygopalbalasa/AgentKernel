@@ -1,0 +1,25 @@
+{
+  "name": "@agentkernel/skill-shell-exec",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shell execution skill for AgentKernel — sandboxed command execution with allowlisting",
+  "license": "MIT",
+  "exports": { ".": "./dist/index.js" },
+  "types": "./dist/index.d.ts",
+  "engines": { "node": ">=20.0.0" },
+  "dependencies": {
+    "@agentkernel/skills": "workspace:*",
+    "@agentkernel/tools": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "tsup": "^8.5.1",
+    "vitest": "^4.0.18"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  }
+}
