@@ -1,8 +1,8 @@
 // MCP Client — connects to Model Context Protocol servers
 // Wraps the official @modelcontextprotocol/sdk
 
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
 import { z } from "zod";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -76,7 +76,7 @@ export class MCPClientManager {
   constructor(options: MCPClientManagerOptions = {}) {
     this.log = createLogger({ name: "mcp-client-manager" });
     this.mode = options.mode ?? "real";
-    this.clientInfo = options.clientInfo ?? { name: "agentrun", version: "0.1.0" };
+    this.clientInfo = options.clientInfo ?? { name: "agentkernel", version: "0.1.0" };
   }
 
   /**

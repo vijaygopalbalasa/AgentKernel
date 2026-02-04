@@ -1,11 +1,11 @@
-// WebSocket Server for AgentRun Gateway
+// WebSocket Server for AgentKernel Gateway
 // Handles real-time communication with Zod validation
 
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import { timingSafeEqual, createHash } from "crypto";
-import { type Logger, createLogger } from "@agentrun/kernel";
-import { type Result, ok, err } from "@agentrun/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
+import { type Result, ok, err } from "@agentkernel/shared";
 import {
   type WsMessage,
   type WsServerConfig,

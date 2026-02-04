@@ -1,12 +1,12 @@
-// AgentRun Package Manager — Install, uninstall, list, and update agents
-// Like apt/npm but for AgentRun agents.
+// AgentKernel Package Manager — Install, uninstall, list, and update agents
+// Like apt/npm but for AgentKernel agents.
 
 import chalk from "chalk";
 import ora from "ora";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { AgentManifestSchema } from "@agentrun/sdk";
+import { AgentManifestSchema } from "@agentkernel/sdk";
 
 interface CatalogEntry {
   id: string;
@@ -288,7 +288,7 @@ export function listAgents(): void {
   const catalog = loadCatalog();
 
   if (catalog.agents.length === 0) {
-    console.log(chalk.gray("No agents installed. Use 'agentrun install <source>' to install one."));
+    console.log(chalk.gray("No agents installed. Use 'agentkernel install <source>' to install one."));
     return;
   }
 

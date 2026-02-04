@@ -1,11 +1,11 @@
-# AgentRun Production Docker Compose
+# AgentKernel Production Docker Compose
 # Full stack with PostgreSQL, Qdrant, Redis, and Gateway
 
 services:
   # PostgreSQL - Primary database
   postgres:
     image: postgres:16-alpine
-    container_name: agentrun-postgres
+    container_name: agentkernel-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-agentuser}
@@ -30,12 +30,12 @@ services:
           cpus: "0.25"
           memory: 256M
     networks:
-      - agentrun-network
+      - agentkernel-network
 
   # Qdrant - Vector database for memory
   qdrant:
     image: qdrant/qdrant:v1.13.6
-    container_name: agentrun-qdrant
+    container_name: agentkernel-qdrant
     restart: unless-stopped
     volumes:
       - qdrant_data:/qdrant/storage
@@ -59,12 +59,12 @@ services:
           cpus: "0.25"
           memory: 512M
     networks:
-      - agentrun-network
+      - agentkernel-network
 
   # Redis - Cache and pub/sub
   redis:
     image: redis:7-alpine
-    container_name: agentrun-redis
+    container_name: agentkernel-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
@@ -85,15 +85,15 @@ services:
           cpus: "0.1"
           memory: 64M
     networks:
-      - agentrun-network
+      - agentkernel-network
 
-  # AgentRun Gateway
+  # AgentKernel Gateway
   gateway:
     build:
       context: .
       dockerfile: Dockerfile
-    image: agentrun-gateway:latest
-    container_name: agentrun-gateway
+    image: agentkernel-gateway:latest
+    container_name: agentkernel-gateway
     restart: unless-stopped
     depends_on:
       postgres:
@@ -162,7 +162,7 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-}
 
       # Sandboxing / Access Control
-      ALLOWED_PATHS: ${ALLOWED_PATHS:-/tmp/agentrun}
+      ALLOWED_PATHS: ${ALLOWED_PATHS:-/tmp/agentkernel}
       ALLOWED_DOMAINS: ${ALLOWED_DOMAINS:-}
       ALLOW_ALL_PATHS: ${ALLOW_ALL_PATHS:-false}
       ALLOW_ALL_DOMAINS: ${ALLOW_ALL_DOMAINS:-false}
@@ -173,14 +173,14 @@ services:
       ENFORCE_EGRESS_PROXY: ${ENFORCE_EGRESS_PROXY:-true}
       HTTP_PROXY: ${HTTP_PROXY:-http://egress-proxy:3128}
       HTTPS_PROXY: ${HTTPS_PROXY:-http://egress-proxy:3128}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agentrun-gateway,postgres,redis,qdrant,egress-proxy}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agentkernel-gateway,postgres,redis,qdrant,egress-proxy}
       ENFORCE_PRODUCTION_HARDENING: ${ENFORCE_PRODUCTION_HARDENING:-true}
 
       # Agent worker runtime — defaults to 'local' (in-process).
       # Set to 'docker' and mount /var/run/docker.sock for container isolation.
       AGENT_WORKER_RUNTIME: ${AGENT_WORKER_RUNTIME:-local}
-      AGENT_WORKER_IMAGE: ${AGENT_WORKER_IMAGE:-agentrun-gateway:latest}
-      AGENT_WORKER_DOCKER_NETWORK: ${AGENT_WORKER_DOCKER_NETWORK:-agentrun-internal}
+      AGENT_WORKER_IMAGE: ${AGENT_WORKER_IMAGE:-agentkernel-gateway:latest}
+      AGENT_WORKER_DOCKER_NETWORK: ${AGENT_WORKER_DOCKER_NETWORK:-agentkernel-internal}
       AGENT_WORKER_GATEWAY_HOST: ${AGENT_WORKER_GATEWAY_HOST:-gateway}
       AGENT_WORKER_DOCKER_READONLY: ${AGENT_WORKER_DOCKER_READONLY:-true}
       AGENT_WORKER_DOCKER_TMPFS: ${AGENT_WORKER_DOCKER_TMPFS:-/tmp:rw,size=64m,/var/tmp:rw,size=64m}
@@ -214,8 +214,8 @@ services:
       start_period: 60s
       retries: 3
     networks:
-      - agentrun-network
-      - agentrun-internal
+      - agentkernel-network
+      - agentkernel-internal
     # Resource limits
     deploy:
       resources:
@@ -230,7 +230,7 @@ services:
     build:
       context: .
       dockerfile: docker/egress-proxy/Dockerfile
-    container_name: agentrun-egress-proxy
+    container_name: agentkernel-egress-proxy
     restart: unless-stopped
     environment:
       EGRESS_ALLOWED_DOMAINS: ${EGRESS_ALLOWED_DOMAINS:-${ALLOWED_DOMAINS:-}}
@@ -241,15 +241,15 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - agentrun-network
-      - agentrun-internal
+      - agentkernel-network
+      - agentkernel-internal
 
-  # AgentRun Dashboard
+  # AgentKernel Dashboard
   dashboard:
     build:
       context: .
       dockerfile: apps/dashboard/Dockerfile
-    container_name: agentrun-dashboard
+    container_name: agentkernel-dashboard
     restart: unless-stopped
     depends_on:
       gateway:
@@ -257,13 +257,13 @@ services:
     ports:
       - "3000:80"
     networks:
-      - agentrun-network
+      - agentkernel-network
 
   agent-bootstrap:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: agentrun-bootstrap
+    container_name: agentkernel-bootstrap
     restart: "no"
     depends_on:
       gateway:
@@ -274,7 +274,7 @@ services:
       GATEWAY_AUTH_TOKEN: ${GATEWAY_AUTH_TOKEN:-}
     command: ["node", "docker/bootstrap-agents.mjs"]
     networks:
-      - agentrun-network
+      - agentkernel-network
 
 volumes:
   postgres_data:
@@ -287,8 +287,8 @@ volumes:
     driver: local
 
 networks:
-  agentrun-network:
+  agentkernel-network:
     driver: bridge
-  agentrun-internal:
+  agentkernel-internal:
     driver: bridge
     internal: true

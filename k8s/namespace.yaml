@@ -1,8 +1,8 @@
-# AgentRun Kubernetes Namespace
+# AgentKernel Kubernetes Namespace
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: agentrun
+  name: agentkernel
   labels:
-    app.kubernetes.io/name: agentrun
-    app.kubernetes.io/part-of: agentrun
+    app.kubernetes.io/name: agentkernel
+    app.kubernetes.io/part-of: agentkernel

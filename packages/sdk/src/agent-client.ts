@@ -1,5 +1,5 @@
-// @agentrun/sdk — AgentClient
-// High-level API for agents to interact with the AgentRun gateway.
+// @agentkernel/sdk — AgentClient
+// High-level API for agents to interact with the AgentKernel gateway.
 // Wraps the low-level sendGatewayTask() WebSocket RPC with typed methods.
 
 import { sendGatewayTask, type GatewayClientOptions } from "./gateway-client.js";
@@ -31,7 +31,7 @@ export interface AgentClientOptions {
 }
 
 /**
- * AgentClient — The primary API for agents to interact with AgentRun.
+ * AgentClient — The primary API for agents to interact with AgentKernel.
  *
  * Provides typed methods for:
  * - LLM chat (context.client.chat)

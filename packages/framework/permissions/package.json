@@ -1,15 +1,15 @@
 {
-  "name": "@agentrun/permissions",
+  "name": "@agentkernel/permissions",
   "version": "0.1.0",
   "type": "module",
-  "description": "Capability-based permission system for AgentRun",
+  "description": "Capability-based permission system for AgentKernel",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/kernel": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/kernel": "workspace:*",
     "zod": "^3.25.0"
   },
   "scripts": {

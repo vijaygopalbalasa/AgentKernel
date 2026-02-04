@@ -1,4 +1,4 @@
-// Unit tests for @agentrun/shared — Result type and type contracts
+// Unit tests for @agentkernel/shared — Result type and type contracts
 
 import { describe, it, expect } from "vitest";
 import { ok, err } from "./index.js";

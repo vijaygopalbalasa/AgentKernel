@@ -1,4 +1,4 @@
-// @agentrun/skills — Skill System (Layer 4: Framework)
+// @agentkernel/skills — Skill System (Layer 4: Framework)
 // Installable capabilities like Android apps
 
 // Types

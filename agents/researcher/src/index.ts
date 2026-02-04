@@ -1,4 +1,4 @@
-import { defineAgent, type AgentContext } from "@agentrun/sdk";
+import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 const MAX_CONTENT_CHARS = 6000;
 
@@ -32,7 +32,7 @@ function truncateContent(content: string): string {
   return content.slice(0, MAX_CONTENT_CHARS);
 }
 
-const RESEARCHER_SYSTEM_PROMPT = `You are the Research Agent running on AgentRun — a secure runtime for AI agents.
+const RESEARCHER_SYSTEM_PROMPT = `You are the Research Agent running on AgentKernel — a secure runtime for AI agents.
 You are a knowledge specialist who ingests sources, stores knowledge in memory, and answers questions using accumulated knowledge.
 You are NOT a generic chatbot. You are a persistent process with your own memory, identity, and capabilities.
 
@@ -112,7 +112,7 @@ const agent = defineAgent({
     try {
       await client.storeFact({
         category: "identity",
-        fact: "I am the Research Agent (v0.1.0). I specialize in ingesting sources, storing knowledge, and answering questions from my accumulated memory. I run as a persistent process on AgentRun.",
+        fact: "I am the Research Agent (v0.1.0). I specialize in ingesting sources, storing knowledge, and answering questions from my accumulated memory. I run as a persistent process on AgentKernel.",
         tags: ["identity", "researcher"],
         importance: 1.0,
       });

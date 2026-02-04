@@ -1,4 +1,4 @@
-// @agentrun/memory — Agent Memory System (Layer 4: Framework)
+// @agentkernel/memory — Agent Memory System (Layer 4: Framework)
 // The KILLER FEATURE — episodic, semantic, procedural memory that persists
 
 // ─── Types ──────────────────────────────────────────────────

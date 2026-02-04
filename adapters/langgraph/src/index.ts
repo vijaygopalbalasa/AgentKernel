@@ -1,4 +1,4 @@
-// @agentrun/adapter-langgraph — Run LangGraph state machines inside AgentRun's sandboxed runtime
+// @agentkernel/adapter-langgraph — Run LangGraph state machines inside AgentKernel's sandboxed runtime
 // Models LangGraph's directed graph with nodes, edges, state, and checkpoints.
 
 import { readFileSync, existsSync } from "node:fs";
@@ -9,8 +9,8 @@ import type {
   AdapterMessage,
   AdapterResponse,
   AdapterState,
-} from "@agentrun/runtime";
-import type { Capability, AgentSandbox } from "@agentrun/runtime";
+} from "@agentkernel/runtime";
+import type { Capability, AgentSandbox } from "@agentkernel/runtime";
 
 // ─── LangGraph Configuration Types ──────────────────────────
 
@@ -64,7 +64,7 @@ interface LangGraphConfig {
   raw: Record<string, unknown>;
 }
 
-/** Maps LangGraph tool names to AgentRun capabilities. */
+/** Maps LangGraph tool names to AgentKernel capabilities. */
 const TOOL_CAPABILITY_MAP: Record<string, Capability[]> = {
   // LangChain built-in tools
   "TavilySearchResults": ["network:http"],
@@ -106,10 +106,10 @@ const TOOL_CAPABILITY_MAP: Record<string, Capability[]> = {
 const BASE_CAPABILITIES: Capability[] = ["llm:chat", "llm:stream"];
 
 /**
- * Adapter that wraps LangGraph state machines inside AgentRun's sandboxed runtime.
+ * Adapter that wraps LangGraph state machines inside AgentKernel's sandboxed runtime.
  *
  * Reads a LangGraph graph definition (nodes, edges, state schema), maps tool nodes
- * to AgentRun capabilities, and enforces sandbox permissions during graph traversal.
+ * to AgentKernel capabilities, and enforces sandbox permissions during graph traversal.
  */
 export class LangGraphAdapter implements AgentAdapter {
   readonly name = "langgraph";

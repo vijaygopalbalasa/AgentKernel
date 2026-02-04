@@ -3,8 +3,8 @@
 
 import { z } from "zod";
 import { satisfies, valid } from "semver";
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
 import type {
   SkillId,
   SkillManifest,
@@ -16,7 +16,7 @@ import type {
   SkillLogger,
 } from "./types.js";
 import { SkillError, SkillManifestSchema } from "./types.js";
-import type { ToolDefinition, ToolHandler, ToolRegistry } from "@agentrun/tools";
+import type { ToolDefinition, ToolHandler, ToolRegistry } from "@agentkernel/tools";
 
 // ─── ZOD SCHEMAS ────────────────────────────────────────────
 

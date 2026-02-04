@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/dashboard",
+  "name": "@agentkernel/dashboard",
   "version": "0.1.0",
-  "description": "AgentRun web dashboard — OS experience for monitoring agents, memory, chat, and governance",
+  "description": "AgentKernel web dashboard — OS experience for monitoring agents, memory, chat, and governance",
   "license": "MIT",
   "private": true,
   "engines": {

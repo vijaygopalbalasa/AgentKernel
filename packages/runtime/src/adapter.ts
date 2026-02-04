@@ -1,4 +1,4 @@
-// Adapter — universal interface for running external agent frameworks inside AgentRun
+// Adapter — universal interface for running external agent frameworks inside AgentKernel
 // Allows OpenClaw, CrewAI, LangGraph, and custom agents to run sandboxed.
 
 import type { Capability } from "./sandbox.js";
@@ -38,9 +38,9 @@ export type AdapterState = "idle" | "loaded" | "running" | "stopped" | "error";
 /**
  * Universal adapter interface for external agent frameworks.
  *
- * Implement this interface to run any agent framework inside AgentRun's
+ * Implement this interface to run any agent framework inside AgentKernel's
  * sandboxed runtime. The adapter translates between the external framework's
- * API and AgentRun's capability-based permission model.
+ * API and AgentKernel's capability-based permission model.
  *
  * @example
  * ```typescript
@@ -100,7 +100,7 @@ export type AdapterFactory = () => AgentAdapter;
  * Registry for agent adapters.
  *
  * Adapters are registered by name and can be retrieved to wrap external
- * agent frameworks in AgentRun's sandboxed runtime.
+ * agent frameworks in AgentKernel's sandboxed runtime.
  *
  * @example
  * ```typescript

@@ -1,10 +1,10 @@
-// @agentrun/provider-ollama — Ollama adapter for the Model Abstraction Layer
+// @agentkernel/provider-ollama — Ollama adapter for the Model Abstraction Layer
 // Supports local models like Llama, Mistral, CodeLlama, etc.
 // Free to use - no API key required, just run Ollama locally
 
-import type { ChatRequest, ChatResponse, Result } from "@agentrun/shared";
-import { ok, err } from "@agentrun/shared";
-import type { StreamingProviderAdapter, StreamChunk } from "@agentrun/mal";
+import type { ChatRequest, ChatResponse, Result } from "@agentkernel/shared";
+import { ok, err } from "@agentkernel/shared";
+import type { StreamingProviderAdapter, StreamChunk } from "@agentkernel/mal";
 
 /** Ollama API response type (non-streaming) */
 interface OllamaResponse {

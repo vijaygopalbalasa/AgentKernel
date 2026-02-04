@@ -1,11 +1,11 @@
-// Integration test utilities for AgentRun
+// Integration test utilities for AgentKernel
 import { WebSocket } from "ws";
 import { ChildProcess, spawn, exec } from "child_process";
 import { existsSync } from "fs";
 import { resolve } from "path";
 import { promisify } from "util";
 import { createServer } from "net";
-import { type Result, ok, err } from "@agentrun/shared";
+import { type Result, ok, err } from "@agentkernel/shared";
 
 const execAsync = promisify(exec);
 

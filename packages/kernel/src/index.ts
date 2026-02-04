@@ -1,4 +1,4 @@
-// @agentrun/kernel — Compute Kernel (Layer 1)
+// @agentkernel/kernel — Compute Kernel (Layer 1)
 // The foundation layer providing: configuration, logging, database,
 // vector storage, event bus, health checks, and graceful shutdown
 

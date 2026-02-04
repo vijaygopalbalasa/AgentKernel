@@ -1,8 +1,8 @@
 // Token usage tracking and cost estimation
 // Monitors LLM usage for budgeting and analytics
 
-import type { Logger } from "@agentrun/kernel";
-import type { ChatResponse } from "@agentrun/shared";
+import type { Logger } from "@agentkernel/kernel";
+import type { ChatResponse } from "@agentkernel/shared";
 
 /** Token usage record */
 export interface TokenUsage {

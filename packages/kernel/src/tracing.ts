@@ -33,7 +33,7 @@ export interface SpanEvent {
 
 export const TracingConfigSchema = z.object({
   enabled: z.boolean().optional().default(true),
-  serviceName: z.string().optional().default("agentrun"),
+  serviceName: z.string().optional().default("agentkernel"),
   serviceVersion: z.string().optional().default("0.1.0"),
   sampleRate: z.number().min(0).max(1).optional().default(1.0),
   exporterUrl: z.string().url().optional(),
@@ -361,7 +361,7 @@ export class Tracer {
       const resourceAttrs = [
         { key: "service.name", value: { stringValue: this.config.serviceName } },
         { key: "service.version", value: { stringValue: this.config.serviceVersion } },
-        { key: "telemetry.sdk.name", value: { stringValue: "agentrun-tracing" } },
+        { key: "telemetry.sdk.name", value: { stringValue: "agentkernel-tracing" } },
         { key: "telemetry.sdk.language", value: { stringValue: "nodejs" } },
       ];
       if (this.config.resourceAttributes) {

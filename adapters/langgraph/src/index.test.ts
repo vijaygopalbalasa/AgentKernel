@@ -3,9 +3,9 @@ import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { LangGraphAdapter, createLangGraphAdapter } from "./index.js";
-import { AgentSandbox } from "@agentrun/runtime";
+import { AgentSandbox } from "@agentkernel/runtime";
 
-const TEST_DIR = join(tmpdir(), "agentrun-langgraph-test");
+const TEST_DIR = join(tmpdir(), "agentkernel-langgraph-test");
 
 function writeTestConfig(filename: string, content: string): string {
   mkdirSync(TEST_DIR, { recursive: true });
@@ -148,7 +148,7 @@ describe("LangGraphAdapter", () => {
 
     const response = await adapter.handleMessage({
       type: "invoke",
-      payload: { inputs: { query: "What is AgentRun?" } },
+      payload: { inputs: { query: "What is AgentKernel?" } },
     });
 
     expect(response.type).toBe("graph_step");
@@ -156,7 +156,7 @@ describe("LangGraphAdapter", () => {
     expect(response.payload.nodeType).toBe("agent");
     expect(response.payload.model).toBe("claude-3-haiku");
     const state = response.payload.state as Record<string, unknown>;
-    expect(state.query).toBe("What is AgentRun?");
+    expect(state.query).toBe("What is AgentKernel?");
   });
 
   it("advances through graph with step messages", async () => {

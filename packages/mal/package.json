@@ -1,15 +1,15 @@
 {
-  "name": "@agentrun/mal",
+  "name": "@agentkernel/mal",
   "version": "0.1.0",
   "type": "module",
-  "description": "Model Abstraction Layer for AgentRun — provider routing, rate limiting, token tracking",
+  "description": "Model Abstraction Layer for AgentKernel — provider routing, rate limiting, token tracking",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/kernel": "workspace:*"
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/kernel": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^2.1.8"

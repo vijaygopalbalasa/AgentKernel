@@ -1,6 +1,6 @@
 // Real OpenAI API Integration Tests
 // Requires: OPENAI_API_KEY environment variable
-// Run with: OPENAI_API_KEY=sk-... pnpm --filter @agentrun/provider-openai test:integration
+// Run with: OPENAI_API_KEY=sk-... pnpm --filter @agentkernel/provider-openai test:integration
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { createOpenAIProvider } from "./index.js";

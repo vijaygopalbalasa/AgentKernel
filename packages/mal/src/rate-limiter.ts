@@ -1,7 +1,7 @@
 // Rate limiter using token bucket algorithm
 // Controls request rate per provider to prevent API throttling
 
-import type { Logger } from "@agentrun/kernel";
+import type { Logger } from "@agentkernel/kernel";
 
 /** Rate limit configuration */
 export interface RateLimitConfig {

@@ -1,17 +1,17 @@
 # Integrations
 
-AgentRun is the infrastructure layer. External agent systems connect via adapters, the A2A protocol, or MCP.
+AgentKernel is the infrastructure layer. External agent systems connect via adapters, the A2A protocol, or MCP.
 
 ---
 
 ## OpenClaw — Built-in Adapter
 
-AgentRun includes a first-class OpenClaw adapter that wraps OpenClaw agents in a sandboxed runtime.
+AgentKernel includes a first-class OpenClaw adapter that wraps OpenClaw agents in a sandboxed runtime.
 
 ### Quick start
 
 ```bash
-agentrun run ./openclaw-config.yaml --adapter openclaw
+agentkernel run ./openclaw-config.yaml --adapter openclaw
 ```
 
 ### What the adapter does
@@ -24,7 +24,7 @@ agentrun run ./openclaw-config.yaml --adapter openclaw
 
 ### Skill-to-capability mapping
 
-| OpenClaw Skill | AgentRun Capabilities |
+| OpenClaw Skill | AgentKernel Capabilities |
 |---------------|----------------------|
 | `file-system` | `file:read`, `file:write` |
 | `file-read` | `file:read` |
@@ -41,10 +41,10 @@ All OpenClaw agents also get `llm:chat` and `llm:stream` capabilities automatica
 
 ```bash
 # Strict mode (default) — agent supervised, dangerous capabilities require explicit grant
-agentrun run config.yaml --adapter openclaw --policy strict
+agentkernel run config.yaml --adapter openclaw --policy strict
 
 # Permissive mode — all required capabilities auto-granted
-agentrun run config.yaml --adapter openclaw --policy permissive
+agentkernel run config.yaml --adapter openclaw --policy permissive
 ```
 
 ### Example OpenClaw config
@@ -63,20 +63,20 @@ skills:
 
 ## Adapter Pattern — Run Any Framework
 
-AgentRun's adapter system lets you run agents from any framework inside the sandbox.
+AgentKernel's adapter system lets you run agents from any framework inside the sandbox.
 
 ### How it works
 
 1. An `AgentAdapter` interface provides `load()`, `start()`, `stop()`, and `handleMessage()` methods
 2. Adapters are registered in the `AdapterRegistry` by name
-3. `agentrun run config.yaml --adapter <name>` loads the adapter, parses the config, and starts the agent in a sandbox
+3. `agentkernel run config.yaml --adapter <name>` loads the adapter, parses the config, and starts the agent in a sandbox
 4. All tool calls are routed through capability checks before execution
 
 ### Writing a custom adapter
 
 ```typescript
-import type { AgentAdapter, AdapterConfig, AdapterMessage, AdapterResponse, AdapterState } from "@agentrun/runtime";
-import type { Capability, AgentSandbox } from "@agentrun/runtime";
+import type { AgentAdapter, AdapterConfig, AdapterMessage, AdapterResponse, AdapterState } from "@agentkernel/runtime";
+import type { Capability, AgentSandbox } from "@agentkernel/runtime";
 
 export class MyFrameworkAdapter implements AgentAdapter {
   readonly name = "my-framework";
@@ -113,7 +113,7 @@ export class MyFrameworkAdapter implements AgentAdapter {
 Register it:
 
 ```typescript
-import { defaultAdapterRegistry } from "@agentrun/runtime";
+import { defaultAdapterRegistry } from "@agentkernel/runtime";
 defaultAdapterRegistry.register("my-framework", () => new MyFrameworkAdapter());
 ```
 
@@ -124,7 +124,7 @@ defaultAdapterRegistry.register("my-framework", () => new MyFrameworkAdapter());
 Moltbook agents connect via the A2A (Agent-to-Agent) protocol:
 
 1. **Expose an A2A-compatible Agent Card** for each Moltbook agent
-2. **Use the AgentRun gateway** to send tasks via the A2A protocol
+2. **Use the AgentKernel gateway** to send tasks via the A2A protocol
 3. **Write a thin adapter** if the Moltbook agent doesn't support A2A natively
 
 ---
@@ -178,4 +178,4 @@ For multi-agent deployments:
 - **Forums + Jobs** for collaboration
 - **Governance + Appeals** for safety and policy enforcement
 
-AgentRun provides the infrastructure; external agents bring behavior.
+AgentKernel provides the infrastructure; external agents bring behavior.

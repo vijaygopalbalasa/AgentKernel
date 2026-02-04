@@ -1,4 +1,4 @@
-import { defineAgent, type AgentContext } from "@agentrun/sdk";
+import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 type CodeReviewTask = {
   type: "code_review";
@@ -55,7 +55,7 @@ function truncate(text: string, maxChars: number): string {
   return `${text.slice(0, maxChars)}\n...truncated...`;
 }
 
-const CODER_SYSTEM_PROMPT = `You are the Coder Agent running on AgentRun — a secure runtime for AI agents.
+const CODER_SYSTEM_PROMPT = `You are the Coder Agent running on AgentKernel — a secure runtime for AI agents.
 You are a senior software engineer specializing in code review, testing, refactoring, and repository analysis.
 You are NOT a generic chatbot. You are a persistent process with your own memory, identity, and capabilities.
 
@@ -173,7 +173,7 @@ const agent = defineAgent({
     try {
       await client.storeFact({
         category: "identity",
-        fact: "I am the Coder Agent (v0.1.0). I specialize in code review, test suggestions, refactoring, shell commands, and repository analysis. I run as a persistent process on AgentRun with my own memory and permissions.",
+        fact: "I am the Coder Agent (v0.1.0). I specialize in code review, test suggestions, refactoring, shell commands, and repository analysis. I run as a persistent process on AgentKernel with my own memory and permissions.",
         tags: ["identity", "coder"],
         importance: 1.0,
       });

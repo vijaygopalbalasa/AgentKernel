@@ -1,16 +1,16 @@
 {
-  "name": "@agentrun/communication",
+  "name": "@agentkernel/communication",
   "version": "0.1.0",
   "type": "module",
-  "description": "Agent-to-Agent (A2A) communication for AgentRun",
+  "description": "Agent-to-Agent (A2A) communication for AgentKernel",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/kernel": "workspace:*",
-    "@agentrun/identity": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/kernel": "workspace:*",
+    "@agentkernel/identity": "workspace:*",
     "zod": "^3.25.0"
   },
   "devDependencies": {

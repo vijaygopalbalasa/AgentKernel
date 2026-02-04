@@ -1,15 +1,15 @@
 {
-  "name": "@agentrun/provider-openai",
+  "name": "@agentkernel/provider-openai",
   "version": "0.1.0",
   "type": "module",
-  "description": "OpenAI GPT provider adapter for AgentRun",
+  "description": "OpenAI GPT provider adapter for AgentKernel",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/mal": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/mal": "workspace:*",
     "openai": "^6.16.0"
   },
   "scripts": {

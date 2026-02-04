@@ -1,10 +1,10 @@
-// Event Bus — pub/sub for AgentRun events
+// Event Bus — pub/sub for AgentKernel events
 // Central event hub for all system events
 
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
 import type {
-  AgentRunEvent,
+  AgentKernelEvent,
   EventSubscription,
   EventHandler,
   SubscriptionOptions,
@@ -16,7 +16,7 @@ import type {
 import { EventError } from "./types.js";
 
 /**
- * Event Bus — central pub/sub system for AgentRun events.
+ * Event Bus — central pub/sub system for AgentKernel events.
  *
  * Features:
  * - Publish events to channels
@@ -43,7 +43,7 @@ export class EventBus {
   /**
    * Publish an event to the bus.
    */
-  async publish(event: AgentRunEvent): Promise<Result<void, EventError>> {
+  async publish(event: AgentKernelEvent): Promise<Result<void, EventError>> {
     // Ensure event has required fields
     if (!event.id) {
       event.id = this.generateEventId();
@@ -163,7 +163,7 @@ export class EventBus {
     handler: EventHandler,
     options: SubscriptionOptions = {}
   ): Result<string, EventError> {
-    const filter = (event: AgentRunEvent) => {
+    const filter = (event: AgentKernelEvent) => {
       if (event.type !== eventType) return false;
       if (options.filter) return options.filter(event);
       return true;
@@ -345,7 +345,7 @@ export class EventBus {
   }
 
   /** Find subscriptions matching an event */
-  private findMatchingSubscriptions(event: AgentRunEvent): EventSubscription[] {
+  private findMatchingSubscriptions(event: AgentKernelEvent): EventSubscription[] {
     const matching: EventSubscription[] = [];
 
     for (const subscription of this.subscriptions.values()) {
@@ -360,7 +360,7 @@ export class EventBus {
   /** Check if subscription matches event */
   private matchSubscription(
     subscription: EventSubscription,
-    event: AgentRunEvent
+    event: AgentKernelEvent
   ): boolean {
     // Check channel pattern
     if (!this.matchPattern(subscription.channelPattern, event.channel)) {

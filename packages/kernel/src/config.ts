@@ -107,7 +107,7 @@ export const RuntimeConfigSchema = z.object({
   defaultCpuLimit: z.number().default(1),
   heartbeatInterval: z.number().default(30000),
   shutdownTimeout: z.number().default(10000),
-  workDir: z.string().default(".agentrun"),
+  workDir: z.string().default(".agentkernel"),
 });
 
 /** Full configuration schema */
@@ -130,7 +130,7 @@ export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type RuntimeConfig = z.infer<typeof RuntimeConfigSchema>;
 
-/** Helper for type-safe configuration in agentrun.config.ts files. */
+/** Helper for type-safe configuration in agentkernel.config.ts files. */
 export function defineConfig(config: Partial<Config>): Partial<Config> {
   return config;
 }
@@ -399,14 +399,14 @@ export class ConfigManager {
 
   private findConfigFile(): string {
     const locations = [
-      "agentrun.config.yaml",
-      "agentrun.config.yml",
-      join(process.cwd(), "agentrun.config.yaml"),
-      join(process.cwd(), ".agentrun", "config.yaml"),
-      "agentrun.config.ts",
-      "agentrun.config.mts",
-      join(process.cwd(), "agentrun.config.ts"),
-      join(process.cwd(), ".agentrun", "config.ts"),
+      "agentkernel.config.yaml",
+      "agentkernel.config.yml",
+      join(process.cwd(), "agentkernel.config.yaml"),
+      join(process.cwd(), ".agentkernel", "config.yaml"),
+      "agentkernel.config.ts",
+      "agentkernel.config.mts",
+      join(process.cwd(), "agentkernel.config.ts"),
+      join(process.cwd(), ".agentkernel", "config.ts"),
     ];
 
     for (const loc of locations) {
@@ -415,20 +415,20 @@ export class ConfigManager {
       }
     }
 
-    return "agentrun.config.yaml";
+    return "agentkernel.config.yaml";
   }
 
   /** Find config file, preferring TS over YAML for async loading. */
   private findConfigFileAsync(): string {
     const locations = [
-      "agentrun.config.ts",
-      "agentrun.config.mts",
-      join(process.cwd(), "agentrun.config.ts"),
-      join(process.cwd(), ".agentrun", "config.ts"),
-      "agentrun.config.yaml",
-      "agentrun.config.yml",
-      join(process.cwd(), "agentrun.config.yaml"),
-      join(process.cwd(), ".agentrun", "config.yaml"),
+      "agentkernel.config.ts",
+      "agentkernel.config.mts",
+      join(process.cwd(), "agentkernel.config.ts"),
+      join(process.cwd(), ".agentkernel", "config.ts"),
+      "agentkernel.config.yaml",
+      "agentkernel.config.yml",
+      join(process.cwd(), "agentkernel.config.yaml"),
+      join(process.cwd(), ".agentkernel", "config.yaml"),
     ];
 
     for (const loc of locations) {
@@ -437,7 +437,7 @@ export class ConfigManager {
       }
     }
 
-    return "agentrun.config.yaml";
+    return "agentkernel.config.yaml";
   }
 
   load(overrides: Partial<Config> = {}): Config {

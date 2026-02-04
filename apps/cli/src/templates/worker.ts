@@ -2,7 +2,7 @@
 // Workers handle structured tasks like data processing, file operations, etc.
 
 export function getWorkerTemplate(slug: string, name: string): { indexTs: string; manifestJson: string; testTs: string } {
-  const indexTs = `import { defineAgent, type AgentContext } from "@agentrun/sdk";
+  const indexTs = `import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 /**
  * ${name} Worker — A background task processing agent.

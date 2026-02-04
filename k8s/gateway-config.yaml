@@ -1,9 +1,9 @@
-# AgentRun Gateway ConfigMap and Secrets
+# AgentKernel Gateway ConfigMap and Secrets
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gateway-config
-  namespace: agentrun
+  namespace: agentkernel
   labels:
     app: gateway
 data:
@@ -22,7 +22,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: gateway-secrets
-  namespace: agentrun
+  namespace: agentkernel
   labels:
     app: gateway
 type: Opaque

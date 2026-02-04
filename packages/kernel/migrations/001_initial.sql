@@ -1,5 +1,5 @@
--- AgentRun Initial Schema
--- This migration creates all core tables for the AgentRun system
+-- AgentKernel Initial Schema
+-- This migration creates all core tables for the AgentKernel system
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

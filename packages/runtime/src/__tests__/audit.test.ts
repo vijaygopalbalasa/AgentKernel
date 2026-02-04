@@ -204,7 +204,7 @@ describe("MemoryAuditSink", () => {
 });
 
 describe("FileAuditSink", () => {
-  const testFile = "/tmp/agentrun-test-audit.log";
+  const testFile = "/tmp/agentkernel-test-audit.log";
   let sink: FileAuditSink;
 
   beforeEach(async () => {

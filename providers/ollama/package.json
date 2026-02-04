@@ -1,15 +1,15 @@
 {
-  "name": "@agentrun/provider-ollama",
+  "name": "@agentkernel/provider-ollama",
   "version": "0.1.0",
   "type": "module",
-  "description": "Ollama local model provider adapter for AgentRun",
+  "description": "Ollama local model provider adapter for AgentKernel",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/mal": "workspace:*"
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/mal": "workspace:*"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",

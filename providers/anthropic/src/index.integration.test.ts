@@ -1,6 +1,6 @@
 // Real Anthropic API Integration Tests
 // Requires: ANTHROPIC_API_KEY environment variable
-// Run with: ANTHROPIC_API_KEY=sk-ant-... pnpm --filter @agentrun/provider-anthropic test:integration
+// Run with: ANTHROPIC_API_KEY=sk-ant-... pnpm --filter @agentkernel/provider-anthropic test:integration
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { createAnthropicProvider } from "./index.js";

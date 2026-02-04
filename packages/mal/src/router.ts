@@ -1,9 +1,9 @@
 // Model router with retry, rate limiting, failover, and token tracking
 // Distributes requests across providers intelligently
 
-import type { ChatRequest, ChatResponse, Result } from "@agentrun/shared";
-import { ok, err } from "@agentrun/shared";
-import { createLogger, type Logger, getCircuitBreaker, getMetricsRegistry } from "@agentrun/kernel";
+import type { ChatRequest, ChatResponse, Result } from "@agentkernel/shared";
+import { ok, err } from "@agentkernel/shared";
+import { createLogger, type Logger, getCircuitBreaker, getMetricsRegistry } from "@agentkernel/kernel";
 import type { ProviderAdapter, ModelRouter, ProviderStatus, StreamingProviderAdapter } from "./index.js";
 import { createRateLimiterRegistry, type RateLimiterRegistry } from "./rate-limiter.js";
 import { withRetry, type RetryConfig, DEFAULT_RETRY_CONFIG } from "./retry.js";

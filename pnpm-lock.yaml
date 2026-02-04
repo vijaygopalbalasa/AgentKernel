@@ -26,7 +26,7 @@ importers:
 
   adapters/autogen:
     dependencies:
-      '@agentrun/runtime':
+      '@agentkernel/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
     devDependencies:
@@ -42,7 +42,7 @@ importers:
 
   adapters/crewai:
     dependencies:
-      '@agentrun/runtime':
+      '@agentkernel/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
     devDependencies:
@@ -58,7 +58,7 @@ importers:
 
   adapters/langgraph:
     dependencies:
-      '@agentrun/runtime':
+      '@agentkernel/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
     devDependencies:
@@ -74,7 +74,7 @@ importers:
 
   adapters/openclaw:
     dependencies:
-      '@agentrun/runtime':
+      '@agentkernel/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
     devDependencies:
@@ -90,28 +90,28 @@ importers:
 
   agents/assistant:
     dependencies:
-      '@agentrun/events':
+      '@agentkernel/events':
         specifier: workspace:*
         version: link:../../packages/framework/events
-      '@agentrun/identity':
+      '@agentkernel/identity':
         specifier: workspace:*
         version: link:../../packages/framework/identity
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
-      '@agentrun/memory':
+      '@agentkernel/memory':
         specifier: workspace:*
         version: link:../../packages/framework/memory
-      '@agentrun/permissions':
+      '@agentkernel/permissions':
         specifier: workspace:*
         version: link:../../packages/framework/permissions
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@agentrun/skills':
+      '@agentkernel/skills':
         specifier: workspace:*
         version: link:../../packages/framework/skills
-      '@agentrun/tools':
+      '@agentkernel/tools':
         specifier: workspace:*
         version: link:../../packages/framework/tools
       zod:
@@ -127,7 +127,7 @@ importers:
 
   agents/coder:
     dependencies:
-      '@agentrun/sdk':
+      '@agentkernel/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
     devDependencies:
@@ -143,7 +143,7 @@ importers:
 
   agents/monitor:
     dependencies:
-      '@agentrun/sdk':
+      '@agentkernel/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
     devDependencies:
@@ -159,7 +159,7 @@ importers:
 
   agents/researcher:
     dependencies:
-      '@agentrun/sdk':
+      '@agentkernel/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
     devDependencies:
@@ -175,13 +175,13 @@ importers:
 
   agents/system:
     dependencies:
-      '@agentrun/events':
+      '@agentkernel/events':
         specifier: workspace:*
         version: link:../../packages/framework/events
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       zod:
@@ -197,19 +197,19 @@ importers:
 
   apps/cli:
     dependencies:
-      '@agentrun/adapter-openclaw':
+      '@agentkernel/adapter-openclaw':
         specifier: workspace:*
         version: link:../../adapters/openclaw
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
-      '@agentrun/runtime':
+      '@agentkernel/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
-      '@agentrun/sdk':
+      '@agentkernel/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       chalk:
@@ -274,49 +274,49 @@ importers:
 
   apps/gateway:
     dependencies:
-      '@agentrun/communication':
+      '@agentkernel/communication':
         specifier: workspace:*
         version: link:../../packages/framework/communication
-      '@agentrun/events':
+      '@agentkernel/events':
         specifier: workspace:*
         version: link:../../packages/framework/events
-      '@agentrun/identity':
+      '@agentkernel/identity':
         specifier: workspace:*
         version: link:../../packages/framework/identity
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
-      '@agentrun/mal':
+      '@agentkernel/mal':
         specifier: workspace:*
         version: link:../../packages/mal
-      '@agentrun/memory':
+      '@agentkernel/memory':
         specifier: workspace:*
         version: link:../../packages/framework/memory
-      '@agentrun/permissions':
+      '@agentkernel/permissions':
         specifier: workspace:*
         version: link:../../packages/framework/permissions
-      '@agentrun/provider-anthropic':
+      '@agentkernel/provider-anthropic':
         specifier: workspace:*
         version: link:../../providers/anthropic
-      '@agentrun/provider-google':
+      '@agentkernel/provider-google':
         specifier: workspace:*
         version: link:../../providers/google
-      '@agentrun/provider-ollama':
+      '@agentkernel/provider-ollama':
         specifier: workspace:*
         version: link:../../providers/ollama
-      '@agentrun/provider-openai':
+      '@agentkernel/provider-openai':
         specifier: workspace:*
         version: link:../../providers/openai
-      '@agentrun/runtime':
+      '@agentkernel/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
-      '@agentrun/sdk':
+      '@agentkernel/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@agentrun/tools':
+      '@agentkernel/tools':
         specifier: workspace:*
         version: link:../../packages/framework/tools
       ajv:
@@ -359,13 +359,13 @@ importers:
 
   packages/framework/communication:
     dependencies:
-      '@agentrun/identity':
+      '@agentkernel/identity':
         specifier: workspace:*
         version: link:../identity
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../kernel
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../shared
       zod:
@@ -384,10 +384,10 @@ importers:
 
   packages/framework/events:
     dependencies:
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../kernel
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../shared
       zod:
@@ -406,10 +406,10 @@ importers:
 
   packages/framework/identity:
     dependencies:
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../kernel
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../shared
       zod:
@@ -418,13 +418,13 @@ importers:
 
   packages/framework/memory:
     dependencies:
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../kernel
-      '@agentrun/runtime':
+      '@agentkernel/runtime':
         specifier: workspace:*
         version: link:../../runtime
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../shared
       zod:
@@ -433,10 +433,10 @@ importers:
 
   packages/framework/permissions:
     dependencies:
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../kernel
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../shared
       zod:
@@ -445,16 +445,16 @@ importers:
 
   packages/framework/skills:
     dependencies:
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../kernel
-      '@agentrun/permissions':
+      '@agentkernel/permissions':
         specifier: workspace:*
         version: link:../permissions
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../shared
-      '@agentrun/tools':
+      '@agentkernel/tools':
         specifier: workspace:*
         version: link:../tools
       semver:
@@ -479,10 +479,10 @@ importers:
 
   packages/framework/tools:
     dependencies:
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../../kernel
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../shared
       '@modelcontextprotocol/sdk':
@@ -500,7 +500,7 @@ importers:
 
   packages/kernel:
     dependencies:
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../shared
       '@qdrant/js-client-rest':
@@ -540,10 +540,10 @@ importers:
 
   packages/mal:
     dependencies:
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../kernel
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -553,16 +553,16 @@ importers:
 
   packages/runtime:
     dependencies:
-      '@agentrun/kernel':
+      '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../kernel
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../shared
 
   packages/sdk:
     dependencies:
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../shared
       ws:
@@ -589,10 +589,10 @@ importers:
 
   providers/anthropic:
     dependencies:
-      '@agentrun/mal':
+      '@agentkernel/mal':
         specifier: workspace:*
         version: link:../../packages/mal
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@anthropic-ai/sdk':
@@ -601,10 +601,10 @@ importers:
 
   providers/google:
     dependencies:
-      '@agentrun/mal':
+      '@agentkernel/mal':
         specifier: workspace:*
         version: link:../../packages/mal
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@google/genai':
@@ -613,19 +613,19 @@ importers:
 
   providers/ollama:
     dependencies:
-      '@agentrun/mal':
+      '@agentkernel/mal':
         specifier: workspace:*
         version: link:../../packages/mal
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
 
   providers/openai:
     dependencies:
-      '@agentrun/mal':
+      '@agentkernel/mal':
         specifier: workspace:*
         version: link:../../packages/mal
-      '@agentrun/shared':
+      '@agentkernel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       openai:

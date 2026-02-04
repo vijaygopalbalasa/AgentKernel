@@ -1,4 +1,4 @@
-# AgentRun Production Dockerfile
+# AgentKernel Production Dockerfile
 # Multi-stage build for minimal image size
 
 # Stage 1: Dependencies
@@ -105,7 +105,7 @@ COPY agents/coder/package.json ./agents/coder/
 RUN pnpm install --frozen-lockfile --prod
 
 # Install Playwright system dependencies (Chromium)
-RUN pnpm --filter @agentrun/tools exec playwright install-deps chromium
+RUN pnpm --filter @agentkernel/tools exec playwright install-deps chromium
 
 # Copy built artifacts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -137,12 +137,12 @@ COPY --from=builder /app/agents/coder/manifest.json ./agents/coder/manifest.json
 COPY --from=builder /app/docker/bootstrap-agents.mjs ./docker/bootstrap-agents.mjs
 
 # Prepare writable dirs for non-root runtime + Playwright cache
-RUN mkdir -p /app/.agentrun /app/.cache/ms-playwright && \
-    chown -R agentuser:nodejs /app/.agentrun /app/.cache
+RUN mkdir -p /app/.agentkernel /app/.cache/ms-playwright && \
+    chown -R agentuser:nodejs /app/.agentkernel /app/.cache
 
 # Switch to non-root user and install browser binaries to owned cache
 USER agentuser
-RUN pnpm --filter @agentrun/tools exec playwright install chromium
+RUN pnpm --filter @agentkernel/tools exec playwright install chromium
 
 # Expose ports
 EXPOSE 18800

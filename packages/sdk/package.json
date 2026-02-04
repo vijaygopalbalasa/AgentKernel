@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/sdk",
+  "name": "@agentkernel/sdk",
   "version": "0.1.0",
-  "description": "SDK for building AI agents on AgentRun",
+  "description": "SDK for building AI agents on AgentKernel",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,14 +16,14 @@
     "node": ">=20.0.0"
   },
   "files": ["dist", "README.md"],
-  "keywords": ["agent", "ai", "mcp", "a2a", "agentrun", "llm"],
+  "keywords": ["agent", "ai", "mcp", "a2a", "agentkernel", "llm"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/vijaygopalbalasa/AgentRun",
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel",
     "directory": "packages/sdk"
   },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
     "ws": "^8.18.0",
     "zod": "^3.25.0"
   },

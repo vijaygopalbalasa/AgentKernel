@@ -1,4 +1,4 @@
-// Security utilities for AgentRun Gateway
+// Security utilities for AgentKernel Gateway
 // Path and domain allowlist checking, manifest verification
 
 import { createHmac } from "crypto";

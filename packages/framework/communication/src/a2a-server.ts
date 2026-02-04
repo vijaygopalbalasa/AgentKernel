@@ -1,8 +1,8 @@
 // A2A Server — handles incoming requests from other agents
 // Implements the Agent-to-Agent Protocol server side
 
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
 import type {
   A2AAgentCard,
   A2ATask,

@@ -1,4 +1,4 @@
-// @agentrun/adapter-openclaw — Run OpenClaw agents inside AgentRun's sandboxed runtime
+// @agentkernel/adapter-openclaw — Run OpenClaw agents inside AgentKernel's sandboxed runtime
 // Wraps OpenClaw's skill-based architecture with capability-based permission enforcement.
 
 import { readFileSync, existsSync } from "node:fs";
@@ -9,8 +9,8 @@ import type {
   AdapterMessage,
   AdapterResponse,
   AdapterState,
-} from "@agentrun/runtime";
-import type { Capability, AgentSandbox } from "@agentrun/runtime";
+} from "@agentkernel/runtime";
+import type { Capability, AgentSandbox } from "@agentkernel/runtime";
 
 /** Skill entry in an OpenClaw configuration file. */
 interface OpenClawSkill {
@@ -31,7 +31,7 @@ interface OpenClawConfig {
   raw: Record<string, unknown>;
 }
 
-/** Maps OpenClaw skill names to AgentRun capabilities. */
+/** Maps OpenClaw skill names to AgentKernel capabilities. */
 const SKILL_CAPABILITY_MAP: Record<string, Capability[]> = {
   "file-system": ["file:read", "file:write"],
   "file-read": ["file:read"],
@@ -53,9 +53,9 @@ const SKILL_CAPABILITY_MAP: Record<string, Capability[]> = {
 const BASE_CAPABILITIES: Capability[] = ["llm:chat", "llm:stream"];
 
 /**
- * Adapter that wraps OpenClaw agents inside AgentRun's sandboxed runtime.
+ * Adapter that wraps OpenClaw agents inside AgentKernel's sandboxed runtime.
  *
- * Reads OpenClaw configuration, maps skills to AgentRun capabilities,
+ * Reads OpenClaw configuration, maps skills to AgentKernel capabilities,
  * and enforces sandbox permissions before allowing skill execution.
  *
  * @example

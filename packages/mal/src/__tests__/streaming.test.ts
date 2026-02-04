@@ -9,7 +9,7 @@ import {
   type StreamChunk,
   type StreamResult,
 } from "../streaming.js";
-import { ok, err } from "@agentrun/shared";
+import { ok, err } from "@agentkernel/shared";
 
 describe("Streaming Module", () => {
   describe("estimateTokens", () => {

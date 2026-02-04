@@ -1,10 +1,10 @@
-// @agentrun/provider-google — Google Gemini adapter for the Model Abstraction Layer
+// @agentkernel/provider-google — Google Gemini adapter for the Model Abstraction Layer
 // Uses @google/genai SDK (unified Google AI SDK)
 
 import { GoogleGenAI } from "@google/genai";
-import type { ChatRequest, ChatResponse, Result } from "@agentrun/shared";
-import { ok, err } from "@agentrun/shared";
-import type { StreamingProviderAdapter, StreamChunk } from "@agentrun/mal";
+import type { ChatRequest, ChatResponse, Result } from "@agentkernel/shared";
+import { ok, err } from "@agentkernel/shared";
+import type { StreamingProviderAdapter, StreamChunk } from "@agentkernel/mal";
 
 /** Google-specific error with HTTP status for classification */
 interface GoogleApiError extends Error {

@@ -6,7 +6,7 @@ version: "3.9"
 services:
   postgres-test:
     image: postgres:16-alpine
-    container_name: agentrun-postgres-test
+    container_name: agentkernel-postgres-test
     environment:
       POSTGRES_USER: agentos
       POSTGRES_PASSWORD: agentos_test
@@ -22,21 +22,21 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - agentrun-test-net
+      - agentkernel-test-net
 
   qdrant-test:
     image: qdrant/qdrant:v1.13.6
-    container_name: agentrun-qdrant-test
+    container_name: agentkernel-qdrant-test
     ports:
       - "6335:6333"
     volumes:
       - qdrant-test-data:/qdrant/storage
     networks:
-      - agentrun-test-net
+      - agentkernel-test-net
 
   redis-test:
     image: redis:7-alpine
-    container_name: agentrun-redis-test
+    container_name: agentkernel-redis-test
     ports:
       - "6380:6379"
     volumes:
@@ -48,7 +48,7 @@ services:
       retries: 5
     command: redis-server --appendonly yes
     networks:
-      - agentrun-test-net
+      - agentkernel-test-net
 
 volumes:
   postgres-test-data:
@@ -56,5 +56,5 @@ volumes:
   redis-test-data:
 
 networks:
-  agentrun-test-net:
+  agentkernel-test-net:
     driver: bridge

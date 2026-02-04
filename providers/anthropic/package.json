@@ -1,15 +1,15 @@
 {
-  "name": "@agentrun/provider-anthropic",
+  "name": "@agentkernel/provider-anthropic",
   "version": "0.1.0",
   "type": "module",
-  "description": "Anthropic Claude provider adapter for AgentRun",
+  "description": "Anthropic Claude provider adapter for AgentKernel",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/mal": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/mal": "workspace:*",
     "@anthropic-ai/sdk": "^0.71.2"
   },
   "scripts": {

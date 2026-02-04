@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/assistant",
+  "name": "@agentkernel/assistant",
   "version": "0.1.0",
-  "description": "General-purpose assistant agent for AgentRun",
+  "description": "General-purpose assistant agent for AgentKernel",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -13,14 +13,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agentrun/kernel": "workspace:*",
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/identity": "workspace:*",
-    "@agentrun/memory": "workspace:*",
-    "@agentrun/skills": "workspace:*",
-    "@agentrun/tools": "workspace:*",
-    "@agentrun/events": "workspace:*",
-    "@agentrun/permissions": "workspace:*",
+    "@agentkernel/kernel": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/identity": "workspace:*",
+    "@agentkernel/memory": "workspace:*",
+    "@agentkernel/skills": "workspace:*",
+    "@agentkernel/tools": "workspace:*",
+    "@agentkernel/events": "workspace:*",
+    "@agentkernel/permissions": "workspace:*",
     "zod": "^3.25.0"
   },
   "devDependencies": {

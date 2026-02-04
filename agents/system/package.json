@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/system-agent",
+  "name": "@agentkernel/system-agent",
   "version": "0.1.0",
-  "description": "System monitoring and health agent for AgentRun",
+  "description": "System monitoring and health agent for AgentKernel",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -13,9 +13,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agentrun/kernel": "workspace:*",
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/events": "workspace:*",
+    "@agentkernel/kernel": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/events": "workspace:*",
     "zod": "^3.25.0"
   },
   "devDependencies": {

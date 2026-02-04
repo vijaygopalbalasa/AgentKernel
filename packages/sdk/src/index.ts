@@ -1,5 +1,5 @@
-// @agentrun/sdk — AgentRun Software Development Kit
-// The primary API for building agents on AgentRun.
+// @agentkernel/sdk — AgentKernel Software Development Kit
+// The primary API for building agents on AgentKernel.
 //
 // Key exports:
 // - defineAgent()  — Define an agent with manifest + task handler
@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { createHmac } from "crypto";
-import { type Result, ok, err } from "@agentrun/shared";
+import { type Result, ok, err } from "@agentkernel/shared";
 import { AgentClient } from "./agent-client.js";
 
 // ─── MANIFEST ───────────────────────────────────────────────

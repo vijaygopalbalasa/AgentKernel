@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/adapter-crewai",
+  "name": "@agentkernel/adapter-crewai",
   "version": "0.1.0",
-  "description": "AgentRun adapter for running CrewAI crews inside a sandboxed runtime",
+  "description": "AgentKernel adapter for running CrewAI crews inside a sandboxed runtime",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -22,7 +22,7 @@
     }
   },
   "keywords": [
-    "agentrun",
+    "agentkernel",
     "crewai",
     "adapter",
     "ai-agents",
@@ -30,7 +30,7 @@
     "multi-agent"
   ],
   "dependencies": {
-    "@agentrun/runtime": "workspace:*"
+    "@agentkernel/runtime": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

@@ -1,4 +1,4 @@
-# Install AgentRun
+# Install AgentKernel
 
 This guide covers setup on macOS, Linux, or Windows. Choose Docker for production or local dev for contributing.
 
@@ -14,11 +14,11 @@ This guide covers setup on macOS, Linux, or Windows. Choose Docker for productio
 ### Steps
 
 ```bash
-git clone https://github.com/vijaygopalbalasa/AgentRun.git
-cd AgentRun
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
+cd AgentKernel
 pnpm install
 pnpm -C apps/cli build
-pnpm -C apps/cli exec agentrun init    # Generates .env with secure secrets
+pnpm -C apps/cli exec agentkernel init    # Generates .env with secure secrets
 ```
 
 Edit `.env` — set at least one provider key:
@@ -63,11 +63,11 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ### Steps
 
 ```bash
-git clone https://github.com/vijaygopalbalasa/AgentRun.git
-cd AgentRun
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
+cd AgentKernel
 pnpm install
 pnpm -C apps/cli build
-pnpm -C apps/cli exec agentrun init
+pnpm -C apps/cli exec agentkernel init
 pnpm build
 pnpm dev                                # Starts gateway with live reload
 ```
@@ -81,10 +81,10 @@ The gateway starts in dev mode with in-memory fallbacks — no PostgreSQL/Redis/
 If you just want to validate an agent without setting up the full stack:
 
 ```bash
-git clone https://github.com/vijaygopalbalasa/AgentRun.git
-cd AgentRun
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
+cd AgentKernel
 pnpm install && pnpm build
-pnpm -C apps/cli exec agentrun run agents/assistant/dist/index.js --standalone
+pnpm -C apps/cli exec agentkernel run agents/assistant/dist/index.js --standalone
 ```
 
 For TypeScript files, `tsx` is required (included as a dev dependency). This validates the agent module without connecting to any services. See [FIRST_5_MINUTES.md](FIRST_5_MINUTES.md) for a complete walkthrough.
@@ -93,12 +93,12 @@ For TypeScript files, `tsx` is required (included as a dev dependency). This val
 
 ## Configuration
 
-AgentRun supports two config formats:
+AgentKernel supports two config formats:
 
 **TypeScript** (recommended):
 ```typescript
-// agentrun.config.ts
-import { defineConfig } from "@agentrun/kernel";
+// agentkernel.config.ts
+import { defineConfig } from "@agentkernel/kernel";
 
 export default defineConfig({
   gateway: { port: 18800 },
@@ -109,7 +109,7 @@ export default defineConfig({
 
 **YAML**:
 ```yaml
-# agentrun.config.yaml
+# agentkernel.config.yaml
 gateway:
   port: 18800
 logging:
@@ -127,10 +127,10 @@ Environment variables always take priority over config files. See [USAGE.md](USA
 curl http://localhost:18801/health
 
 # Full diagnostics
-pnpm -C apps/cli exec agentrun doctor --docker --infra
+pnpm -C apps/cli exec agentkernel doctor --docker --infra
 
 # Chat with an LLM
-pnpm -C apps/cli exec agentrun chat "Hello" --token <GATEWAY_AUTH_TOKEN>
+pnpm -C apps/cli exec agentkernel chat "Hello" --token <GATEWAY_AUTH_TOKEN>
 ```
 
 ---

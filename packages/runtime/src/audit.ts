@@ -511,7 +511,7 @@ export class AuditLogger {
   constructor(config: AuditLoggerConfig) {
     this.sinks = config.sinks;
     this.config = {
-      defaultSource: config.defaultSource ?? "agentrun",
+      defaultSource: config.defaultSource ?? "agentkernel",
       includeStackTraces: config.includeStackTraces ?? true,
       globalTags: config.globalTags ?? [],
     };
@@ -786,6 +786,6 @@ export function createAuditLogger(
 
   return new AuditLogger({
     sinks,
-    defaultSource: options.defaultSource ?? "agentrun",
+    defaultSource: options.defaultSource ?? "agentkernel",
   });
 }

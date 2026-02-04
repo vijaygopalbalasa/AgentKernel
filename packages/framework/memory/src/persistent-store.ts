@@ -2,7 +2,7 @@
 // Stores metadata in Postgres and embeddings in Qdrant
 
 import { randomUUID, createHmac, createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
-import { type Result, ok, err } from "@agentrun/shared";
+import { type Result, ok, err } from "@agentkernel/shared";
 import {
   createLogger,
   type Logger,
@@ -10,8 +10,8 @@ import {
   type Sql,
   type VectorStore,
   type SearchFilter,
-} from "@agentrun/kernel";
-import type { AgentId } from "@agentrun/runtime";
+} from "@agentkernel/kernel";
+import type { AgentId } from "@agentkernel/runtime";
 import type {
   MemoryId,
   EpisodicMemory,
@@ -1039,7 +1039,7 @@ export class PersistentMemoryStore implements MemoryStore {
   private deriveAgentKey(agentId: AgentId): Buffer | null {
     if (!this.encryptionKey) return null;
     // Use scrypt KDF with agent-specific salt for proper key derivation
-    const salt = createHmac("sha256", "agentrun-memory-salt").update(agentId).digest();
+    const salt = createHmac("sha256", "agentkernel-memory-salt").update(agentId).digest();
     return scryptSync(this.encryptionKey, salt, 32, { N: 16384, r: 8, p: 1 });
   }
 

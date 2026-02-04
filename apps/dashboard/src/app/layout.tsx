@@ -20,7 +20,7 @@ class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("[AgentRun] Uncaught render error:", error, info.componentStack);
+    console.error("[AgentKernel] Uncaught render error:", error, info.componentStack);
   }
 
   render() {
@@ -63,10 +63,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <title>AgentRun</title>
+        <title>AgentKernel</title>
         <meta
           name="description"
-          content="AgentRun — Run any AI agent safely"
+          content="AgentKernel — Run any AI agent safely"
         />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>

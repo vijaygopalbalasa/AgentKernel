@@ -1,4 +1,4 @@
-// @agentrun/shared — Shared types, utils, and constants
+// @agentkernel/shared — Shared types, utils, and constants
 
 // ─── Result Type (no try/catch for business logic) ───
 export interface Ok<T> { readonly ok: true; readonly value: T }

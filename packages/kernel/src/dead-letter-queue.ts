@@ -2,7 +2,7 @@
 // Captures failed events/tasks for later retry or analysis
 
 import { z } from "zod";
-import { type Result, ok, err } from "@agentrun/shared";
+import { type Result, ok, err } from "@agentkernel/shared";
 import { createLogger } from "./logger.js";
 
 const log = createLogger({ name: "dead-letter-queue" });

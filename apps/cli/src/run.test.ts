@@ -133,7 +133,7 @@ describe("runAgent", () => {
   const tmpFiles: string[] = [];
 
   function createTmpFile(name: string, content: string = ""): string {
-    const filePath = join(tmpdir(), `agentrun-test-${Date.now()}-${name}`);
+    const filePath = join(tmpdir(), `agentkernel-test-${Date.now()}-${name}`);
     writeFileSync(filePath, content);
     tmpFiles.push(filePath);
     return filePath;

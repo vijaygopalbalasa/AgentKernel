@@ -1,9 +1,9 @@
 // Streaming support for LLM responses
 // Provides unified streaming interface across providers
 
-import type { Result } from "@agentrun/shared";
-import { ok, err } from "@agentrun/shared";
-import type { Logger } from "@agentrun/kernel";
+import type { Result } from "@agentkernel/shared";
+import { ok, err } from "@agentkernel/shared";
+import type { Logger } from "@agentkernel/kernel";
 
 /** Streaming chunk from an LLM */
 export interface StreamChunk {

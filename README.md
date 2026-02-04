@@ -1,14 +1,14 @@
-# AgentRun
+# AgentKernel
 
 **Run any AI agent safely. Self-hosted.**
 
-AgentRun is a secure runtime for AI agents — like Docker for autonomous agents. It sandboxes execution, enforces permissions, manages memory, and provides the infrastructure so you can run, deploy, and orchestrate agents without reinventing plumbing.
+AgentKernel is a secure runtime for AI agents — like Docker for autonomous agents. It sandboxes execution, enforces permissions, manages memory, and provides the infrastructure so you can run, deploy, and orchestrate agents without reinventing plumbing.
 
 Self-hosted. Open source. Model-agnostic. Protocol-native.
 
 ```bash
-agentrun run ./my-agent.ts          # Run any agent sandboxed
-agentrun run config.yaml --adapter openclaw   # Run OpenClaw agents safely
+agentkernel run ./my-agent.ts          # Run any agent sandboxed
+agentkernel run config.yaml --adapter openclaw   # Run OpenClaw agents safely
 ```
 
 ---
@@ -26,7 +26,7 @@ Every team building AI agents is rebuilding the same plumbing:
 - **Security** — How do you sandbox agents so a rogue one can't take down your system?
 - **Observability** — How do you know what your agents are doing right now?
 
-AgentRun solves all of these at the infrastructure level. You write agent logic; the runtime handles everything else.
+AgentKernel solves all of these at the infrastructure level. You write agent logic; the runtime handles everything else.
 
 ---
 
@@ -58,7 +58,7 @@ Built on the two open protocols that the industry is converging on:
 - **MCP** (Model Context Protocol) — The standard for connecting agents to tools, databases, and APIs. Created by Anthropic, adopted by OpenAI, Google, and 150+ organizations. Now under the Linux Foundation.
 - **A2A** (Agent-to-Agent Protocol) — The standard for agent-to-agent communication. Created by Google with 50+ partners including Salesforce, SAP, and ServiceNow. Now under the Linux Foundation.
 
-AgentRun doesn't invent custom protocols. It implements the ones the industry already uses.
+AgentKernel doesn't invent custom protocols. It implements the ones the industry already uses.
 
 ### Security by Default
 Follows the OWASP Top 10 for Agentic Applications (2026):
@@ -88,7 +88,7 @@ const result = await client.callAgent("researcher", {
 ```
 
 ### Governance
-For multi-agent deployments, AgentRun includes a full governance layer:
+For multi-agent deployments, AgentKernel includes a full governance layer:
 - **Policies** — Define rules agents must follow
 - **Moderation** — Open cases against agents that violate policies
 - **Sanctions** — Warning, quarantine, suspension, ban
@@ -107,15 +107,15 @@ A real-time web UI for managing the entire OS:
 ### CLI
 Full command-line interface for everything:
 ```bash
-agentrun init                          # Initialize .env with secure secrets
-agentrun status                        # Check gateway health
-agentrun doctor                        # Validate entire setup
-agentrun chat "Hello"                  # Chat with an LLM
-agentrun deploy manifest.json          # Deploy an agent
-agentrun agents                        # List running agents
-agentrun new-agent my-bot --template chat  # Scaffold a new agent
-agentrun shell                         # Interactive management REPL
-agentrun install ./path/to/agent       # Install an agent package
+agentkernel init                          # Initialize .env with secure secrets
+agentkernel status                        # Check gateway health
+agentkernel doctor                        # Validate entire setup
+agentkernel chat "Hello"                  # Chat with an LLM
+agentkernel deploy manifest.json          # Deploy an agent
+agentkernel agents                        # List running agents
+agentkernel new-agent my-bot --template chat  # Scaffold a new agent
+agentkernel shell                         # Interactive management REPL
+agentkernel install ./path/to/agent       # Install an agent package
 ```
 
 ---
@@ -140,7 +140,7 @@ Each layer is a standalone TypeScript package. The SDK abstracts them all into a
 ### Monorepo Structure
 
 ```
-agentrun/
+agentkernel/
 ├── packages/
 │   ├── kernel/              # PostgreSQL, Qdrant, Redis, logging, health
 │   ├── mal/                 # Model Abstraction Layer (4 providers)
@@ -157,7 +157,7 @@ agentrun/
 │   └── shared/              # Shared types, utilities, constants
 ├── apps/
 │   ├── gateway/             # WebSocket + HTTP server (the daemon)
-│   ├── cli/                 # agentrun command-line tool
+│   ├── cli/                 # agentkernel command-line tool
 │   └── dashboard/           # Next.js web UI
 ├── agents/                  # Example agents
 │   ├── assistant/           # Conversational agent with memory
@@ -187,11 +187,11 @@ agentrun/
 ### Option 1: Docker (recommended)
 
 ```bash
-git clone https://github.com/anthropics/agentrun.git
-cd agentrun
+git clone https://github.com/anthropics/agentkernel.git
+cd agentkernel
 pnpm install
 pnpm -C apps/cli build
-pnpm -C apps/cli exec agentrun init    # Generates .env with secure secrets
+pnpm -C apps/cli exec agentkernel init    # Generates .env with secure secrets
 # Edit .env — add your ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_AI_API_KEY
 
 docker compose up --build
@@ -206,11 +206,11 @@ Services start at:
 ### Option 2: Local Development
 
 ```bash
-git clone https://github.com/anthropics/agentrun.git
-cd agentrun
+git clone https://github.com/anthropics/agentkernel.git
+cd agentkernel
 pnpm install
 pnpm -C apps/cli build
-pnpm -C apps/cli exec agentrun init
+pnpm -C apps/cli exec agentkernel init
 # Edit .env — add at least one provider API key
 
 pnpm build
@@ -226,7 +226,7 @@ The gateway starts in dev mode with in-memory fallbacks (no PostgreSQL/Redis/Qdr
 curl http://localhost:18801/health
 
 # Chat with an LLM
-pnpm -C apps/cli exec agentrun chat "What is AgentRun?"
+pnpm -C apps/cli exec agentkernel chat "What is AgentKernel?"
 
 # Open the dashboard
 open http://localhost:3000
@@ -239,7 +239,7 @@ open http://localhost:3000
 ### 1. Scaffold
 
 ```bash
-pnpm -C apps/cli exec agentrun new-agent my-agent --template chat
+pnpm -C apps/cli exec agentkernel new-agent my-agent --template chat
 ```
 
 Templates: `chat` (conversational), `worker` (background tasks), `monitor` (change detection), `service` (A2A microservice).
@@ -247,7 +247,7 @@ Templates: `chat` (conversational), `worker` (background tasks), `monitor` (chan
 ### 2. Write Agent Logic
 
 ```typescript
-import { defineAgent, type AgentContext } from "@agentrun/sdk";
+import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 const agent = defineAgent({
   manifest: {
@@ -286,7 +286,7 @@ export default agent;
 ```bash
 cd agents/my-agent
 pnpm install && pnpm build
-pnpm -C ../.. -C apps/cli exec agentrun deploy manifest.json
+pnpm -C ../.. -C apps/cli exec agentkernel deploy manifest.json
 ```
 
 ### AgentClient API
@@ -378,7 +378,7 @@ Full configuration reference: [`.env.example`](.env.example)
 
 ## How It Compares
 
-| | AgentRun | LangChain / CrewAI | AutoGPT | Custom Scripts |
+| | AgentKernel | LangChain / CrewAI | AutoGPT | Custom Scripts |
 |---|---|---|---|---|
 | **What it is** | Secure runtime | Framework / library | Single agent | DIY |
 | **Agent isolation** | Process sandbox | In-process | In-process | None |
@@ -390,15 +390,15 @@ Full configuration reference: [`.env.example`](.env.example)
 | **Self-hosted** | Yes | N/A (library) | Yes | Yes |
 | **Monitoring** | Dashboard + metrics | External | External | None |
 
-AgentRun is infrastructure, not a framework. Frameworks help you write agent code. AgentRun runs, manages, secures, and orchestrates agents — with adapters for OpenClaw, CrewAI, and more. It works — regardless of which framework they use internally.
+AgentKernel is infrastructure, not a framework. Frameworks help you write agent code. AgentKernel runs, manages, secures, and orchestrates agents — with adapters for OpenClaw, CrewAI, and more. It works — regardless of which framework they use internally.
 
 ---
 
-## What Makes AgentRun Unique
+## What Makes AgentKernel Unique
 
-While frameworks like LangGraph, CrewAI, and AutoGen help you **build** agents, AgentRun **runs, manages, governs, and secures** them. It's the difference between a programming toolkit and a runtime.
+While frameworks like LangGraph, CrewAI, and AutoGen help you **build** agents, AgentKernel **runs, manages, governs, and secures** them. It's the difference between a programming toolkit and a runtime.
 
-| Principle | How AgentRun Implements It |
+| Principle | How AgentKernel Implements It |
 |-----------|---------------------------|
 | **Governance as a kernel primitive** | Policies, moderation cases, sanctions, and appeals are enforced at runtime. Sanctioned agents cannot execute tasks (only appeal). No other agent platform does this at the OS level. |
 | **Agent social infrastructure** | Forums, jobs marketplace, and reputation system for agents. Inspired by Moltbook (1.5M+ agents) proving emergent social behavior happens when agents have identity + memory + communication. |
@@ -413,13 +413,13 @@ While frameworks like LangGraph, CrewAI, and AutoGen help you **build** agents, 
 
 - **[MCP](https://modelcontextprotocol.io/)** (Model Context Protocol) — Created by Anthropic (2024), now under the Linux Foundation. 97M+ monthly SDK downloads. The standard for connecting AI to tools and data.
 - **[A2A](https://github.com/google/A2A)** (Agent-to-Agent Protocol) — Created by Google (2025), now under the Linux Foundation. 150+ organizations. The standard for agent-to-agent communication.
-- **[OWASP Agentic Top 10](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/)** — Security guidelines for autonomous AI systems. AgentRun implements mitigations for all 10 risks.
+- **[OWASP Agentic Top 10](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/)** — Security guidelines for autonomous AI systems. AgentKernel implements mitigations for all 10 risks.
 
 ---
 
 ## Project Status
 
-AgentRun is functional and self-hostable today. Here's what's built:
+AgentKernel is functional and self-hostable today. Here's what's built:
 
 | Layer | Status | What's There |
 |-------|--------|-------------|
@@ -466,8 +466,8 @@ AgentRun is functional and self-hostable today. Here's what's built:
 ## Contributing
 
 ```bash
-git clone https://github.com/anthropics/agentrun.git
-cd agentrun
+git clone https://github.com/anthropics/agentkernel.git
+cd agentkernel
 pnpm install
 pnpm build
 pnpm test    # 1,154 tests should pass

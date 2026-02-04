@@ -1,17 +1,17 @@
-# Prometheus Alerting Rules for AgentRun
+# Prometheus Alerting Rules for AgentKernel
 # Deploy with: kubectl apply -f alerting-rules.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: agentrun-alerts
-  namespace: agentrun
+  name: agentkernel-alerts
+  namespace: agentkernel
   labels:
-    app.kubernetes.io/part-of: agentrun
+    app.kubernetes.io/part-of: agentkernel
     prometheus: kube-prometheus
     role: alert-rules
 spec:
   groups:
-    - name: agentrun.gateway
+    - name: agentkernel.gateway
       interval: 30s
       rules:
         # High error rate across all gateway pods
@@ -22,7 +22,7 @@ spec:
             severity: critical
             component: gateway
           annotations:
-            summary: "High error rate detected on AgentRun gateway"
+            summary: "High error rate detected on AgentKernel gateway"
             description: "Error rate is {{ $value | printf \"%.2f\" }} errors/sec (threshold: 0.1) for the last 5 minutes."
 
         # High p95 latency for agent tasks
@@ -33,12 +33,12 @@ spec:
             severity: warning
             component: gateway
           annotations:
-            summary: "High p95 latency on AgentRun gateway"
+            summary: "High p95 latency on AgentKernel gateway"
             description: "p95 latency is {{ $value | printf \"%.1f\" }}s (threshold: 5s) for the last 10 minutes."
 
         # High memory usage per pod
         - alert: HighMemoryUsage
-          expr: container_memory_rss{container="gateway", namespace="agentrun"} > 1.5e+9
+          expr: container_memory_rss{container="gateway", namespace="agentkernel"} > 1.5e+9
           for: 5m
           labels:
             severity: warning
@@ -58,7 +58,7 @@ spec:
             summary: "Circuit breaker open for {{ $labels.name }}"
             description: "The circuit breaker for {{ $labels.name }} has been open for over 1 minute, indicating upstream failures."
 
-    - name: agentrun.database
+    - name: agentkernel.database
       interval: 30s
       rules:
         # Database unhealthy
@@ -69,7 +69,7 @@ spec:
             severity: critical
             component: database
           annotations:
-            summary: "AgentRun database is down"
+            summary: "AgentKernel database is down"
             description: "The PostgreSQL database has been unreachable for over 1 minute."
 
         # Database connection pool exhaustion
@@ -83,7 +83,7 @@ spec:
             summary: "Database connection pool nearly exhausted"
             description: "Less than 10% of database connections are available ({{ $value | printf \"%.0f\" }}%)."
 
-    - name: agentrun.redis
+    - name: agentkernel.redis
       interval: 30s
       rules:
         # Redis/EventBus unhealthy
@@ -94,10 +94,10 @@ spec:
             severity: critical
             component: redis
           annotations:
-            summary: "AgentRun Redis event bus is down"
+            summary: "AgentKernel Redis event bus is down"
             description: "The Redis event bus has been disconnected for over 1 minute."
 
-    - name: agentrun.agents
+    - name: agentkernel.agents
       interval: 60s
       rules:
         # Too many agent errors

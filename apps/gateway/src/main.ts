@@ -1,4 +1,4 @@
-// AgentRun Gateway — The main daemon process
+// AgentKernel Gateway — The main daemon process
 // Production quality with Zod validation and Layer 4 integration
 
 import { config as loadEnv } from "dotenv";
@@ -21,24 +21,24 @@ import {
   type Config,
   type Database,
   type VectorStore,
-} from "@agentrun/kernel";
-import { createModelRouter, type ModelRouter, type ProviderAdapter } from "@agentrun/mal";
-import { createAnthropicProvider } from "@agentrun/provider-anthropic";
-import { createOpenAIProvider } from "@agentrun/provider-openai";
-import { createGoogleProvider } from "@agentrun/provider-google";
-import { createOllamaProvider } from "@agentrun/provider-ollama";
-import { createEventBus, type EventBus } from "@agentrun/events";
-import { ok, err, type Result } from "@agentrun/shared";
-import { MemoryManager } from "@agentrun/memory";
-import { createCapabilityManager } from "@agentrun/permissions";
-import { JobRunner } from "@agentrun/runtime";
+} from "@agentkernel/kernel";
+import { createModelRouter, type ModelRouter, type ProviderAdapter } from "@agentkernel/mal";
+import { createAnthropicProvider } from "@agentkernel/provider-anthropic";
+import { createOpenAIProvider } from "@agentkernel/provider-openai";
+import { createGoogleProvider } from "@agentkernel/provider-google";
+import { createOllamaProvider } from "@agentkernel/provider-ollama";
+import { createEventBus, type EventBus } from "@agentkernel/events";
+import { ok, err, type Result } from "@agentkernel/shared";
+import { MemoryManager } from "@agentkernel/memory";
+import { createCapabilityManager } from "@agentkernel/permissions";
+import { JobRunner } from "@agentkernel/runtime";
 
 import {
   createToolRegistry,
   registerBuiltinTools,
   createMCPClientManager,
   type ToolDefinition,
-} from "@agentrun/tools";
+} from "@agentkernel/tools";
 
 import { createWebSocketServer, type WsServer, type MessageHandler } from "./websocket.js";
 import { createHealthServer, type HealthServer } from "./health.js";
@@ -100,14 +100,14 @@ async function main(): Promise<void> {
   const tracer = getTracer({
     enabled: parseBoolean(process.env.TRACING_ENABLED, false),
     exporterUrl,
-    serviceName: "agentrun-gateway",
+    serviceName: "agentkernel-gateway",
     sampleRate: Number(process.env.TRACING_SAMPLE_RATE ?? 1),
   });
   if (exporterUrl) {
     tracer.startExport();
   }
 
-  log.info("AgentRun Gateway starting...", {
+  log.info("AgentKernel Gateway starting...", {
     port: config.gateway.port,
     host: config.gateway.host,
   });
@@ -511,7 +511,7 @@ async function main(): Promise<void> {
     const result = await router.route({
       model: "claude-3-haiku-20240307",
       messages: [
-        { role: "system", content: "You are an agent running on AgentRun. Respond in one sentence." },
+        { role: "system", content: "You are an agent running on AgentKernel. Respond in one sentence." },
         { role: "user", content: "Hello! What are you?" },
       ],
       maxTokens: 50,
@@ -527,7 +527,7 @@ async function main(): Promise<void> {
     }
   }
 
-  log.info("AgentRun Gateway ready", {
+  log.info("AgentKernel Gateway ready", {
     ws: `ws://${config.gateway.host}:${config.gateway.port}`,
     health: `http://${config.gateway.host}:${healthPort}/health`,
   });

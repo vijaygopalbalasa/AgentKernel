@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentKernel — Run any AI agent safely</title>
+  <meta name="description" content="The secure runtime for AI agents. Sandbox execution, enforce permissions, manage memory. Like Docker for autonomous agents." />
+  <meta property="og:title" content="AgentKernel" />
+  <meta property="og:description" content="Run any AI agent safely. Self-hosted. Open source." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ═══════════════════════════════════════════════════════════
+       Catppuccin Mocha Palette
+       ═══════════════════════════════════════════════════════════ */
+    :root {
+      --ctp-base: #1e1e2e;
+      --ctp-mantle: #181825;
+      --ctp-crust: #11111b;
+      --ctp-surface0: #313244;
+      --ctp-surface1: #45475a;
+      --ctp-surface2: #585b70;
+      --ctp-overlay0: #6c7086;
+      --ctp-overlay1: #7f849c;
+      --ctp-overlay2: #9399b2;
+      --ctp-subtext0: #a6adc8;
+      --ctp-subtext1: #bac2de;
+      --ctp-text: #cdd6f4;
+      --ctp-blue: #89b4fa;
+      --ctp-lavender: #b4befe;
+      --ctp-sapphire: #74c7ec;
+      --ctp-sky: #89dcfe;
+      --ctp-teal: #94e2d5;
+      --ctp-green: #a6e3a1;
+      --ctp-yellow: #f9e2af;
+      --ctp-peach: #fab387;
+      --ctp-maroon: #eba0ac;
+      --ctp-red: #f38ba8;
+      --ctp-mauve: #cba6f7;
+      --ctp-pink: #f5c2e7;
+      --ctp-flamingo: #f2cdcd;
+      --ctp-rosewater: #f5e0dc;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Reset & Base
+       ═══════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--ctp-base);
+      color: var(--ctp-text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    code, pre, .mono {
+      font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    }
+
+    a { color: var(--ctp-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ═══════════════════════════════════════════════════════════
+       Layout
+       ═══════════════════════════════════════════════════════════ */
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section {
+      padding: 120px 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Animations
+       ═══════════════════════════════════════════════════════════ */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes terminalType {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes gradientMove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+
+    /* ═══════════════════════════════════════════════════════════
+       Nav
+       ═══════════════════════════════════════════════════════════ */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 16px 0;
+      background: rgba(30, 30, 46, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(69, 71, 90, 0.3);
+      transition: background 0.3s ease;
+    }
+
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--ctp-text);
+      letter-spacing: -0.02em;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--ctp-blue), var(--ctp-mauve));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--ctp-crust);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--ctp-subtext0);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--ctp-text);
+      text-decoration: none;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--ctp-blue);
+      color: var(--ctp-crust);
+    }
+
+    .btn-primary:hover {
+      background: var(--ctp-lavender);
+      transform: translateY(-1px);
+      text-decoration: none;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--ctp-subtext0);
+      border: 1px solid var(--ctp-surface1);
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--ctp-surface2);
+      color: var(--ctp-text);
+      text-decoration: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Hero
+       ═══════════════════════════════════════════════════════════ */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding-top: 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 800px;
+      background: radial-gradient(ellipse at center,
+        rgba(137, 180, 250, 0.08) 0%,
+        rgba(203, 166, 247, 0.04) 40%,
+        transparent 70%
+      );
+      pointer-events: none;
+    }
+
+    .hero-content {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: rgba(137, 180, 250, 0.1);
+      border: 1px solid rgba(137, 180, 250, 0.2);
+      color: var(--ctp-blue);
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 32px;
+      animation: fadeIn 0.6s ease;
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--ctp-green);
+      animation: pulse 2s ease infinite;
+    }
+
+    h1 {
+      font-size: clamp(42px, 6vw, 72px);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+      animation: fadeInUp 0.8s ease;
+    }
+
+    h1 .gradient {
+      background: linear-gradient(135deg, var(--ctp-blue), var(--ctp-mauve), var(--ctp-pink));
+      background-size: 200% 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: gradientMove 6s ease infinite;
+    }
+
+    .hero-subtitle {
+      font-size: 18px;
+      color: var(--ctp-subtext0);
+      max-width: 560px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+      animation: fadeInUp 0.8s ease 0.15s both;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 64px;
+      animation: fadeInUp 0.8s ease 0.3s both;
+    }
+
+    /* Terminal */
+    .terminal {
+      background: var(--ctp-crust);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 12px;
+      overflow: hidden;
+      text-align: left;
+      max-width: 640px;
+      margin: 0 auto;
+      animation: fadeInUp 0.8s ease 0.45s both;
+      box-shadow:
+        0 0 0 1px rgba(69, 71, 90, 0.3),
+        0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--ctp-mantle);
+      border-bottom: 1px solid var(--ctp-surface0);
+    }
+
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: #f38ba8; }
+    .terminal-dot.yellow { background: #f9e2af; }
+    .terminal-dot.green { background: #a6e3a1; }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: var(--ctp-overlay0);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .terminal-body {
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13.5px;
+      line-height: 1.8;
+    }
+
+    .terminal-line {
+      display: flex;
+      gap: 8px;
+    }
+
+    .terminal-prompt {
+      color: var(--ctp-green);
+      user-select: none;
+    }
+
+    .terminal-cmd {
+      color: var(--ctp-text);
+    }
+
+    .terminal-comment {
+      color: var(--ctp-overlay0);
+      font-style: italic;
+    }
+
+    .terminal-output {
+      color: var(--ctp-subtext0);
+      padding-left: 18px;
+    }
+
+    .terminal-success {
+      color: var(--ctp-green);
+    }
+
+    .terminal-info {
+      color: var(--ctp-blue);
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 17px;
+      background: var(--ctp-text);
+      animation: blink 1.2s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Problem Section
+       ═══════════════════════════════════════════════════════════ */
+    .problem {
+      background: var(--ctp-mantle);
+      border-top: 1px solid var(--ctp-surface0);
+      border-bottom: 1px solid var(--ctp-surface0);
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ctp-blue);
+      margin-bottom: 16px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    h2 {
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    .section-desc {
+      font-size: 16px;
+      color: var(--ctp-subtext0);
+      max-width: 560px;
+      line-height: 1.7;
+      margin-bottom: 48px;
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+    }
+
+    .problem-card {
+      padding: 24px;
+      background: var(--ctp-base);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 10px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .problem-card:hover {
+      border-color: var(--ctp-surface1);
+      transform: translateY(-2px);
+    }
+
+    .problem-icon {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .problem-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .problem-card p {
+      font-size: 13px;
+      color: var(--ctp-overlay1);
+      line-height: 1.6;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Architecture
+       ═══════════════════════════════════════════════════════════ */
+    .arch-diagram {
+      background: var(--ctp-crust);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .arch-layer {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 16px 0;
+      border-bottom: 1px solid rgba(69, 71, 90, 0.4);
+    }
+
+    .arch-layer:last-child {
+      border-bottom: none;
+    }
+
+    .arch-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ctp-crust);
+      background: var(--ctp-overlay0);
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .arch-layer:nth-child(1) .arch-num { background: var(--ctp-mauve); }
+    .arch-layer:nth-child(2) .arch-num { background: var(--ctp-pink); }
+    .arch-layer:nth-child(3) .arch-num { background: var(--ctp-peach); }
+    .arch-layer:nth-child(4) .arch-num { background: var(--ctp-green); }
+    .arch-layer:nth-child(5) .arch-num { background: var(--ctp-blue); }
+
+    .arch-name {
+      font-size: 15px;
+      font-weight: 600;
+      min-width: 160px;
+    }
+
+    .arch-desc {
+      font-size: 13px;
+      color: var(--ctp-overlay1);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Features Grid
+       ═══════════════════════════════════════════════════════════ */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .feature-card {
+      padding: 32px;
+      background: var(--ctp-mantle);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 12px;
+      transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+    }
+
+    .feature-card:hover {
+      border-color: var(--ctp-surface2);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+
+    .fi-blue { background: rgba(137, 180, 250, 0.15); }
+    .fi-mauve { background: rgba(203, 166, 247, 0.15); }
+    .fi-green { background: rgba(166, 227, 161, 0.15); }
+    .fi-peach { background: rgba(250, 179, 135, 0.15); }
+    .fi-teal { background: rgba(148, 226, 213, 0.15); }
+    .fi-pink { background: rgba(245, 194, 231, 0.15); }
+
+    .feature-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      color: var(--ctp-overlay1);
+      line-height: 1.65;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Code Example
+       ═══════════════════════════════════════════════════════════ */
+    .code-section {
+      background: var(--ctp-mantle);
+      border-top: 1px solid var(--ctp-surface0);
+      border-bottom: 1px solid var(--ctp-surface0);
+    }
+
+    .code-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+
+    .code-block {
+      background: var(--ctp-crust);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--ctp-mantle);
+      border-bottom: 1px solid var(--ctp-surface0);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--ctp-overlay0);
+    }
+
+    .code-body {
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+
+    .code-body .kw { color: var(--ctp-mauve); }
+    .code-body .fn { color: var(--ctp-blue); }
+    .code-body .str { color: var(--ctp-green); }
+    .code-body .cmt { color: var(--ctp-overlay0); font-style: italic; }
+    .code-body .type { color: var(--ctp-yellow); }
+    .code-body .prop { color: var(--ctp-sapphire); }
+    .code-body .num { color: var(--ctp-peach); }
+
+    .code-text h3 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .code-text p {
+      font-size: 15px;
+      color: var(--ctp-subtext0);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    .code-text ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .code-text li {
+      font-size: 14px;
+      color: var(--ctp-subtext0);
+      padding: 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .code-text li::before {
+      content: '✓';
+      color: var(--ctp-green);
+      font-weight: 700;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Adapters
+       ═══════════════════════════════════════════════════════════ */
+    .adapters-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 48px;
+    }
+
+    .adapter-card {
+      text-align: center;
+      padding: 32px 20px;
+      background: var(--ctp-mantle);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 12px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .adapter-card:hover {
+      border-color: var(--ctp-surface2);
+      transform: translateY(-2px);
+    }
+
+    .adapter-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .adapter-desc {
+      font-size: 12px;
+      color: var(--ctp-overlay0);
+    }
+
+    .adapter-logo {
+      font-size: 32px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Stats
+       ═══════════════════════════════════════════════════════════ */
+    .stats {
+      background: var(--ctp-crust);
+      border-top: 1px solid var(--ctp-surface0);
+      border-bottom: 1px solid var(--ctp-surface0);
+      padding: 80px 0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 32px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--ctp-blue), var(--ctp-mauve));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--ctp-overlay0);
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Getting Started
+       ═══════════════════════════════════════════════════════════ */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 48px;
+    }
+
+    .step {
+      position: relative;
+      padding: 32px;
+      background: var(--ctp-mantle);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 12px;
+    }
+
+    .step-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ctp-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+
+    .step h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .step p {
+      font-size: 14px;
+      color: var(--ctp-overlay1);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .step code {
+      display: block;
+      background: var(--ctp-crust);
+      border: 1px solid var(--ctp-surface0);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 12.5px;
+      color: var(--ctp-subtext1);
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.6;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       CTA
+       ═══════════════════════════════════════════════════════════ */
+    .cta {
+      text-align: center;
+      padding: 120px 0;
+    }
+
+    .cta h2 {
+      margin-bottom: 16px;
+    }
+
+    .cta p {
+      font-size: 16px;
+      color: var(--ctp-subtext0);
+      margin-bottom: 40px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-actions {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Footer
+       ═══════════════════════════════════════════════════════════ */
+    footer {
+      padding: 48px 0;
+      border-top: 1px solid var(--ctp-surface0);
+    }
+
+    .footer-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-left {
+      font-size: 13px;
+      color: var(--ctp-overlay0);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: var(--ctp-overlay0);
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--ctp-text);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       Responsive
+       ═══════════════════════════════════════════════════════════ */
+    @media (max-width: 900px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .code-grid { grid-template-columns: 1fr; }
+      .adapters-row { grid-template-columns: repeat(2, 1fr); }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+      .steps { grid-template-columns: 1fr; }
+      .arch-name { min-width: auto; }
+    }
+
+    @media (max-width: 640px) {
+      section { padding: 80px 0; }
+      .features-grid { grid-template-columns: 1fr; }
+      .adapters-row { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .nav-links { display: none; }
+      .hero-actions { flex-direction: column; }
+      .footer-content { flex-direction: column; gap: 24px; text-align: center; }
+      .arch-diagram { padding: 24px; }
+      .arch-layer { flex-direction: column; align-items: flex-start; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── Nav ──────────────────────────────────────────── -->
+  <nav>
+    <div class="container">
+      <div class="logo">
+        <div class="logo-icon">AK</div>
+        AgentKernel
+      </div>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#adapters">Adapters</a></li>
+        <li><a href="https://github.com/vijaygopalbalasa/AgentKernel" target="_blank" rel="noopener">Docs</a></li>
+        <li>
+          <a href="https://github.com/vijaygopalbalasa/AgentKernel" target="_blank" rel="noopener" class="btn btn-ghost" style="padding: 8px 16px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+            GitHub
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ─── Hero ─────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <div class="badge">
+          <span class="badge-dot"></span>
+          Open source · Self-hosted · MIT License
+        </div>
+
+        <h1>
+          Run any AI agent<br /><span class="gradient">safely.</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          AgentKernel is a secure runtime for AI agents — like Docker for autonomous agents.
+          Sandbox execution, enforce permissions, manage memory.
+        </p>
+
+        <div class="hero-actions">
+          <a href="#get-started" class="btn btn-primary">
+            Get Started
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </a>
+          <a href="https://github.com/vijaygopalbalasa/AgentKernel" target="_blank" rel="noopener" class="btn btn-ghost">
+            View on GitHub
+          </a>
+        </div>
+
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+            <div class="terminal-comment"># Run any agent sandboxed</div>
+            <div class="terminal-line">
+              <span class="terminal-prompt">$</span>
+              <span class="terminal-cmd">agentkernel run ./my-agent.ts</span>
+            </div>
+            <br />
+            <div class="terminal-output">
+              <span class="terminal-info">AgentKernel</span><br />
+              ────────────────────────────────<br />
+              <span class="terminal-success">  ✓ Agent loaded</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MyAgent v1.0.0<br />
+              <span class="terminal-success">  ✓ Sandbox active</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;6 capabilities<br />
+              <span class="terminal-success">  ✓ Memory connected</span>&nbsp;&nbsp;&nbsp;&nbsp;PostgreSQL + Qdrant<br />
+              <span class="terminal-success">  ✓ Model router</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Claude → GPT → Gemini<br />
+              <span class="terminal-success">  ✓ Running</span><span class="cursor"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Problem ──────────────────────────────────────── -->
+  <section class="problem">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-label">The Problem</div>
+        <h2>Every team rebuilds the same plumbing</h2>
+        <p class="section-desc">
+          Building AI agents? You're spending 80% of your time on infrastructure — memory, security, deployment — instead of agent logic.
+        </p>
+      </div>
+
+      <div class="problem-grid">
+        <div class="problem-card reveal reveal-delay-1">
+          <div class="problem-icon">🧠</div>
+          <h3>Memory</h3>
+          <p>How does an agent remember things across sessions and restarts?</p>
+        </div>
+        <div class="problem-card reveal reveal-delay-2">
+          <div class="problem-icon">🔐</div>
+          <h3>Security</h3>
+          <p>How do you stop an agent from accessing things it shouldn't?</p>
+        </div>
+        <div class="problem-card reveal reveal-delay-3">
+          <div class="problem-icon">🪪</div>
+          <h3>Identity</h3>
+          <p>How do you know which agent did what, and verify it?</p>
+        </div>
+        <div class="problem-card reveal reveal-delay-1">
+          <div class="problem-icon">📡</div>
+          <h3>Communication</h3>
+          <p>How do agents discover and talk to each other?</p>
+        </div>
+        <div class="problem-card reveal reveal-delay-2">
+          <div class="problem-icon">🔧</div>
+          <h3>Tools</h3>
+          <p>How do agents connect to databases, APIs, and services safely?</p>
+        </div>
+        <div class="problem-card reveal reveal-delay-3">
+          <div class="problem-icon">📊</div>
+          <h3>Observability</h3>
+          <p>How do you know what your agents are doing right now?</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Architecture ─────────────────────────────────── -->
+  <section id="architecture">
+    <div class="container">
+      <div class="reveal" style="text-align: center; margin-bottom: 48px;">
+        <div class="section-label">Architecture</div>
+        <h2>Five layers. One runtime.</h2>
+        <p class="section-desc" style="margin-left: auto; margin-right: auto;">
+          Inspired by Android's layered OS design. Each layer is a standalone package. Higher layers build on lower ones.
+        </p>
+      </div>
+
+      <div class="arch-diagram reveal">
+        <div class="arch-layer">
+          <div class="arch-num">5</div>
+          <div class="arch-name">Applications</div>
+          <div class="arch-desc">Gateway, CLI, Dashboard — the user-facing surface</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-num">4</div>
+          <div class="arch-name">Agent Framework</div>
+          <div class="arch-desc">Identity, Memory, Skills, Communication, Tools, Permissions, Events</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-num">3</div>
+          <div class="arch-name">Agent Runtime</div>
+          <div class="arch-desc">Lifecycle management, sandboxing, scheduling, state machine</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-num">2</div>
+          <div class="arch-name">Model Abstraction</div>
+          <div class="arch-desc">Claude, GPT, Gemini, Llama — any model works, automatic failover</div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-num">1</div>
+          <div class="arch-name">Compute Kernel</div>
+          <div class="arch-desc">PostgreSQL, Qdrant, Redis, logging, health, security</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Features ─────────────────────────────────────── -->
+  <section id="features" style="background: var(--ctp-mantle); border-top: 1px solid var(--ctp-surface0); border-bottom: 1px solid var(--ctp-surface0);">
+    <div class="container">
+      <div class="reveal" style="text-align: center; margin-bottom: 56px;">
+        <div class="section-label">Features</div>
+        <h2>Everything agents need to run safely</h2>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card reveal reveal-delay-1">
+          <div class="feature-icon fi-blue">🛡️</div>
+          <h3>Capability Sandbox</h3>
+          <p>Every operation requires an explicit capability token. HMAC-SHA256 signed, time-bounded, delegatable. No implicit access.</p>
+        </div>
+        <div class="feature-card reveal reveal-delay-2">
+          <div class="feature-icon fi-mauve">🧠</div>
+          <h3>Cognitive Memory</h3>
+          <p>Three memory types from cognitive science: episodic (what happened), semantic (what I know), procedural (how to do things).</p>
+        </div>
+        <div class="feature-card reveal reveal-delay-3">
+          <div class="feature-icon fi-green">🔀</div>
+          <h3>Model Agnostic</h3>
+          <p>Claude, GPT, Gemini, Llama — any LLM works. Automatic failover between providers. Rate limiting and cost tracking built in.</p>
+        </div>
+        <div class="feature-card reveal reveal-delay-1">
+          <div class="feature-icon fi-peach">🔌</div>
+          <h3>Protocol Native</h3>
+          <p>Built on MCP (tools) and A2A (agent-to-agent) — the open protocols that the industry is converging on. No custom protocols.</p>
+        </div>
+        <div class="feature-card reveal reveal-delay-2">
+          <div class="feature-icon fi-teal">⚖️</div>
+          <h3>Governance</h3>
+          <p>Policies, moderation cases, sanctions, and appeals — enforced at runtime. Sanctioned agents cannot execute tasks.</p>
+        </div>
+        <div class="feature-card reveal reveal-delay-3">
+          <div class="feature-icon fi-pink">🔗</div>
+          <h3>Framework Adapters</h3>
+          <p>Run agents built with OpenClaw, CrewAI, LangGraph, or AutoGen — no code changes needed. The adapter pattern handles translation.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Code Example ─────────────────────────────────── -->
+  <section class="code-section">
+    <div class="container">
+      <div class="code-grid">
+        <div class="code-text reveal">
+          <div class="section-label">Developer Experience</div>
+          <h3>Build agents in minutes,<br />not months</h3>
+          <p>
+            The SDK abstracts all five layers into a single <code class="mono" style="background: var(--ctp-crust); padding: 2px 8px; border-radius: 4px; font-size: 14px;">AgentClient</code> API. Write agent logic — AgentKernel handles the rest.
+          </p>
+          <ul>
+            <li>Chat with any LLM in one line</li>
+            <li>Store and search persistent memory</li>
+            <li>Invoke tools with sandbox enforcement</li>
+            <li>Discover and delegate to other agents</li>
+            <li>Full TypeScript types and JSDoc</li>
+          </ul>
+        </div>
+
+        <div class="code-block reveal reveal-delay-2">
+          <div class="code-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ctp-blue)" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            my-agent.ts
+          </div>
+          <div class="code-body">
+<span class="kw">import</span> { <span class="fn">defineAgent</span> } <span class="kw">from</span> <span class="str">"@agentkernel/sdk"</span>;
+
+<span class="kw">export default</span> <span class="fn">defineAgent</span>({
+  <span class="prop">manifest</span>: {
+    <span class="prop">id</span>: <span class="str">"my-agent"</span>,
+    <span class="prop">name</span>: <span class="str">"My Agent"</span>,
+    <span class="prop">version</span>: <span class="str">"1.0.0"</span>,
+    <span class="prop">permissions</span>: [<span class="str">"memory.read"</span>, <span class="str">"llm.execute"</span>],
+  },
+
+  <span class="kw">async</span> <span class="fn">handleTask</span>(<span class="type">task</span>, <span class="type">ctx</span>) {
+    <span class="cmt">// Chat with any LLM</span>
+    <span class="kw">const</span> response = <span class="kw">await</span> ctx.<span class="prop">client</span>.<span class="fn">chat</span>([
+      { <span class="prop">role</span>: <span class="str">"user"</span>, <span class="prop">content</span>: task.<span class="prop">message</span> },
+    ]);
+
+    <span class="cmt">// Store to persistent memory</span>
+    <span class="kw">await</span> ctx.<span class="prop">client</span>.<span class="fn">storeFact</span>({
+      <span class="prop">category</span>: <span class="str">"conversations"</span>,
+      <span class="prop">fact</span>: task.<span class="prop">message</span>,
+    });
+
+    <span class="kw">return</span> { <span class="prop">content</span>: response.<span class="prop">content</span> };
+  },
+});
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Adapters ─────────────────────────────────────── -->
+  <section id="adapters">
+    <div class="container">
+      <div class="reveal" style="text-align: center;">
+        <div class="section-label">Framework Adapters</div>
+        <h2>Run agents from any framework</h2>
+        <p class="section-desc" style="margin-left: auto; margin-right: auto;">
+          Don't rewrite your agents. AgentKernel adapters translate any framework's API to the sandbox model — your agents run safely without code changes.
+        </p>
+      </div>
+
+      <div class="adapters-row">
+        <div class="adapter-card reveal reveal-delay-1">
+          <span class="adapter-logo">🐾</span>
+          <div class="adapter-name">OpenClaw</div>
+          <div class="adapter-desc">Personality configs &amp; skills</div>
+        </div>
+        <div class="adapter-card reveal reveal-delay-2">
+          <span class="adapter-logo">👥</span>
+          <div class="adapter-name">CrewAI</div>
+          <div class="adapter-desc">Multi-agent crews &amp; roles</div>
+        </div>
+        <div class="adapter-card reveal reveal-delay-3">
+          <span class="adapter-logo">🔀</span>
+          <div class="adapter-name">LangGraph</div>
+          <div class="adapter-desc">State machine graphs</div>
+        </div>
+        <div class="adapter-card reveal reveal-delay-4">
+          <span class="adapter-logo">🤖</span>
+          <div class="adapter-name">AutoGen</div>
+          <div class="adapter-desc">Multi-agent conversations</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Stats ────────────────────────────────────────── -->
+  <section class="stats">
+    <div class="container">
+      <div class="stats-grid">
+        <div class="reveal reveal-delay-1">
+          <div class="stat-value">76K+</div>
+          <div class="stat-label">Lines of TypeScript</div>
+        </div>
+        <div class="reveal reveal-delay-2">
+          <div class="stat-value">1,122</div>
+          <div class="stat-label">Tests Passing</div>
+        </div>
+        <div class="reveal reveal-delay-3">
+          <div class="stat-value">25</div>
+          <div class="stat-label">Packages</div>
+        </div>
+        <div class="reveal reveal-delay-4">
+          <div class="stat-value">4</div>
+          <div class="stat-label">LLM Providers</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Get Started ──────────────────────────────────── -->
+  <section id="get-started">
+    <div class="container">
+      <div class="reveal" style="text-align: center;">
+        <div class="section-label">Get Started</div>
+        <h2>Up and running in 5 minutes</h2>
+      </div>
+
+      <div class="steps">
+        <div class="step reveal reveal-delay-1">
+          <div class="step-num">Step 01</div>
+          <h3>Clone & Build</h3>
+          <p>Install dependencies and build all packages.</p>
+          <code>git clone https://github.com/vijaygopalbalasa/AgentKernel.git
+cd AgentKernel
+pnpm install && pnpm build</code>
+        </div>
+
+        <div class="step reveal reveal-delay-2">
+          <div class="step-num">Step 02</div>
+          <h3>Configure</h3>
+          <p>Generate a secure .env and add your API key.</p>
+          <code>pnpm -C apps/cli exec agentkernel init
+# Edit .env — add your API key</code>
+        </div>
+
+        <div class="step reveal reveal-delay-3">
+          <div class="step-num">Step 03</div>
+          <h3>Run</h3>
+          <p>Start with Docker or run an agent directly.</p>
+          <code>docker compose up --build
+# or
+agentkernel run ./my-agent.ts</code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CTA ──────────────────────────────────────────── -->
+  <section class="cta">
+    <div class="container">
+      <div class="reveal">
+        <h2>Ready to run agents safely?</h2>
+        <p>
+          Open source, self-hosted, MIT licensed.<br />
+          Join the community building the future of agent infrastructure.
+        </p>
+        <div class="cta-actions">
+          <a href="https://github.com/vijaygopalbalasa/AgentKernel" target="_blank" rel="noopener" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+            Star on GitHub
+          </a>
+          <a href="#get-started" class="btn btn-ghost">
+            Read the Docs
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Footer ───────────────────────────────────────── -->
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-left">
+          © 2025 AgentKernel · MIT License
+        </div>
+        <ul class="footer-links">
+          <li><a href="https://github.com/vijaygopalbalasa/AgentKernel" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://github.com/vijaygopalbalasa/AgentKernel/blob/master/docs/INSTALL.md" target="_blank" rel="noopener">Docs</a></li>
+          <li><a href="https://github.com/vijaygopalbalasa/AgentKernel/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></li>
+          <li><a href="https://github.com/vijaygopalbalasa/AgentKernel/blob/master/SECURITY.md" target="_blank" rel="noopener">Security</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── Scroll Reveal ────────────────────────────────── -->
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, {
+      threshold: 0.1,
+      rootMargin: '0px 0px -40px 0px',
+    });
+
+    document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+  </script>
+</body>
+</html>

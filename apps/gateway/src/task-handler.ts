@@ -2,19 +2,19 @@
 
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { createLogger, type Database } from "@agentrun/kernel";
-import { type ModelRouter } from "@agentrun/mal";
-import { ok, err, type ChatRequest } from "@agentrun/shared";
-import { createEventBus, type EventBus } from "@agentrun/events";
-import { MemoryManager } from "@agentrun/memory";
+import { createLogger, type Database } from "@agentkernel/kernel";
+import { type ModelRouter } from "@agentkernel/mal";
+import { ok, err, type ChatRequest } from "@agentkernel/shared";
+import { createEventBus, type EventBus } from "@agentkernel/events";
+import { MemoryManager } from "@agentkernel/memory";
 import {
   createCapabilityManager,
   type Permission,
   type PermissionAction,
   type PermissionCategory,
-} from "@agentrun/permissions";
-import { createToolRegistry, type ToolDefinition, type ToolResult } from "@agentrun/tools";
-import { estimateCost } from "@agentrun/runtime";
+} from "@agentkernel/permissions";
+import { createToolRegistry, type ToolDefinition, type ToolResult } from "@agentkernel/tools";
+import { estimateCost } from "@agentkernel/runtime";
 import {
   type AgentEntry,
   type A2ATaskEntry,
@@ -100,7 +100,7 @@ import {
   recordAuditLog,
   recordEvent,
 } from "./db-operations.js";
-import { generateEmbedding } from "@agentrun/provider-openai";
+import { generateEmbedding } from "@agentkernel/provider-openai";
 
 /** Try to generate an embedding vector for text. Returns undefined on failure or if OpenAI is unavailable. */
 async function tryGenerateEmbedding(text: string, log: ReturnType<typeof createLogger>): Promise<number[] | undefined> {

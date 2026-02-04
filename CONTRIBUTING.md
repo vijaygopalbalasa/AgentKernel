@@ -1,6 +1,6 @@
-# Contributing to AgentRun
+# Contributing to AgentKernel
 
-Thank you for your interest in contributing to AgentRun.
+Thank you for your interest in contributing to AgentKernel.
 
 ## Getting Started
 
@@ -13,8 +13,8 @@ Thank you for your interest in contributing to AgentRun.
 ### Setup
 
 ```bash
-git clone https://github.com/vijaygopalbalasa/AgentRun.git
-cd AgentRun
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
+cd AgentKernel
 pnpm install
 pnpm build
 pnpm test
@@ -23,7 +23,7 @@ pnpm test
 ### Project Structure
 
 ```
-agentrun/
+agentkernel/
   packages/
     kernel/          # L1: Database, cache, logging, health
     mal/             # L2: LLM provider routing & abstraction
@@ -57,7 +57,7 @@ agentrun/
 - Strict mode always enabled
 - **No `any` type** — ever
 - **No default exports** — always named exports
-- **No `console.log`** in library code — use the structured logger from `@agentrun/kernel`
+- **No `console.log`** in library code — use the structured logger from `@agentkernel/kernel`
 - Use `interface` over `type` for public APIs
 - Use Zod for runtime validation of all external inputs
 - Error handling: use `Result` types, not bare try/catch for business logic

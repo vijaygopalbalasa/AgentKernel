@@ -1,15 +1,15 @@
 {
-  "name": "@agentrun/provider-google",
+  "name": "@agentkernel/provider-google",
   "version": "0.1.0",
   "type": "module",
-  "description": "Google Gemini provider adapter for AgentRun",
+  "description": "Google Gemini provider adapter for AgentKernel",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/mal": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/mal": "workspace:*",
     "@google/genai": "^1.37.0"
   },
   "scripts": {

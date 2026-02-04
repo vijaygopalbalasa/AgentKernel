@@ -2,8 +2,8 @@
 // Starts with in-memory, can be swapped for Qdrant/PostgreSQL
 
 import { randomUUID } from "crypto";
-import { type Result, ok, err } from "@agentrun/shared";
-import type { AgentId } from "@agentrun/runtime";
+import { type Result, ok, err } from "@agentkernel/shared";
+import type { AgentId } from "@agentkernel/runtime";
 import type {
   MemoryId,
   EpisodicMemory,

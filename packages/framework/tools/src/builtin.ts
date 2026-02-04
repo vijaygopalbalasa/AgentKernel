@@ -1,4 +1,4 @@
-// Built-in Tools — common tools that ship with AgentRun
+// Built-in Tools — common tools that ship with AgentKernel
 // These are registered by default for all agents
 
 import { z } from "zod";

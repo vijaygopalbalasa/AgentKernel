@@ -3,8 +3,8 @@
 
 import { z } from "zod";
 import { randomUUID, createHmac, timingSafeEqual } from "crypto";
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
 
 // ─── ZOD SCHEMAS ────────────────────────────────────────────
 

@@ -6,10 +6,10 @@ import { dirname, resolve } from "node:path";
 import { existsSync } from "fs";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { createLogger } from "@agentrun/kernel";
-import { responseToStream, type ModelRouter } from "@agentrun/mal";
-import { ok, err, type Result } from "@agentrun/shared";
-import type { JobRunner } from "@agentrun/runtime";
+import { createLogger } from "@agentkernel/kernel";
+import { responseToStream, type ModelRouter } from "@agentkernel/mal";
+import { ok, err, type Result } from "@agentkernel/shared";
+import type { JobRunner } from "@agentkernel/runtime";
 import { type AgentEntry, type WorkerTransport, type WorkerRuntime } from "./gateway-types.js";
 import type { TaskHandlerContext } from "./task-handler.js";
 import { type ClientConnection, type WsMessage, ChatPayloadSchema, GatewayError } from "./types.js";
@@ -310,7 +310,7 @@ export function startAgentWorker(
     const network = resolveDockerWorkerNetwork();
     const disableNetwork = parseBoolean(process.env.AGENT_WORKER_DISABLE_NETWORK, false);
     const mountPath = resolveDockerWorkerMount();
-    const workDir = mountPath ? "/agentrun" : (process.env.AGENT_WORKER_DOCKER_WORKDIR?.trim() || "/app");
+    const workDir = mountPath ? "/agentkernel" : (process.env.AGENT_WORKER_DOCKER_WORKDIR?.trim() || "/app");
     const scriptPath = process.env.AGENT_WORKER_SCRIPT_PATH?.trim() || "apps/gateway/dist/agent-worker.js";
     const tmpfsEntries = resolveDockerTmpfs();
     const securityOpts = resolveDockerSecurityOpts();
@@ -503,7 +503,7 @@ export function unscheduleMonitorAgent(
 export type MonitorContext = TaskHandlerContext & {
   handleTask: (task: Record<string, unknown>, agent: AgentEntry, ctx: TaskHandlerContext) => Promise<Record<string, unknown>>;
   updateState: (
-    db: import("@agentrun/kernel").Database,
+    db: import("@agentkernel/kernel").Database,
     agentId: string,
     state: AgentEntry["state"],
     log: ReturnType<typeof createLogger>,

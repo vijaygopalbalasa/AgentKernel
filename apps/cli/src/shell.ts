@@ -1,4 +1,4 @@
-// AgentRun Shell — Interactive REPL for managing the OS
+// AgentKernel Shell — Interactive REPL for managing the OS
 // Like bash/zsh for Linux or adb shell for Android.
 
 import chalk from "chalk";
@@ -20,10 +20,10 @@ interface ShellState {
   pendingRequests: Map<string, { resolve: (value: unknown) => void; reject: (err: Error) => void }>;
 }
 
-const PROMPT = chalk.cyan("agentrun") + chalk.gray("> ");
+const PROMPT = chalk.cyan("agentkernel") + chalk.gray("> ");
 
 const HELP_TEXT = `
-${chalk.bold("AgentRun Shell — OS Management Commands")}
+${chalk.bold("AgentKernel Shell — OS Management Commands")}
 
 ${chalk.yellow("Agent Management")}
   /agents                    List running agents
@@ -60,7 +60,7 @@ function generateId(): string {
 }
 
 /**
- * Start the AgentRun interactive shell.
+ * Start the AgentKernel interactive shell.
  */
 export async function startShell(options: ShellOptions): Promise<void> {
   const state: ShellState = {
@@ -72,7 +72,7 @@ export async function startShell(options: ShellOptions): Promise<void> {
     pendingRequests: new Map(),
   };
 
-  console.log(chalk.bold("\nAgentRun Shell"));
+  console.log(chalk.bold("\nAgentKernel Shell"));
   console.log(chalk.gray("Type /help for commands, /quit to exit\n"));
 
   // Connect to gateway

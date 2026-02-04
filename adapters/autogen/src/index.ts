@@ -1,4 +1,4 @@
-// @agentrun/adapter-autogen — Run Microsoft AutoGen conversations inside AgentRun's sandboxed runtime
+// @agentkernel/adapter-autogen — Run Microsoft AutoGen conversations inside AgentKernel's sandboxed runtime
 // Models AutoGen's conversational agents: AssistantAgent, UserProxyAgent, GroupChatManager.
 
 import { readFileSync, existsSync } from "node:fs";
@@ -9,8 +9,8 @@ import type {
   AdapterMessage,
   AdapterResponse,
   AdapterState,
-} from "@agentrun/runtime";
-import type { Capability, AgentSandbox } from "@agentrun/runtime";
+} from "@agentkernel/runtime";
+import type { Capability, AgentSandbox } from "@agentkernel/runtime";
 
 // ─── AutoGen Configuration Types ─────────────────────────────
 
@@ -72,7 +72,7 @@ interface AutoGenConfig {
   raw: Record<string, unknown>;
 }
 
-/** Maps AutoGen function/capability patterns to AgentRun capabilities. */
+/** Maps AutoGen function/capability patterns to AgentKernel capabilities. */
 const FUNCTION_CAPABILITY_MAP: Record<string, Capability> = {
   "read_file": "file:read",
   "write_file": "file:write",
@@ -98,10 +98,10 @@ const FUNCTION_CAPABILITY_MAP: Record<string, Capability> = {
 const BASE_CAPABILITIES: Capability[] = ["llm:chat", "llm:stream"];
 
 /**
- * Adapter that wraps AutoGen conversations inside AgentRun's sandboxed runtime.
+ * Adapter that wraps AutoGen conversations inside AgentKernel's sandboxed runtime.
  *
  * Reads an AutoGen configuration (agents, group chat, function maps),
- * maps code execution and functions to AgentRun capabilities, and enforces
+ * maps code execution and functions to AgentKernel capabilities, and enforces
  * sandbox permissions before allowing execution.
  */
 export class AutoGenAdapter implements AgentAdapter {

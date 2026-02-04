@@ -8,12 +8,12 @@ services:
       DISTRIBUTED_SCHEDULER: ${DISTRIBUTED_SCHEDULER:-true}
       HTTP_PROXY: ${HTTP_PROXY:-http://egress-proxy:3128}
       HTTPS_PROXY: ${HTTPS_PROXY:-http://egress-proxy:3128}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agentrun-gateway,postgres,redis,qdrant,egress-proxy}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agentkernel-gateway,postgres,redis,qdrant,egress-proxy}
 
   # Automated PostgreSQL backup — runs daily at 02:00 UTC
   backup-postgres:
     image: postgres:16-alpine
-    container_name: agentrun-backup-postgres
+    container_name: agentkernel-backup-postgres
     restart: unless-stopped
     depends_on:
       postgres:
@@ -35,12 +35,12 @@ services:
         echo "0 2 * * * /usr/local/bin/backup-postgres.sh && find /backups -name '*.dump' -mtime +$${BACKUP_RETENTION_DAYS} -delete" | crontab -
         crond -f -l 2
     networks:
-      - agentrun-network
+      - agentkernel-network
 
   # Automated Qdrant snapshot — runs daily at 03:00 UTC
   backup-qdrant:
     image: curlimages/curl:8.11.1
-    container_name: agentrun-backup-qdrant
+    container_name: agentkernel-backup-qdrant
     restart: unless-stopped
     depends_on:
       qdrant:
@@ -60,16 +60,16 @@ services:
         echo "0 3 * * * /usr/local/bin/backup-qdrant.sh && find /backups -name '*.snapshot' -mtime +$${BACKUP_RETENTION_DAYS} -delete" | crontab -
         crond -f -l 2
     networks:
-      - agentrun-network
+      - agentkernel-network
 
   egress-proxy:
     build:
       context: .
       dockerfile: docker/egress-proxy/Dockerfile
-    container_name: agentrun-egress-proxy
+    container_name: agentkernel-egress-proxy
     restart: unless-stopped
     environment:
       EGRESS_ALLOWED_DOMAINS: ${EGRESS_ALLOWED_DOMAINS:-${ALLOWED_DOMAINS:-}}
     networks:
-      - agentrun-network
-      - agentrun-internal
+      - agentkernel-network
+      - agentkernel-internal

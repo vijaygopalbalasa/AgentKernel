@@ -5,7 +5,7 @@ import {
   type RouterConfig,
 } from "../router.js";
 import type { ProviderAdapter } from "../index.js";
-import { ok, err, type Result, type ChatRequest, type ChatResponse } from "@agentrun/shared";
+import { ok, err, type Result, type ChatRequest, type ChatResponse } from "@agentkernel/shared";
 
 function getFirst<T>(items: T[]): T {
   const first = items[0];

@@ -1,6 +1,6 @@
-# AgentRun Gateway Task Protocol
+# AgentKernel Gateway Task Protocol
 
-This document describes the low-level WebSocket task protocol used between agents and the AgentRun gateway. Most developers should use the `AgentClient` API from `@agentrun/sdk` instead of this protocol directly.
+This document describes the low-level WebSocket task protocol used between agents and the AgentKernel gateway. Most developers should use the `AgentClient` API from `@agentkernel/sdk` instead of this protocol directly.
 
 ## Connection
 

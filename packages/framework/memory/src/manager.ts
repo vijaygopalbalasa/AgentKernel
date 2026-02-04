@@ -3,9 +3,9 @@
 
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
-import type { AgentId } from "@agentrun/runtime";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
+import type { AgentId } from "@agentkernel/runtime";
 import type {
   MemoryId,
   EpisodicMemory,

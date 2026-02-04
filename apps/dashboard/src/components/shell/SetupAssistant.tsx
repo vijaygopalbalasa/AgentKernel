@@ -80,7 +80,7 @@ export function SetupAssistant({ onComplete }: SetupAssistantProps) {
               <circle cx="15.5" cy="9" r="1.5" fill="currentColor" />
               <path d="M8 15c1.5 1.5 6.5 1.5 8 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            <span className="text-xl font-mono font-bold text-ctp-text">AgentRun</span>
+            <span className="text-xl font-mono font-bold text-ctp-text">AgentKernel</span>
           </div>
           <p className="text-sm text-ctp-overlay0 font-mono">Setup Assistant</p>
         </div>
@@ -120,7 +120,7 @@ export function SetupAssistant({ onComplete }: SetupAssistantProps) {
                   Checking Connection
                 </h2>
                 <p className="text-sm text-ctp-subtext0 mb-6">
-                  Looking for the AgentRun gateway on this machine.
+                  Looking for the AgentKernel gateway on this machine.
                 </p>
 
                 <div className="os-panel px-4 py-3 mb-4">

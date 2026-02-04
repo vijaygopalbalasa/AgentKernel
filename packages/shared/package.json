@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/shared",
+  "name": "@agentkernel/shared",
   "version": "0.1.0",
-  "description": "Shared types, utilities, and constants for AgentRun",
+  "description": "Shared types, utilities, and constants for AgentKernel",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,10 +16,10 @@
     "node": ">=20.0.0"
   },
   "files": ["dist", "README.md"],
-  "keywords": ["agentrun", "shared", "types"],
+  "keywords": ["agentkernel", "shared", "types"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/vijaygopalbalasa/AgentRun",
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel",
     "directory": "packages/shared"
   },
   "scripts": {

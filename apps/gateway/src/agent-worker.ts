@@ -2,7 +2,7 @@
 
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
-import { AgentClient } from "@agentrun/sdk";
+import { AgentClient } from "@agentkernel/sdk";
 
 type InitMessage = {
   type: "init";

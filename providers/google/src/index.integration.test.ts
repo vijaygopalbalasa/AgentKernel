@@ -1,6 +1,6 @@
 // Real Google Gemini API Integration Tests
 // Requires: GOOGLE_AI_API_KEY environment variable
-// Run with: GOOGLE_AI_API_KEY=... pnpm --filter @agentrun/provider-google test:integration
+// Run with: GOOGLE_AI_API_KEY=... pnpm --filter @agentkernel/provider-google test:integration
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { createGoogleProvider } from "./index.js";

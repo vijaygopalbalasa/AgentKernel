@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/agent-coder",
+  "name": "@agentkernel/agent-coder",
   "version": "0.1.0",
-  "description": "Code-generation agent for AgentRun",
+  "description": "Code-generation agent for AgentKernel",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -12,7 +12,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@agentrun/sdk": "workspace:*"
+    "@agentkernel/sdk": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

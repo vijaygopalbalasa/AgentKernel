@@ -1,11 +1,11 @@
-# Building Your First Agent on AgentRun
+# Building Your First Agent on AgentKernel
 
-AgentRun is a secure runtime for AI agents — like Docker for autonomous agents. You build agents that run inside the runtime, using the SDK to access LLM, memory, tools, and inter-agent communication.
+AgentKernel is a secure runtime for AI agents — like Docker for autonomous agents. You build agents that run inside the runtime, using the SDK to access LLM, memory, tools, and inter-agent communication.
 
 ## Prerequisites
 
 - Node.js 22+ and pnpm
-- AgentRun gateway running (`pnpm --filter @agentrun/gateway dev`)
+- AgentKernel gateway running (`pnpm --filter @agentkernel/gateway dev`)
 - At least one LLM provider configured in `.env` (Anthropic, OpenAI, Google, or Ollama)
 
 ## Quick Start
@@ -13,7 +13,7 @@ AgentRun is a secure runtime for AI agents — like Docker for autonomous agents
 ### 1. Scaffold an agent
 
 ```bash
-agentrun new-agent my-agent --template chat
+agentkernel new-agent my-agent --template chat
 ```
 
 Available templates:
@@ -37,23 +37,23 @@ pnpm test
 ### 3. Deploy
 
 ```bash
-agentrun deploy manifest.json
+agentkernel deploy manifest.json
 ```
 
 Or install from the agents directory:
 
 ```bash
-agentrun install ./agents/my-agent
+agentkernel install ./agents/my-agent
 ```
 
 ---
 
 ## The AgentClient API
 
-Every agent receives an `AgentContext` in its task handler. The `context.client` property is an `AgentClient` — the primary API for interacting with AgentRun.
+Every agent receives an `AgentContext` in its task handler. The `context.client` property is an `AgentClient` — the primary API for interacting with AgentKernel.
 
 ```typescript
-import { defineAgent, type AgentContext } from "@agentrun/sdk";
+import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 const agent = defineAgent({
   manifest: { id: "my-agent", name: "My Agent", version: "0.1.0" },
@@ -72,7 +72,7 @@ Send messages to any configured LLM provider:
 ```typescript
 const response = await client.chat([
   { role: "system", content: "You are a helpful assistant." },
-  { role: "user", content: "What is AgentRun?" },
+  { role: "user", content: "What is AgentKernel?" },
 ], { maxTokens: 500, temperature: 0.3 });
 
 console.log(response.content);  // The LLM's response text
@@ -293,21 +293,21 @@ Install agents from various sources:
 
 ```bash
 # From a local directory
-agentrun install ./path/to/agent
+agentkernel install ./path/to/agent
 
 # From npm
-agentrun install @some-dev/weather-agent
+agentkernel install @some-dev/weather-agent
 
 # From git
-agentrun install github:user/my-agent
+agentkernel install github:user/my-agent
 ```
 
 Manage installed agents:
 
 ```bash
-agentrun list              # List installed agents
-agentrun update my-agent   # Update from original source
-agentrun uninstall my-agent
+agentkernel list              # List installed agents
+agentkernel update my-agent   # Update from original source
+agentkernel uninstall my-agent
 ```
 
 ---
@@ -317,7 +317,7 @@ agentrun uninstall my-agent
 Manage the entire OS interactively:
 
 ```bash
-agentrun shell
+agentkernel shell
 ```
 
 Shell commands:
@@ -343,19 +343,19 @@ Shell commands:
 To share your agent with others:
 
 1. Ensure `manifest.json` is complete with all fields
-2. Sign the manifest: `agentrun sign manifest.json`
+2. Sign the manifest: `agentkernel sign manifest.json`
 3. Publish to npm: `npm publish`
-4. Others install with: `agentrun install @your-scope/your-agent`
+4. Others install with: `agentkernel install @your-scope/your-agent`
 
 ---
 
 ## Configuration
 
-AgentRun supports TypeScript config files for type-safe configuration:
+AgentKernel supports TypeScript config files for type-safe configuration:
 
 ```typescript
-// agentrun.config.ts
-import { defineConfig } from "@agentrun/kernel";
+// agentkernel.config.ts
+import { defineConfig } from "@agentkernel/kernel";
 
 export default defineConfig({
   gateway: { port: 18800 },
@@ -364,19 +364,19 @@ export default defineConfig({
   },
   runtime: {
     maxAgents: 50,
-    workDir: ".agentrun",
+    workDir: ".agentkernel",
   },
   logging: { level: "info" },
 });
 ```
 
-YAML config (`agentrun.config.yaml`) is also supported. Environment variables always take priority. See [USAGE.md](USAGE.md) for all options.
+YAML config (`agentkernel.config.yaml`) is also supported. Environment variables always take priority. See [USAGE.md](USAGE.md) for all options.
 
 ---
 
 ## Architecture Reference
 
-AgentRun has 5 layers:
+AgentKernel has 5 layers:
 
 ```
 Layer 5: Agent Applications   ← Your agents run here
@@ -386,7 +386,7 @@ Layer 2: Model Abstraction    ← Provider adapters (Claude/GPT/Gemini/Llama)
 Layer 1: Compute Kernel       ← Process mgmt, storage, network, security
 ```
 
-The SDK (`@agentrun/sdk`) provides `AgentClient` which abstracts away the lower layers. You write agent logic; the runtime handles everything else.
+The SDK (`@agentkernel/sdk`) provides `AgentClient` which abstracts away the lower layers. You write agent logic; the runtime handles everything else.
 
 For the low-level gateway task protocol, see [TASK_PROTOCOL.md](./TASK_PROTOCOL.md).
 
@@ -394,7 +394,7 @@ For the low-level gateway task protocol, see [TASK_PROTOCOL.md](./TASK_PROTOCOL.
 
 ## Advanced: Writing an Adapter
 
-Adapters let you run agents from external frameworks (OpenClaw, CrewAI, LangGraph, etc.) inside AgentRun's sandbox.
+Adapters let you run agents from external frameworks (OpenClaw, CrewAI, LangGraph, etc.) inside AgentKernel's sandbox.
 
 ### The AgentAdapter interface
 
@@ -405,8 +405,8 @@ import type {
   AdapterMessage,
   AdapterResponse,
   AdapterState,
-} from "@agentrun/runtime";
-import type { Capability, AgentSandbox } from "@agentrun/runtime";
+} from "@agentkernel/runtime";
+import type { Capability, AgentSandbox } from "@agentkernel/runtime";
 ```
 
 An adapter must implement:
@@ -429,7 +429,7 @@ idle → loaded → running → stopped
 ### Registering an adapter
 
 ```typescript
-import { defaultAdapterRegistry } from "@agentrun/runtime";
+import { defaultAdapterRegistry } from "@agentkernel/runtime";
 import { MyAdapter } from "./my-adapter.js";
 
 defaultAdapterRegistry.register("my-framework", () => new MyAdapter());
@@ -438,7 +438,7 @@ defaultAdapterRegistry.register("my-framework", () => new MyAdapter());
 Once registered, users can run agents with:
 
 ```bash
-agentrun run config.yaml --adapter my-framework
+agentkernel run config.yaml --adapter my-framework
 ```
 
 ### Sandbox integration

@@ -8,7 +8,7 @@ export function TopPanel() {
       {/* Left — wordmark */}
       <div className="flex items-center gap-2">
         <span className="font-mono font-bold text-xs text-ctp-blue tracking-wider">
-          AgentRun
+          AgentKernel
         </span>
       </div>
 

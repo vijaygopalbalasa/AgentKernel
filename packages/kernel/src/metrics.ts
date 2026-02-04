@@ -459,7 +459,7 @@ export function resetMetricsRegistry(): void {
 // ─── BUILT-IN METRICS ────────────────────────────────────────
 
 /**
- * Standard metrics for AgentRun.
+ * Standard metrics for AgentKernel.
  */
 /** Standard metrics return type */
 export interface StandardMetrics {

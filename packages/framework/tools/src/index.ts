@@ -1,4 +1,4 @@
-// @agentrun/tools — Tool System with MCP Support (Layer 4: Framework)
+// @agentkernel/tools — Tool System with MCP Support (Layer 4: Framework)
 // Connect agents to tools via Model Context Protocol
 
 // ─── Types ──────────────────────────────────────────────────

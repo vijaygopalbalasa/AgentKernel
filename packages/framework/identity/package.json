@@ -1,15 +1,15 @@
 {
-  "name": "@agentrun/identity",
+  "name": "@agentkernel/identity",
   "version": "0.1.0",
   "type": "module",
-  "description": "Agent identity management for AgentRun — Agent Cards, DID, registration",
+  "description": "Agent identity management for AgentKernel — Agent Cards, DID, registration",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/kernel": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/kernel": "workspace:*",
     "zod": "^3.25.0"
   },
   "scripts": {

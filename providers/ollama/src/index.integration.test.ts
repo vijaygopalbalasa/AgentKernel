@@ -1,6 +1,6 @@
 // Real Ollama Integration Tests
 // Requires: Ollama running locally with at least one model pulled
-// Run with: pnpm --filter @agentrun/provider-ollama test:integration
+// Run with: pnpm --filter @agentkernel/provider-ollama test:integration
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { createOllamaProvider, listOllamaModels } from "./index.js";

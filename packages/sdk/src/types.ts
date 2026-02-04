@@ -1,4 +1,4 @@
-// @agentrun/sdk — Core types for the AgentClient API
+// @agentkernel/sdk — Core types for the AgentClient API
 // These types provide a clean, typed interface for agent developers.
 
 // ─── LLM ───────────────────────────────────────────────────

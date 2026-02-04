@@ -1,14 +1,14 @@
 # First 5 Minutes
 
-The fastest way to see AgentRun working.
+The fastest way to see AgentKernel working.
 
 ---
 
 ## Option A: Run a single agent (fastest)
 
 ```bash
-git clone https://github.com/vijaygopalbalasa/AgentRun.git
-cd AgentRun
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
+cd AgentKernel
 pnpm install
 pnpm build
 ```
@@ -16,7 +16,7 @@ pnpm build
 Create a file called `my-agent.ts`:
 
 ```typescript
-import { defineAgent } from "@agentrun/sdk";
+import { defineAgent } from "@agentkernel/sdk";
 
 export default defineAgent({
   manifest: {
@@ -34,19 +34,19 @@ export default defineAgent({
 Validate it (standalone mode uses `tsx` under the hood for TypeScript files — it's included as a dev dependency):
 
 ```bash
-pnpm -C apps/cli exec agentrun run my-agent.ts --standalone
+pnpm -C apps/cli exec agentkernel run my-agent.ts --standalone
 ```
 
 Or validate a built agent directly:
 
 ```bash
-pnpm -C apps/cli exec agentrun run agents/assistant/dist/index.js --standalone
+pnpm -C apps/cli exec agentkernel run agents/assistant/dist/index.js --standalone
 ```
 
 You should see:
 
 ```
-AgentRun
+AgentKernel
 ────────────────────────────────────
   ✓ Agent loaded        My Agent v0.1.0
   ✓ Sandbox active      4 default capabilities
@@ -63,7 +63,7 @@ AgentRun
 To run it against a live gateway, start the gateway first (see Option B), then:
 
 ```bash
-pnpm -C apps/cli exec agentrun run my-agent.ts
+pnpm -C apps/cli exec agentkernel run my-agent.ts
 ```
 
 ---
@@ -71,11 +71,11 @@ pnpm -C apps/cli exec agentrun run my-agent.ts
 ## Option B: Full stack with Docker
 
 ```bash
-git clone https://github.com/vijaygopalbalasa/AgentRun.git
-cd AgentRun
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
+cd AgentKernel
 pnpm install
 pnpm -C apps/cli build
-pnpm -C apps/cli exec agentrun init
+pnpm -C apps/cli exec agentkernel init
 ```
 
 Edit `.env` — set **at least one** provider key:
@@ -102,13 +102,13 @@ Services:
 curl http://localhost:18801/health
 
 # Chat with an LLM
-pnpm -C apps/cli exec agentrun chat "Hello" --token <GATEWAY_AUTH_TOKEN>
+pnpm -C apps/cli exec agentkernel chat "Hello" --token <GATEWAY_AUTH_TOKEN>
 
 # List running agents
-pnpm -C apps/cli exec agentrun agents --token <GATEWAY_AUTH_TOKEN>
+pnpm -C apps/cli exec agentkernel agents --token <GATEWAY_AUTH_TOKEN>
 
 # Run diagnostics
-pnpm -C apps/cli exec agentrun doctor --docker --infra
+pnpm -C apps/cli exec agentkernel doctor --docker --infra
 ```
 
 ---
@@ -118,16 +118,16 @@ pnpm -C apps/cli exec agentrun doctor --docker --infra
 If you have an OpenClaw config file:
 
 ```bash
-pnpm -C apps/cli exec agentrun run openclaw.yaml --adapter openclaw
+pnpm -C apps/cli exec agentkernel run openclaw.yaml --adapter openclaw
 ```
 
-AgentRun wraps the OpenClaw agent in a sandbox, maps its skills to capabilities, and enforces permissions.
+AgentKernel wraps the OpenClaw agent in a sandbox, maps its skills to capabilities, and enforces permissions.
 
 ---
 
 ## What's next?
 
-- **Build your own agent**: `agentrun new-agent my-bot --template chat` — see [DEVELOPER.md](DEVELOPER.md)
-- **Configure the runtime**: Create `agentrun.config.ts` — see [USAGE.md](USAGE.md)
+- **Build your own agent**: `agentkernel new-agent my-bot --template chat` — see [DEVELOPER.md](DEVELOPER.md)
+- **Configure the runtime**: Create `agentkernel.config.ts` — see [USAGE.md](USAGE.md)
 - **Add LLM providers**: See [PROVIDERS.md](PROVIDERS.md)
 - **Production hardening**: See [INSTALL.md](INSTALL.md)

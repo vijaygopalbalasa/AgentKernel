@@ -140,7 +140,7 @@ export default function SettingsPage() {
           </h2>
           <div className="space-y-2 text-xs font-mono text-ctp-overlay1">
             <div className="flex justify-between">
-              <span>AgentRun Dashboard</span>
+              <span>AgentKernel Dashboard</span>
               <span className="text-ctp-overlay0">v0.2.0</span>
             </div>
             <div className="flex justify-between">

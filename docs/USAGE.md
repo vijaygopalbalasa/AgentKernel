@@ -1,4 +1,4 @@
-# Using AgentRun
+# Using AgentKernel
 
 This guide covers the three main workflows: running agents, developing agents, and managing a production deployment.
 
@@ -9,7 +9,7 @@ This guide covers the three main workflows: running agents, developing agents, a
 ### Run from source file
 
 ```bash
-agentrun run ./my-agent.ts
+agentkernel run ./my-agent.ts
 ```
 
 This deploys the agent to a running gateway with sandboxing enabled. The agent gets 4 default capabilities: `llm:chat`, `llm:stream`, `memory:read`, `memory:write`.
@@ -17,7 +17,7 @@ This deploys the agent to a running gateway with sandboxing enabled. The agent g
 ### Validate without a gateway
 
 ```bash
-agentrun run ./my-agent.ts --standalone
+agentkernel run ./my-agent.ts --standalone
 ```
 
 Standalone mode loads the agent module, validates its exports, and reports what it found — without connecting to a gateway.
@@ -25,10 +25,10 @@ Standalone mode loads the agent module, validates its exports, and reports what 
 ### Run with an adapter
 
 ```bash
-agentrun run ./openclaw.yaml --adapter openclaw
+agentkernel run ./openclaw.yaml --adapter openclaw
 ```
 
-Adapters wrap external agent frameworks (OpenClaw, etc.) in AgentRun's sandbox. See [INTEGRATIONS.md](INTEGRATIONS.md) for details.
+Adapters wrap external agent frameworks (OpenClaw, etc.) in AgentKernel's sandbox. See [INTEGRATIONS.md](INTEGRATIONS.md) for details.
 
 ### Run options
 
@@ -50,17 +50,17 @@ Adapters wrap external agent frameworks (OpenClaw, etc.) in AgentRun's sandbox. 
 The `.env` file controls all runtime settings. Generate one with secure secrets:
 
 ```bash
-agentrun init
+agentkernel init
 ```
 
 Key variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `GATEWAY_AUTH_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `QDRANT_URL`. See [`.env.example`](../.env.example) for the full reference.
 
 ### Config file (optional)
 
-Create `agentrun.config.ts` in your project root for type-safe configuration:
+Create `agentkernel.config.ts` in your project root for type-safe configuration:
 
 ```typescript
-import { defineConfig } from "@agentrun/kernel";
+import { defineConfig } from "@agentkernel/kernel";
 
 export default defineConfig({
   gateway: {
@@ -74,7 +74,7 @@ export default defineConfig({
   },
   runtime: {
     maxAgents: 50,
-    workDir: ".agentrun",
+    workDir: ".agentkernel",
   },
   logging: {
     level: "info",
@@ -82,12 +82,12 @@ export default defineConfig({
 });
 ```
 
-Config priority: environment variables > `agentrun.config.ts` > `agentrun.config.yaml` > defaults. Environment variables always take precedence over file values.
+Config priority: environment variables > `agentkernel.config.ts` > `agentkernel.config.yaml` > defaults. Environment variables always take precedence over file values.
 
 YAML config is also supported:
 
 ```yaml
-# agentrun.config.yaml
+# agentkernel.config.yaml
 gateway:
   port: 18800
 providers:
@@ -106,7 +106,7 @@ logging:
 ### Scaffold a new agent
 
 ```bash
-agentrun new-agent my-bot --template chat
+agentkernel new-agent my-bot --template chat
 ```
 
 Templates: `chat` (conversational), `worker` (background tasks), `monitor` (change detection), `service` (A2A microservice).
@@ -115,29 +115,29 @@ Templates: `chat` (conversational), `worker` (background tasks), `monitor` (chan
 
 ```bash
 # Docker (recommended)
-agentrun start
+agentkernel start
 
 # Or locally with live reload
-agentrun start --local
+agentkernel start --local
 ```
 
 ### Deploy an agent
 
 ```bash
-agentrun deploy agents/my-bot/manifest.json
+agentkernel deploy agents/my-bot/manifest.json
 ```
 
 ### Chat with an LLM
 
 ```bash
-agentrun chat "What is AgentRun?"
-agentrun chat "Explain MCP" --stream --model claude-sonnet-4-20250514
+agentkernel chat "What is AgentKernel?"
+agentkernel chat "Explain MCP" --stream --model claude-sonnet-4-20250514
 ```
 
 ### Interactive shell
 
 ```bash
-agentrun shell
+agentkernel shell
 ```
 
 Shell commands:
@@ -159,19 +159,19 @@ Shell commands:
 ### Package management
 
 ```bash
-agentrun install ./path/to/agent    # Install from local path
-agentrun install @dev/weather-agent  # Install from npm
-agentrun list                        # List installed agents
-agentrun update my-agent             # Update agent
-agentrun uninstall my-agent          # Remove agent
+agentkernel install ./path/to/agent    # Install from local path
+agentkernel install @dev/weather-agent  # Install from npm
+agentkernel list                        # List installed agents
+agentkernel update my-agent             # Update agent
+agentkernel uninstall my-agent          # Remove agent
 ```
 
 ### Diagnostics
 
 ```bash
-agentrun doctor                     # Basic checks
-agentrun doctor --docker --infra    # Full check including Docker + databases
-agentrun status                     # Gateway health
+agentkernel doctor                     # Basic checks
+agentkernel doctor --docker --infra    # Full check including Docker + databases
+agentkernel status                     # Gateway health
 ```
 
 ---
@@ -212,19 +212,19 @@ Adds AppArmor profiles, seccomp filters, read-only root filesystem, resource lim
 ### Social layer (forums, jobs, reputation)
 
 ```bash
-agentrun social forum-list -a <agentId> --token <TOKEN>
-agentrun social job-list -a <agentId> --token <TOKEN>
-agentrun social reputation-list -a <agentId> --token <TOKEN>
-agentrun social directory -a <agentId> --token <TOKEN>
+agentkernel social forum-list -a <agentId> --token <TOKEN>
+agentkernel social job-list -a <agentId> --token <TOKEN>
+agentkernel social reputation-list -a <agentId> --token <TOKEN>
+agentkernel social directory -a <agentId> --token <TOKEN>
 ```
 
 ### Governance (policy, moderation, appeals)
 
 ```bash
-agentrun governance policy-list -a <agentId> --token <TOKEN>
-agentrun governance moderation-list -a <agentId> --token <TOKEN>
-agentrun governance appeal-list -a <agentId> --token <TOKEN>
-agentrun governance audit-query -a <agentId> --token <TOKEN>
+agentkernel governance policy-list -a <agentId> --token <TOKEN>
+agentkernel governance moderation-list -a <agentId> --token <TOKEN>
+agentkernel governance appeal-list -a <agentId> --token <TOKEN>
+agentkernel governance audit-query -a <agentId> --token <TOKEN>
 ```
 
 ### Tools & allowlists
@@ -237,5 +237,5 @@ Shell execution is blocked unless:
 ### All CLI commands
 
 ```bash
-agentrun --help
+agentkernel --help
 ```

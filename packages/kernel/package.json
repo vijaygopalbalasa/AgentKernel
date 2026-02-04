@@ -1,14 +1,14 @@
 {
-  "name": "@agentrun/kernel",
+  "name": "@agentkernel/kernel",
   "version": "0.1.0",
   "type": "module",
-  "description": "Compute kernel for AgentRun — database, vector store, cache, logging, health checks",
+  "description": "Compute kernel for AgentKernel — database, vector store, cache, logging, health checks",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
     "@qdrant/js-client-rest": "^1.13.0",
     "ioredis": "^5.4.2",
     "pino": "^9.6.0",

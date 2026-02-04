@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/adapter-langgraph",
+  "name": "@agentkernel/adapter-langgraph",
   "version": "0.1.0",
-  "description": "AgentRun adapter for running LangGraph state machines inside a sandboxed runtime",
+  "description": "AgentKernel adapter for running LangGraph state machines inside a sandboxed runtime",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -22,7 +22,7 @@
     }
   },
   "keywords": [
-    "agentrun",
+    "agentkernel",
     "langgraph",
     "langchain",
     "adapter",
@@ -31,7 +31,7 @@
     "state-machine"
   ],
   "dependencies": {
-    "@agentrun/runtime": "workspace:*"
+    "@agentkernel/runtime": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

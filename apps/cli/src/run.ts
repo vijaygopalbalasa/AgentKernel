@@ -1,5 +1,5 @@
-// AgentRun — Run any agent safely
-// Hero command: agentrun run ./my-agent.ts
+// AgentKernel — Run any agent safely
+// Hero command: agentkernel run ./my-agent.ts
 
 import chalk from "chalk";
 import ora from "ora";
@@ -12,7 +12,7 @@ import {
   defaultAdapterRegistry,
   type AgentAdapter,
   type AdapterConfig,
-} from "@agentrun/runtime";
+} from "@agentkernel/runtime";
 
 const SUPPORTED_EXTENSIONS = new Set([".ts", ".js", ".mts", ".mjs"]);
 const ADAPTER_CONFIG_EXTENSIONS = new Set([".yaml", ".yml", ".json"]);
@@ -56,7 +56,7 @@ export async function runAgent(agentPath: string, options: RunOptions): Promise<
   if (!options.adapter && !SUPPORTED_EXTENSIONS.has(ext)) {
     if (ADAPTER_CONFIG_EXTENSIONS.has(ext)) {
       console.error(chalk.red(`\n  Config file detected but no adapter specified.`));
-      console.log(chalk.gray(`  Try: agentrun run ${agentPath} --adapter openclaw`));
+      console.log(chalk.gray(`  Try: agentkernel run ${agentPath} --adapter openclaw`));
       process.exit(1);
     }
     console.error(chalk.red(`\n  Unsupported file type: ${ext}`));
@@ -67,7 +67,7 @@ export async function runAgent(agentPath: string, options: RunOptions): Promise<
   const agentName = basename(resolvedPath, ext);
 
   console.log();
-  console.log(chalk.bold("AgentRun"));
+  console.log(chalk.bold("AgentKernel"));
   console.log(chalk.gray("─".repeat(40)));
 
   if (options.adapter) {
@@ -99,14 +99,14 @@ async function runConnected(
   } catch (error) {
     spinner.fail(chalk.red("Gateway not reachable"));
     console.log();
-    console.log(chalk.gray("  The AgentRun gateway is not running."));
+    console.log(chalk.gray("  The AgentKernel gateway is not running."));
     console.log(chalk.gray("  Start it first:"));
     console.log();
-    console.log(chalk.cyan("    agentrun start"));
+    console.log(chalk.cyan("    agentkernel start"));
     console.log(chalk.gray("    # or: docker compose up -d"));
     console.log();
     console.log(chalk.gray("  Or run in standalone validation mode:"));
-    console.log(chalk.cyan(`    agentrun run ${basename(agentFilePath)} --standalone`));
+    console.log(chalk.cyan(`    agentkernel run ${basename(agentFilePath)} --standalone`));
     console.log();
     process.exit(1);
   }
@@ -246,8 +246,8 @@ async function runStandalone(agentFilePath: string, agentName: string): Promise<
     if (!agent) {
       spinner.fail(chalk.red("Invalid agent module"));
       console.log(chalk.gray("\n  The file must export a handleTask function."));
-      console.log(chalk.gray("  Use defineAgent() from @agentrun/sdk:\n"));
-      console.log(chalk.cyan("    import { defineAgent } from \"@agentrun/sdk\";"));
+      console.log(chalk.gray("  Use defineAgent() from @agentkernel/sdk:\n"));
+      console.log(chalk.cyan("    import { defineAgent } from \"@agentkernel/sdk\";"));
       console.log(chalk.cyan("    export default defineAgent({ ... });"));
       console.log();
       process.exit(1);
@@ -284,8 +284,8 @@ async function runStandalone(agentFilePath: string, agentName: string): Promise<
 
     console.log(chalk.green("  Agent is valid and ready to deploy."));
     console.log(chalk.gray("  To run with a gateway:\n"));
-    console.log(chalk.cyan(`    agentrun start`));
-    console.log(chalk.cyan(`    agentrun run ${basename(agentFilePath)}`));
+    console.log(chalk.cyan(`    agentkernel start`));
+    console.log(chalk.cyan(`    agentkernel run ${basename(agentFilePath)}`));
     console.log();
   } catch (error) {
     spinner.fail(chalk.red("Failed to load agent"));
@@ -315,7 +315,7 @@ async function runWithAdapter(
   if (!adapter) {
     console.error(chalk.red(`\n  Unknown adapter: ${adapterName}`));
     console.log(chalk.gray(`  Available adapters: ${defaultAdapterRegistry.list().join(", ") || "none"}`));
-    console.log(chalk.gray(`  Install an adapter: pnpm add @agentrun/adapter-${adapterName}`));
+    console.log(chalk.gray(`  Install an adapter: pnpm add @agentkernel/adapter-${adapterName}`));
     process.exit(1);
   }
 
@@ -384,7 +384,7 @@ async function runWithAdapter(
 async function registerBuiltinAdapters(): Promise<void> {
   if (!defaultAdapterRegistry.has("openclaw")) {
     try {
-      const mod = await import("@agentrun/adapter-openclaw") as {
+      const mod = await import("@agentkernel/adapter-openclaw") as {
         createOpenClawAdapter: () => AgentAdapter;
       };
       defaultAdapterRegistry.register("openclaw", mod.createOpenClawAdapter);

@@ -1,16 +1,16 @@
 {
-  "name": "@agentrun/memory",
+  "name": "@agentkernel/memory",
   "version": "0.1.0",
   "type": "module",
-  "description": "Memory system for AgentRun — episodic, semantic, procedural memory",
+  "description": "Memory system for AgentKernel — episodic, semantic, procedural memory",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/kernel": "workspace:*",
-    "@agentrun/runtime": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/kernel": "workspace:*",
+    "@agentkernel/runtime": "workspace:*",
     "zod": "^3.25.0"
   },
   "scripts": {

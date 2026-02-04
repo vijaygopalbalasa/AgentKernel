@@ -1,8 +1,8 @@
 // Template: Chat Agent — Conversational agent with LLM + memory
-// This is the default template for agentrun new-agent.
+// This is the default template for agentkernel new-agent.
 
 export function getChatTemplate(slug: string, name: string): { indexTs: string; manifestJson: string; testTs: string } {
-  const indexTs = `import { defineAgent, type AgentContext } from "@agentrun/sdk";
+  const indexTs = `import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 /**
  * ${name} Agent — A conversational agent with LLM and memory.

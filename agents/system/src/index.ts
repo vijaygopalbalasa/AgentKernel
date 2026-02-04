@@ -1,10 +1,10 @@
-// System Agent — Health monitoring and resource management for AgentRun
+// System Agent — Health monitoring and resource management for AgentKernel
 // Provides system-level oversight and diagnostics
 
 import { z } from "zod";
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
-import { createEventBus, type EventBus } from "@agentrun/events";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
+import { createEventBus, type EventBus } from "@agentkernel/events";
 
 // ─── MANIFEST ───────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ export const DEFAULT_MANIFEST: SystemManifest = {
   id: "system",
   name: "System Agent",
   version: "0.1.0",
-  description: "AgentRun system monitor and resource manager",
+  description: "AgentKernel system monitor and resource manager",
   checkInterval: 30000,
   maxMemoryMB: 512,
   maxAgents: 100,
@@ -89,7 +89,7 @@ export interface AgentResourceUsage {
 // ─── SYSTEM AGENT CLASS ─────────────────────────────────────
 
 /**
- * System Agent — Monitors and manages AgentRun resources.
+ * System Agent — Monitors and manages AgentKernel resources.
  *
  * Responsibilities:
  * - Health monitoring of the overall system

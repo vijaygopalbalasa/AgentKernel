@@ -2,7 +2,7 @@
 // Based on cognitive science: episodic, semantic, procedural
 
 import { z } from "zod";
-import type { AgentId } from "@agentrun/runtime";
+import type { AgentId } from "@agentkernel/runtime";
 
 /** Unique identifier for a memory entry */
 export type MemoryId = string;

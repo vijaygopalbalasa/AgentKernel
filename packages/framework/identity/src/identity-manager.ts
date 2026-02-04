@@ -3,8 +3,8 @@
 
 import { randomUUID, createHash } from "crypto";
 import { z } from "zod";
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
 import {
   type AgentCard,
   type AgentCardInput,

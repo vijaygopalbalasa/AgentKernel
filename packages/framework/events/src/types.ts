@@ -1,4 +1,4 @@
-// Event Types — definitions for the AgentRun event system
+// Event Types — definitions for the AgentKernel event system
 // Pub/sub for agent lifecycle, tools, skills, and system events
 
 import { z } from "zod";
@@ -400,7 +400,7 @@ export interface AlertEvent extends BaseEvent {
 // ─── UNION TYPE ────────────────────────────────────────────
 
 /** All event types */
-export type AgentRunEvent =
+export type AgentKernelEvent =
   | AgentLifecycleEvent
   | ToolEvent
   | SkillEvent
@@ -410,7 +410,7 @@ export type AgentRunEvent =
   | AlertEvent;
 
 /** Union schema for all event types (for validation) */
-export const AgentRunEventSchema = z.union([
+export const AgentKernelEventSchema = z.union([
   AgentLifecycleEventSchema,
   ToolEventSchema,
   SkillEventSchema,
@@ -435,11 +435,11 @@ export interface SubscriptionOptions {
   /** Unsubscribe after first event */
   once?: boolean;
   /** Filter function */
-  filter?: (event: AgentRunEvent) => boolean;
+  filter?: (event: AgentKernelEvent) => boolean;
 }
 
 /** Event handler function */
-export type EventHandler = (event: AgentRunEvent) => void | Promise<void>;
+export type EventHandler = (event: AgentKernelEvent) => void | Promise<void>;
 
 /** Event subscription */
 export interface EventSubscription {
@@ -450,7 +450,7 @@ export interface EventSubscription {
   /** Event type pattern (optional) */
   typePattern?: string;
   /** Filter function */
-  filter?: (event: AgentRunEvent) => boolean;
+  filter?: (event: AgentKernelEvent) => boolean;
   /** Handler function */
   handler: EventHandler;
   /** Priority (higher runs first) */
@@ -547,14 +547,14 @@ export interface EventBusStats {
 
 /** Event history entry schema */
 export const EventHistoryEntrySchema = z.object({
-  event: AgentRunEventSchema,
+  event: AgentKernelEventSchema,
   deliveredTo: z.array(z.string()),
   timestamp: z.date(),
 });
 
 /** Event history entry */
 export interface EventHistoryEntry {
-  event: AgentRunEvent;
+  event: AgentKernelEvent;
   deliveredTo: string[];
   timestamp: Date;
 }

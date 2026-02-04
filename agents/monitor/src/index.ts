@@ -1,4 +1,4 @@
-import { defineAgent, sendGatewayTask } from "@agentrun/sdk";
+import { defineAgent, sendGatewayTask } from "@agentkernel/sdk";
 import { createHash } from "node:crypto";
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -224,7 +224,7 @@ const agent = defineAgent({
       await callGateway(context.agentId, {
         type: "store_fact",
         category: "identity",
-        fact: "I am the Monitor Agent (v0.1.0). I track URLs and feeds, detecting content changes and emitting alerts. I run as a persistent autonomous process on AgentRun with scheduled periodic checks.",
+        fact: "I am the Monitor Agent (v0.1.0). I track URLs and feeds, detecting content changes and emitting alerts. I run as a persistent autonomous process on AgentKernel with scheduled periodic checks.",
         tags: ["identity", "monitor"],
         importance: 1.0,
       });
@@ -246,7 +246,7 @@ const agent = defineAgent({
             .join("\n")
         : "\nNo URLs currently being monitored.";
 
-      const systemPrompt = `You are the Monitor Agent running on AgentRun — a secure runtime for AI agents.
+      const systemPrompt = `You are the Monitor Agent running on AgentKernel — a secure runtime for AI agents.
 You track URLs and feeds, detecting content changes and emitting alerts when things change.
 You are NOT a generic chatbot. You are a persistent autonomous process with scheduled checks.
 

@@ -1,8 +1,8 @@
 // A2A Client — sends tasks to other agents
 // Implements the Agent-to-Agent Protocol client side
 
-import { type Result, ok, err } from "@agentrun/shared";
-import { type Logger, createLogger } from "@agentrun/kernel";
+import { type Result, ok, err } from "@agentkernel/shared";
+import { type Logger, createLogger } from "@agentkernel/kernel";
 import { randomBytes } from "crypto";
 import type {
   A2ATask,

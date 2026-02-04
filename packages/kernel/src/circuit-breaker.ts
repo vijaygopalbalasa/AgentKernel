@@ -2,7 +2,7 @@
 // Prevents cascading failures by failing fast when a service is down
 
 import { z } from "zod";
-import { type Result, ok, err } from "@agentrun/shared";
+import { type Result, ok, err } from "@agentkernel/shared";
 import { createLogger } from "./logger.js";
 
 const log = createLogger({ name: "circuit-breaker" });

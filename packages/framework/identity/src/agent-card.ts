@@ -3,7 +3,7 @@
 // Based on: https://a2a-protocol.org/latest/specification/
 
 import { z } from "zod";
-import { type Result, ok, err } from "@agentrun/shared";
+import { type Result, ok, err } from "@agentkernel/shared";
 
 /** Supported authentication schemes */
 export const AuthSchemeSchema = z.enum(["none", "api_key", "oauth2", "jwt", "mtls"]);

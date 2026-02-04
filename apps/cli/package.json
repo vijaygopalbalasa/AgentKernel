@@ -1,14 +1,14 @@
 {
-  "name": "@agentrun/cli",
+  "name": "@agentkernel/cli",
   "version": "0.2.0",
-  "description": "AgentRun CLI — start, stop, shell, deploy, install, chat, and more",
+  "description": "AgentKernel CLI — start, stop, shell, deploy, install, chat, and more",
   "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
   },
   "bin": {
-    "agentrun": "./dist/main.js"
+    "agentkernel": "./dist/main.js"
   },
   "scripts": {
     "build": "tsup src/main.ts src/run.ts src/shell.ts src/package-manager.ts src/templates/index.ts src/templates/chat.ts src/templates/worker.ts src/templates/monitor.ts src/templates/service.ts --format esm",
@@ -16,11 +16,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agentrun/adapter-openclaw": "workspace:*",
-    "@agentrun/kernel": "workspace:*",
-    "@agentrun/runtime": "workspace:*",
-    "@agentrun/sdk": "workspace:*",
-    "@agentrun/shared": "workspace:*",
+    "@agentkernel/adapter-openclaw": "workspace:*",
+    "@agentkernel/kernel": "workspace:*",
+    "@agentkernel/runtime": "workspace:*",
+    "@agentkernel/sdk": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
     "commander": "^13.1.0",
     "chalk": "^5.4.1",
     "ora": "^8.2.0",

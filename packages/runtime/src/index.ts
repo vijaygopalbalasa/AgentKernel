@@ -1,4 +1,4 @@
-// @agentrun/runtime — Agent Runtime (Layer 3)
+// @agentkernel/runtime — Agent Runtime (Layer 3)
 // Handles agent lifecycle, state management, sandboxing, persistence, and health monitoring
 
 // State Machine

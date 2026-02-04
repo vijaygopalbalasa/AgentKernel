@@ -1,4 +1,4 @@
-// Scheduler — Simple job scheduler for AgentRun
+// Scheduler — Simple job scheduler for AgentKernel
 // Provides interval-based recurring jobs with error handling and graceful shutdown
 
 import { z } from "zod";

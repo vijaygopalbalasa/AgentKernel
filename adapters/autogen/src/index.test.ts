@@ -3,9 +3,9 @@ import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AutoGenAdapter, createAutoGenAdapter } from "./index.js";
-import { AgentSandbox } from "@agentrun/runtime";
+import { AgentSandbox } from "@agentkernel/runtime";
 
-const TEST_DIR = join(tmpdir(), "agentrun-autogen-test");
+const TEST_DIR = join(tmpdir(), "agentkernel-autogen-test");
 
 function writeTestConfig(filename: string, content: string): string {
   mkdirSync(TEST_DIR, { recursive: true });

@@ -1,17 +1,17 @@
-# @agentrun/sdk
+# @agentkernel/sdk
 
-The Software Development Kit for building agents on AgentRun.
+The Software Development Kit for building agents on AgentKernel.
 
 ## Installation
 
 ```bash
-pnpm add @agentrun/sdk
+pnpm add @agentkernel/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { defineAgent, type AgentContext } from "@agentrun/sdk";
+import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 const agent = defineAgent({
   manifest: {
@@ -63,10 +63,10 @@ The `context.client` provides these methods:
 Use the CLI to generate agents from templates:
 
 ```bash
-agentrun new-agent my-agent --template chat     # Conversational agent
-agentrun new-agent my-worker --template worker   # Background processor
-agentrun new-agent my-monitor --template monitor # Change detector
-agentrun new-agent my-service --template service # A2A microservice
+agentkernel new-agent my-agent --template chat     # Conversational agent
+agentkernel new-agent my-worker --template worker   # Background processor
+agentkernel new-agent my-monitor --template monitor # Change detector
+agentkernel new-agent my-service --template service # A2A microservice
 ```
 
 ## Full Documentation

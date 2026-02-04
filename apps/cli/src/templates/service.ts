@@ -2,14 +2,14 @@
 // Services are building blocks that other agents use via agent-to-agent communication.
 
 export function getServiceTemplate(slug: string, name: string): { indexTs: string; manifestJson: string; testTs: string } {
-  const indexTs = `import { defineAgent, type AgentContext } from "@agentrun/sdk";
+  const indexTs = `import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 /**
  * ${name} Service — Exposes skills for other agents via A2A.
  *
  * Service agents provide reusable capabilities that other agents
  * can call through the A2A (Agent-to-Agent) protocol. They act as
- * microservices within the AgentRun ecosystem.
+ * microservices within the AgentKernel ecosystem.
  *
  * Other agents call this service with:
  *   await context.client.callAgent("${slug}", { type: "summarize", text: "..." });

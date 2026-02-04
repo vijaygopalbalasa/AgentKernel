@@ -1,4 +1,4 @@
-// @agentrun/identity — Agent Identity System (Layer 4: Framework)
+// @agentkernel/identity — Agent Identity System (Layer 4: Framework)
 // DIDs, Agent Cards (A2A Protocol), registration
 
 // ─── Agent Card (A2A Protocol) ───────────────────────────────

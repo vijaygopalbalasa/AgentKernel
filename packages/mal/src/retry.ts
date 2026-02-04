@@ -1,9 +1,9 @@
 // Retry logic with exponential backoff and jitter
 // Handles transient failures gracefully
 
-import type { Result } from "@agentrun/shared";
-import { err } from "@agentrun/shared";
-import type { Logger } from "@agentrun/kernel";
+import type { Result } from "@agentkernel/shared";
+import { err } from "@agentkernel/shared";
+import type { Logger } from "@agentkernel/kernel";
 
 /** Retry configuration */
 export interface RetryConfig {

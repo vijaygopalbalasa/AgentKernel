@@ -1,4 +1,4 @@
-// @agentrun/adapter-crewai — Run CrewAI crews inside AgentRun's sandboxed runtime
+// @agentkernel/adapter-crewai — Run CrewAI crews inside AgentKernel's sandboxed runtime
 // Models CrewAI's role-based delegation pattern with agents, tasks, and process types.
 
 import { readFileSync, existsSync } from "node:fs";
@@ -9,8 +9,8 @@ import type {
   AdapterMessage,
   AdapterResponse,
   AdapterState,
-} from "@agentrun/runtime";
-import type { Capability, AgentSandbox } from "@agentrun/runtime";
+} from "@agentkernel/runtime";
+import type { Capability, AgentSandbox } from "@agentkernel/runtime";
 
 // ─── CrewAI Configuration Types ──────────────────────────────
 
@@ -49,7 +49,7 @@ interface CrewConfig {
   raw: Record<string, unknown>;
 }
 
-/** Maps CrewAI tool names to AgentRun capabilities. */
+/** Maps CrewAI tool names to AgentKernel capabilities. */
 const TOOL_CAPABILITY_MAP: Record<string, Capability[]> = {
   // Search tools
   "SerperDevTool": ["network:http"],
@@ -91,10 +91,10 @@ const TOOL_CAPABILITY_MAP: Record<string, Capability[]> = {
 const BASE_CAPABILITIES: Capability[] = ["llm:chat", "llm:stream"];
 
 /**
- * Adapter that wraps CrewAI crews inside AgentRun's sandboxed runtime.
+ * Adapter that wraps CrewAI crews inside AgentKernel's sandboxed runtime.
  *
  * Reads a CrewAI crew configuration (agents with roles/goals, tasks, process type),
- * maps tools to AgentRun capabilities, and enforces sandbox permissions before
+ * maps tools to AgentKernel capabilities, and enforces sandbox permissions before
  * allowing tool execution and agent delegation.
  */
 export class CrewAIAdapter implements AgentAdapter {

@@ -2,7 +2,7 @@
 // Monitors check URLs, APIs, files, etc. on a schedule and alert on changes.
 
 export function getMonitorTemplate(slug: string, name: string): { indexTs: string; manifestJson: string; testTs: string } {
-  const indexTs = `import { defineAgent, type AgentContext } from "@agentrun/sdk";
+  const indexTs = `import { defineAgent, type AgentContext } from "@agentkernel/sdk";
 
 /**
  * ${name} Monitor — Watches resources and reports changes.

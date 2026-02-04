@@ -3,14 +3,14 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import type { ValidateFunction } from "ajv";
-import { createLogger, type Database } from "@agentrun/kernel";
-import { type ModelRouter } from "@agentrun/mal";
-import { ok, err, type Result } from "@agentrun/shared";
-import { createEventBus, type EventBus } from "@agentrun/events";
-import { MemoryManager } from "@agentrun/memory";
-import { createCapabilityManager } from "@agentrun/permissions";
-import { createToolRegistry } from "@agentrun/tools";
-import type { JobRunner } from "@agentrun/runtime";
+import { createLogger, type Database } from "@agentkernel/kernel";
+import { type ModelRouter } from "@agentkernel/mal";
+import { ok, err, type Result } from "@agentkernel/shared";
+import { createEventBus, type EventBus } from "@agentkernel/events";
+import { MemoryManager } from "@agentkernel/memory";
+import { createCapabilityManager } from "@agentkernel/permissions";
+import { createToolRegistry } from "@agentkernel/tools";
+import type { JobRunner } from "@agentkernel/runtime";
 import {
   type AgentEntry,
   type A2ATaskEntry,

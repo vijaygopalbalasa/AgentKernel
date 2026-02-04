@@ -1,4 +1,4 @@
-// @agentrun/permissions — Capability-based Security (Layer 4: Framework)
+// @agentkernel/permissions — Capability-based Security (Layer 4: Framework)
 // OWASP 2026 compliant permission system
 
 // ─── Types ──────────────────────────────────────────────────

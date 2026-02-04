@@ -1,15 +1,15 @@
 {
-  "name": "@agentrun/runtime",
+  "name": "@agentkernel/runtime",
   "version": "0.1.0",
   "type": "module",
-  "description": "Agent runtime for AgentRun — lifecycle, sandboxing, scheduling, state machines",
+  "description": "Agent runtime for AgentKernel — lifecycle, sandboxing, scheduling, state machines",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/kernel": "workspace:*"
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/kernel": "workspace:*"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",

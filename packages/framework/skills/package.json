@@ -1,17 +1,17 @@
 {
-  "name": "@agentrun/skills",
+  "name": "@agentkernel/skills",
   "version": "0.1.0",
   "type": "module",
-  "description": "Installable skills system for AgentRun",
+  "description": "Installable skills system for AgentKernel",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
   "dependencies": {
-    "@agentrun/shared": "workspace:*",
-    "@agentrun/kernel": "workspace:*",
-    "@agentrun/tools": "workspace:*",
-    "@agentrun/permissions": "workspace:*",
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/kernel": "workspace:*",
+    "@agentkernel/tools": "workspace:*",
+    "@agentkernel/permissions": "workspace:*",
     "semver": "^7.6.3",
     "zod": "^3.25.0"
   },

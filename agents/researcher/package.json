@@ -1,7 +1,7 @@
 {
-  "name": "@agentrun/agent-researcher",
+  "name": "@agentkernel/agent-researcher",
   "version": "0.1.0",
-  "description": "Research and information-gathering agent for AgentRun",
+  "description": "Research and information-gathering agent for AgentKernel",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -12,7 +12,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@agentrun/sdk": "workspace:*"
+    "@agentkernel/sdk": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

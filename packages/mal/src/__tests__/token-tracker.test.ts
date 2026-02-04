@@ -6,7 +6,7 @@ import {
   type TokenTracker,
   type TokenUsage,
 } from "../token-tracker.js";
-import type { ChatResponse } from "@agentrun/shared";
+import type { ChatResponse } from "@agentkernel/shared";
 
 describe("Token Tracker", () => {
   let tracker: TokenTracker;
