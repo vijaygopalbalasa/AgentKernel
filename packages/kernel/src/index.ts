@@ -1,4 +1,4 @@
-// @agent-os/kernel — Compute Kernel (Layer 1)
+// @agentrun/kernel — Compute Kernel (Layer 1)
 // The foundation layer providing: configuration, logging, database,
 // vector storage, event bus, health checks, and graceful shutdown
 
@@ -15,6 +15,8 @@ export {
   RuntimeConfigSchema,
   getConfig,
   loadConfig,
+  loadConfigAsync,
+  defineConfig,
   createConfigManager,
   type Config,
   type DatabaseConfig,
@@ -257,6 +259,7 @@ export {
   type MetricValue,
   type MetricDefinition,
   type MetricsConfig,
+  type StandardMetrics,
 } from "./metrics.js";
 
 // Tracing

@@ -1,4 +1,4 @@
-// Agent OS Gateway — The main daemon process
+// AgentRun Gateway — The main daemon process
 // Production quality with Zod validation and Layer 4 integration
 
 import { config as loadEnv } from "dotenv";
@@ -21,24 +21,24 @@ import {
   type Config,
   type Database,
   type VectorStore,
-} from "@agent-os/kernel";
-import { createModelRouter, type ModelRouter, type ProviderAdapter } from "@agent-os/mal";
-import { createAnthropicProvider } from "@agent-os/provider-anthropic";
-import { createOpenAIProvider } from "@agent-os/provider-openai";
-import { createGoogleProvider } from "@agent-os/provider-google";
-import { createOllamaProvider } from "@agent-os/provider-ollama";
-import { createEventBus, type EventBus } from "@agent-os/events";
-import { ok, err, type Result } from "@agent-os/shared";
-import { MemoryManager } from "@agent-os/memory";
-import { createCapabilityManager } from "@agent-os/permissions";
-import { JobRunner } from "@agent-os/runtime";
+} from "@agentrun/kernel";
+import { createModelRouter, type ModelRouter, type ProviderAdapter } from "@agentrun/mal";
+import { createAnthropicProvider } from "@agentrun/provider-anthropic";
+import { createOpenAIProvider } from "@agentrun/provider-openai";
+import { createGoogleProvider } from "@agentrun/provider-google";
+import { createOllamaProvider } from "@agentrun/provider-ollama";
+import { createEventBus, type EventBus } from "@agentrun/events";
+import { ok, err, type Result } from "@agentrun/shared";
+import { MemoryManager } from "@agentrun/memory";
+import { createCapabilityManager } from "@agentrun/permissions";
+import { JobRunner } from "@agentrun/runtime";
 
 import {
   createToolRegistry,
   registerBuiltinTools,
   createMCPClientManager,
   type ToolDefinition,
-} from "@agent-os/tools";
+} from "@agentrun/tools";
 
 import { createWebSocketServer, type WsServer, type MessageHandler } from "./websocket.js";
 import { createHealthServer, type HealthServer } from "./health.js";
@@ -75,28 +75,39 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const log = createLogger({ name: "gateway" });
   const proxyUrl = resolveEgressProxyUrl();
+  const enforceProxy = parseBoolean(process.env.ENFORCE_EGRESS_PROXY, false);
   if (proxyUrl) {
     try {
       setGlobalDispatcher(new ProxyAgent(proxyUrl));
       log.info("Global egress proxy enabled", { proxyUrl });
     } catch (error) {
+      if (enforceProxy) {
+        log.error("ENFORCE_EGRESS_PROXY=true but proxy initialization failed", {
+          proxyUrl,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        process.exit(1);
+      }
       log.warn("Failed to configure global egress proxy", {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  } else if (enforceProxy) {
+    log.error("ENFORCE_EGRESS_PROXY=true but no proxy URL configured");
+    process.exit(1);
   }
   const exporterUrl = process.env.TRACING_EXPORTER_URL?.trim() || undefined;
   const tracer = getTracer({
     enabled: parseBoolean(process.env.TRACING_ENABLED, false),
     exporterUrl,
-    serviceName: "agent-os-gateway",
+    serviceName: "agentrun-gateway",
     sampleRate: Number(process.env.TRACING_SAMPLE_RATE ?? 1),
   });
   if (exporterUrl) {
     tracer.startExport();
   }
 
-  log.info("Agent OS Gateway starting...", {
+  log.info("AgentRun Gateway starting...", {
     port: config.gateway.port,
     host: config.gateway.host,
   });
@@ -279,6 +290,9 @@ async function main(): Promise<void> {
     log.error("GATEWAY_AUTH_TOKEN is required in production");
     process.exit(1);
   }
+  if (!isProduction && !config.gateway.authToken) {
+    log.warn("⚠ GATEWAY_AUTH_TOKEN is not set — any non-empty token will be accepted (dev mode)");
+  }
   if (isProduction && !process.env.INTERNAL_AUTH_TOKEN) {
     log.error("INTERNAL_AUTH_TOKEN is required in production");
     process.exit(1);
@@ -293,6 +307,11 @@ async function main(): Promise<void> {
   }
   if (isProduction && !allowAllCommands && allowedCommands.length === 0) {
     log.warn("ALLOWED_COMMANDS not set; shell tools will be blocked");
+  }
+  // Block production from running with wildcard security bypasses
+  if (isProduction && allowAllPaths && allowAllDomains && parseBoolean(process.env.ALLOW_ALL_COMMANDS, false)) {
+    log.error("Production cannot run with ALLOW_ALL_PATHS, ALLOW_ALL_DOMAINS, and ALLOW_ALL_COMMANDS all enabled — this disables all security controls");
+    process.exit(1);
   }
   validateProductionHardening(log, isProduction);
   const memoryLimitEnv = process.env.MAX_MEMORY_PER_AGENT_MB;
@@ -425,7 +444,7 @@ async function main(): Promise<void> {
         if (requireVectorStore && !vectorStore) return "degraded";
         return "ok";
       })(),
-      version: "0.1.0",
+      version: "0.2.0",
       providers: models,
       agents: agents.size,
       connections: wsServer.getConnectionCount(),
@@ -492,7 +511,7 @@ async function main(): Promise<void> {
     const result = await router.route({
       model: "claude-3-haiku-20240307",
       messages: [
-        { role: "system", content: "You are an agent running on Agent OS. Respond in one sentence." },
+        { role: "system", content: "You are an agent running on AgentRun. Respond in one sentence." },
         { role: "user", content: "Hello! What are you?" },
       ],
       maxTokens: 50,
@@ -508,7 +527,7 @@ async function main(): Promise<void> {
     }
   }
 
-  log.info("Agent OS Gateway ready", {
+  log.info("AgentRun Gateway ready", {
     ws: `ws://${config.gateway.host}:${config.gateway.port}`,
     health: `http://${config.gateway.host}:${healthPort}/health`,
   });
@@ -517,13 +536,17 @@ async function main(): Promise<void> {
   const shutdown = async (): Promise<void> => {
     log.info("Gateway shutting down...");
 
-    // Publish shutdown event
+    // Publish shutdown event (non-blocking, best-effort)
     eventBus.publish({
       id: createEventId(),
       channel: "system",
       type: "system.shutdown",
       timestamp: new Date(),
       data: { message: "signal" },
+    }).catch((error) => {
+      log.warn("Failed to publish shutdown event", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     });
 
     await wsServer.drain(15000);
@@ -551,6 +574,15 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error("Gateway failed to start:", error);
+  // Use structured logger if available, fallback to stderr JSON for log aggregation
+  const errorInfo = {
+    level: "fatal",
+    component: "gateway",
+    msg: "Gateway failed to start",
+    error: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+    time: new Date().toISOString(),
+  };
+  process.stderr.write(JSON.stringify(errorInfo) + "\n");
   process.exit(1);
 });

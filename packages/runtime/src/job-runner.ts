@@ -7,8 +7,8 @@ import {
   type JobEventListener,
   type SchedulerConfig,
   createScheduler,
-} from "@agent-os/kernel";
-import { createLogger } from "@agent-os/kernel";
+} from "@agentrun/kernel";
+import { createLogger } from "@agentrun/kernel";
 
 export interface JobRunnerConfig extends SchedulerConfig {
   lockProvider?: JobLockProvider;

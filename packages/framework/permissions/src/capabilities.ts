@@ -2,9 +2,9 @@
 // Implements least privilege and least agency principles
 
 import { z } from "zod";
-import { randomUUID, createHmac } from "crypto";
-import { type Result, ok, err } from "@agent-os/shared";
-import { type Logger, createLogger } from "@agent-os/kernel";
+import { randomUUID, createHmac, timingSafeEqual } from "crypto";
+import { type Result, ok, err } from "@agentrun/shared";
+import { type Logger, createLogger } from "@agentrun/kernel";
 
 // ─── ZOD SCHEMAS ────────────────────────────────────────────
 
@@ -509,10 +509,15 @@ export class CapabilityManager {
     return createHmac("sha256", this.secret).update(payload).digest("hex");
   }
 
-  /** Verify token signature */
+  /** Verify token signature using constant-time comparison */
   private verifySignature(token: CapabilityToken): boolean {
     const expectedSig = this.signToken({ ...token, signature: "" });
-    return token.signature === expectedSig;
+    const expectedBuf = Buffer.from(expectedSig, "hex");
+    const actualBuf = Buffer.from(token.signature, "hex");
+    if (expectedBuf.length !== actualBuf.length) {
+      return false;
+    }
+    return timingSafeEqual(expectedBuf, actualBuf);
   }
 
   /** Check if permissions are a subset of another */

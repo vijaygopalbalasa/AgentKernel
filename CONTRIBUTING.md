@@ -1,6 +1,6 @@
-# Contributing to Agent OS
+# Contributing to AgentRun
 
-Thank you for your interest in contributing to Agent OS.
+Thank you for your interest in contributing to AgentRun.
 
 ## Getting Started
 
@@ -13,8 +13,8 @@ Thank you for your interest in contributing to Agent OS.
 ### Setup
 
 ```bash
-git clone https://github.com/vijaygopalbalasa/AgentOS.git
-cd AgentOS
+git clone https://github.com/vijaygopalbalasa/AgentRun.git
+cd AgentRun
 pnpm install
 pnpm build
 pnpm test
@@ -23,7 +23,7 @@ pnpm test
 ### Project Structure
 
 ```
-agent-os/
+agentrun/
   packages/
     kernel/          # L1: Database, cache, logging, health
     mal/             # L2: LLM provider routing & abstraction
@@ -57,7 +57,7 @@ agent-os/
 - Strict mode always enabled
 - **No `any` type** — ever
 - **No default exports** — always named exports
-- **No `console.log`** in library code — use the structured logger from `@agent-os/kernel`
+- **No `console.log`** in library code — use the structured logger from `@agentrun/kernel`
 - Use `interface` over `type` for public APIs
 - Use Zod for runtime validation of all external inputs
 - Error handling: use `Result` types, not bare try/catch for business logic

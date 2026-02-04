@@ -1,4 +1,4 @@
-// Scheduler — Simple job scheduler for Agent OS
+// Scheduler — Simple job scheduler for AgentRun
 // Provides interval-based recurring jobs with error handling and graceful shutdown
 
 import { z } from "zod";
@@ -267,6 +267,14 @@ export class Scheduler {
 
     if (config.runImmediately) {
       this.executeJob(job).then(() => {
+        if (this.running && job.status !== "paused" && job.status !== "stopped") {
+          scheduleExecution();
+        }
+      }).catch((error) => {
+        this.log.error("Initial job execution failed", {
+          jobId: job.config.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
         if (this.running && job.status !== "paused" && job.status !== "stopped") {
           scheduleExecution();
         }

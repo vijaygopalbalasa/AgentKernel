@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Agent OS CLI — Command line interface for Agent OS
+// AgentRun CLI — Command line interface for AgentRun
 // Production quality with proper error handling
 
 import { Command } from "commander";
@@ -16,16 +16,19 @@ import {
   waitForVectorStore,
   createEventBus,
   waitForEventBus,
-} from "@agent-os/kernel";
-import { signManifest, AgentManifestSchema } from "@agent-os/sdk";
+} from "@agentrun/kernel";
+import { signManifest, AgentManifestSchema } from "@agentrun/sdk";
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createServer } from "node:net";
-import { type Result, ok, err } from "@agent-os/shared";
+import { type Result, ok, err } from "@agentrun/shared";
+import { startShell } from "./shell.js";
+import { installAgent, uninstallAgent, listAgents, updateAgent } from "./package-manager.js";
+import { runAgent } from "./run.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 18800;
 
@@ -56,8 +59,8 @@ const program = new Command();
 loadEnvFile(resolve(process.cwd(), ".env"));
 
 program
-  .name("agent-os")
-  .description("Agent OS — Android for AI Agents")
+  .name("agentrun")
+  .description("AgentRun — Run any AI agent safely")
   .version(VERSION);
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -130,11 +133,33 @@ function parseMajorVersion(version: string): number {
   return Number(match[1]);
 }
 
+// ─── Run Command (Hero) ─────────────────────────────────────
+
+program
+  .command("run <agent>")
+  .description("Run an agent file safely with sandboxing")
+  .option("--standalone", "Validate agent locally without a running gateway")
+  .option("--host <host>", "Gateway host", DEFAULT_HOST)
+  .option("-p, --port <port>", "Gateway port", String(DEFAULT_PORT))
+  .option("-t, --token <token>", "Auth token")
+  .option("--adapter <adapter>", "Agent adapter (e.g. openclaw)")
+  .option("--policy <policy>", "Security policy: strict or permissive", "strict")
+  .action(async (agentPath, options) => {
+    await runAgent(agentPath, {
+      host: options.host,
+      port: options.port,
+      token: options.token,
+      adapter: options.adapter,
+      policy: options.policy,
+      standalone: options.standalone,
+    });
+  });
+
 // ─── Status Command ─────────────────────────────────────────
 
 program
   .command("status")
-  .description("Show Agent OS status")
+  .description("Show AgentRun status")
   .option("-h, --host <host>", "Gateway host", DEFAULT_HOST)
   .option("-p, --port <port>", "Gateway port", String(DEFAULT_PORT))
   .action(async (options) => {
@@ -162,7 +187,7 @@ program
       spinner.succeed(chalk.green("Gateway is running"));
 
       console.log();
-      console.log(chalk.bold("Agent OS Status"));
+      console.log(chalk.bold("AgentRun Status"));
       console.log("─".repeat(40));
       console.log(`${chalk.gray("Status:")}    ${getStatusColor(health.status)}`);
       console.log(`${chalk.gray("Version:")}   ${health.version}`);
@@ -181,17 +206,86 @@ program
 
 program
   .command("start")
-  .description("Start the Agent OS gateway")
+  .description("Start the AgentRun gateway")
   .option("-d, --detach", "Run in background")
+  .option("--docker", "Start via docker compose (default if docker-compose.yml exists)")
+  .option("--local", "Start the gateway process directly")
   .action(async (options) => {
-    const spinner = ora("Starting Agent OS gateway...").start();
+    const spinner = ora("Starting AgentRun gateway...").start();
 
-    console.log();
-    console.log(chalk.yellow("Note: Start command requires running from the monorepo root."));
-    console.log(chalk.gray("  Run: pnpm --filter @agent-os/gateway dev"));
-    console.log();
+    try {
+      const { exec, spawn } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execAsync = promisify(exec);
 
-    spinner.info("Use the command above to start the gateway");
+      const hasComposeFile = existsSync(resolve(process.cwd(), "docker-compose.yml"));
+      const useDocker = options.docker || (!options.local && hasComposeFile);
+
+      if (useDocker) {
+        // Docker Compose mode
+        spinner.text = "Starting AgentRun via Docker Compose...";
+
+        if (!hasComposeFile) {
+          spinner.fail(chalk.red("No docker-compose.yml found. Use --local for direct start."));
+          process.exit(1);
+        }
+
+        try {
+          await execAsync("docker info", { timeout: 5000 });
+        } catch {
+          spinner.fail(chalk.red("Docker is not running. Start Docker first or use --local."));
+          process.exit(1);
+        }
+
+        if (options.detach) {
+          await execAsync("docker compose up -d --build", { cwd: process.cwd(), timeout: 300000 });
+          spinner.succeed(chalk.green("AgentRun started in background"));
+          console.log(chalk.gray("  Dashboard: http://localhost:3000"));
+          console.log(chalk.gray("  Gateway:   ws://localhost:18800"));
+          console.log(chalk.gray("  Health:    http://localhost:18801/health"));
+          console.log(chalk.gray("  Stop:      agentrun stop"));
+        } else {
+          spinner.succeed("Launching AgentRun...");
+          const child = spawn("docker", ["compose", "up", "--build"], {
+            cwd: process.cwd(),
+            stdio: "inherit",
+          });
+          child.on("exit", (code) => process.exit(code ?? 0));
+        }
+      } else {
+        // Direct local mode — start gateway via node
+        spinner.text = "Starting AgentRun gateway locally...";
+
+        const gatewayEntry = resolve(process.cwd(), "apps/gateway/dist/main.js");
+        const gatewayDev = resolve(process.cwd(), "apps/gateway/src/main.ts");
+
+        if (existsSync(gatewayEntry)) {
+          spinner.succeed("Launching gateway...");
+          const child = spawn("node", [gatewayEntry], {
+            cwd: process.cwd(),
+            stdio: "inherit",
+            env: { ...process.env },
+          });
+          child.on("exit", (code) => process.exit(code ?? 0));
+        } else if (existsSync(gatewayDev)) {
+          spinner.succeed("Launching gateway (dev mode via tsx)...");
+          const child = spawn("npx", ["tsx", gatewayDev], {
+            cwd: process.cwd(),
+            stdio: "inherit",
+            env: { ...process.env },
+          });
+          child.on("exit", (code) => process.exit(code ?? 0));
+        } else {
+          spinner.fail(chalk.red("Gateway entry point not found."));
+          console.log(chalk.gray("  Build first: pnpm build"));
+          console.log(chalk.gray("  Or use:      agentrun start --docker"));
+          process.exit(1);
+        }
+      }
+    } catch (error) {
+      spinner.fail(chalk.red(`Start failed: ${error instanceof Error ? error.message : String(error)}`));
+      process.exit(1);
+    }
   });
 
 // ─── Init Command ───────────────────────────────────────────
@@ -258,7 +352,7 @@ program
 
 program
   .command("doctor")
-  .description("Check local AgentOS setup for common issues")
+  .description("Check local AgentRun setup for common issues")
   .option("--env <path>", "Env file path", ".env")
   .option("--docker", "Check Docker availability")
   .option("--ports", "Check gateway ports", true)
@@ -401,7 +495,7 @@ program
       }
 
       spinner.stop();
-      console.log(chalk.bold("AgentOS Doctor"));
+      console.log(chalk.bold("AgentRun Doctor"));
       console.log("─".repeat(40));
       for (const result of results) {
         const status = result.ok ? chalk.green("✓") : chalk.red("✗");
@@ -417,7 +511,7 @@ program
           console.log(chalk.gray("  - Set a provider key in .env or run Ollama locally"));
         }
         if (failures.some((r) => r.label.includes("GATEWAY_AUTH_TOKEN"))) {
-          console.log(chalk.gray("  - Run: agent-os init --update-missing"));
+          console.log(chalk.gray("  - Run: agentrun init --update-missing"));
         }
         process.exitCode = 1;
       }
@@ -431,7 +525,7 @@ program
 
 program
   .command("new-agent <name>")
-  .description("Scaffold a new Agent OS agent")
+  .description("Scaffold a new AgentRun agent")
   .option("-d, --dir <dir>", "Target directory", "agents")
   .action(async (name, options) => {
     const spinner = ora(`Scaffolding agent ${name}...`).start();
@@ -445,7 +539,7 @@ program
       await fs.mkdir(path.join(agentDir, "src"), { recursive: true });
 
       const packageJson = {
-        name: `@agent-os/agent-${slug}`,
+        name: `@agentrun/agent-${slug}`,
         version: "0.1.0",
         type: "module",
         scripts: {
@@ -453,7 +547,7 @@ program
           dev: "tsx watch src/index.ts",
         },
         dependencies: {
-          "@agent-os/sdk": "workspace:*",
+          "@agentrun/sdk": "workspace:*",
         },
         devDependencies: {
           tsup: "^8.5.1",
@@ -462,14 +556,14 @@ program
         },
       };
 
-      const agentSource = `import { defineAgent } from "@agent-os/sdk";
+      const agentSource = `import { defineAgent } from "@agentrun/sdk";
 
 const agent = defineAgent({
   manifest: {
     id: "${slug}",
     name: "${name} Agent",
     version: "0.1.0",
-    description: "Custom Agent OS agent generated by the CLI",
+    description: "Custom AgentRun agent generated by the CLI",
     requiredSkills: [],
     permissions: ["memory.read", "memory.write"],
   },
@@ -1246,6 +1340,84 @@ governance
     });
   });
 
+// ─── Stop Command ──────────────────────────────────────────
+
+program
+  .command("stop")
+  .description("Stop the AgentRun gateway")
+  .action(async () => {
+    const spinner = ora("Stopping AgentRun...").start();
+
+    try {
+      const { exec } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execAsync = promisify(exec);
+
+      const hasComposeFile = existsSync(resolve(process.cwd(), "docker-compose.yml"));
+      if (hasComposeFile) {
+        await execAsync("docker compose down", { cwd: process.cwd(), timeout: 60000 });
+        spinner.succeed(chalk.green("AgentRun stopped"));
+      } else {
+        spinner.info("No docker-compose.yml found. If the gateway was started locally, terminate the process directly (Ctrl+C).");
+      }
+    } catch (error) {
+      spinner.fail(chalk.red(`Stop failed: ${error instanceof Error ? error.message : String(error)}`));
+      process.exit(1);
+    }
+  });
+
+// ─── Shell Command ─────────────────────────────────────────
+
+program
+  .command("shell")
+  .description("Open an interactive AgentRun shell (REPL)")
+  .option("-h, --host <host>", "Gateway host", DEFAULT_HOST)
+  .option("-p, --port <port>", "Gateway port", String(DEFAULT_PORT))
+  .option("-t, --token <token>", "Auth token")
+  .action(async (options) => {
+    await startShell({
+      host: options.host,
+      port: options.port,
+      token: options.token ?? process.env.GATEWAY_AUTH_TOKEN,
+    });
+  });
+
+// ─── Install Command ───────────────────────────────────────
+
+program
+  .command("install <source>")
+  .description("Install an agent from local path, npm package, or git repo")
+  .action(async (source) => {
+    await installAgent(source);
+  });
+
+// ─── Uninstall Command ─────────────────────────────────────
+
+program
+  .command("uninstall <agentId>")
+  .description("Uninstall an installed agent")
+  .action(async (agentId) => {
+    await uninstallAgent(agentId);
+  });
+
+// ─── List Installed Command ─────────────────────────────────
+
+program
+  .command("list")
+  .description("List installed agents")
+  .action(() => {
+    listAgents();
+  });
+
+// ─── Update Command ────────────────────────────────────────
+
+program
+  .command("update <agentId>")
+  .description("Update an installed agent from its original source")
+  .action(async (agentId) => {
+    await updateAgent(agentId);
+  });
+
 // ─── Sign Command ──────────────────────────────────────────
 
 program
@@ -1320,11 +1492,11 @@ program
   .command("version")
   .description("Show version information")
   .action(() => {
-    console.log(chalk.bold("Agent OS CLI"));
+    console.log(chalk.bold("AgentRun CLI"));
     console.log(`Version: ${VERSION}`);
     console.log();
-    console.log("Agent OS — Android for AI Agents");
-    console.log("https://github.com/vijaygopalbalasa/AgentOS");
+    console.log("AgentRun — Run any AI agent safely");
+    console.log("https://github.com/vijaygopalbalasa/AgentRun");
   });
 
 // ─── Helper Functions ───────────────────────────────────────

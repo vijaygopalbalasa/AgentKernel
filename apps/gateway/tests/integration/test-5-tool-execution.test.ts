@@ -23,9 +23,9 @@ import { agentManifestWithTools } from "../fixtures/agent-manifests.js";
 describe("Integration Test 5: Tool Execution", () => {
   let gatewayProcess: ChildProcess | null = null;
   let connection: TestConnection | null = null;
-  const testDir = "/tmp/agent-os-test";
-  const allowedDir = "/tmp/agent-os-test/allowed";
-  const disallowedDir = "/tmp/agent-os-test/disallowed";
+  const testDir = "/tmp/agentrun-test";
+  const allowedDir = "/tmp/agentrun-test/allowed";
+  const disallowedDir = "/tmp/agentrun-test/disallowed";
 
   beforeAll(async () => {
     const infra = await checkTestInfrastructure();

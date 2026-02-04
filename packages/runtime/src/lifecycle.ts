@@ -184,6 +184,7 @@ export class AgentLifecycleManager {
   private sandboxRegistry: SandboxRegistry;
   private isShuttingDown = false;
   private autoCheckpointTimers: Map<AgentId, NodeJS.Timeout> = new Map();
+  private spawnTimestamps: number[] = [];
 
   constructor(options: LifecycleManagerOptions = {}) {
     this.options = {
@@ -236,6 +237,14 @@ export class AgentLifecycleManager {
     if (this.agents.size >= this.options.maxAgents) {
       throw new Error(`Agent limit reached (${this.options.maxAgents})`);
     }
+
+    // Rate limit spawning: max 10 spawns per minute
+    const spawnNow = Date.now();
+    this.spawnTimestamps = this.spawnTimestamps.filter((t) => spawnNow - t < 60_000);
+    if (this.spawnTimestamps.length >= 10) {
+      throw new Error("Agent spawn rate limit exceeded (max 10 per minute)");
+    }
+    this.spawnTimestamps.push(spawnNow);
 
     // Generate unique ID
     const id = randomUUID();

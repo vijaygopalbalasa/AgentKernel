@@ -1,10 +1,11 @@
-// WebSocket Server for Agent OS Gateway
+// WebSocket Server for AgentRun Gateway
 // Handles real-time communication with Zod validation
 
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
-import { type Logger, createLogger } from "@agent-os/kernel";
-import { type Result, ok, err } from "@agent-os/shared";
+import { timingSafeEqual, createHash } from "crypto";
+import { type Logger, createLogger } from "@agentrun/kernel";
+import { type Result, ok, err } from "@agentrun/shared";
 import {
   type WsMessage,
   type WsServerConfig,
@@ -164,6 +165,7 @@ export function createWebSocketServer(
     ws.on("close", () => {
       connections.delete(clientId);
       messageWindows.delete(clientId);
+      authAttempts.delete(clientId);
       authAttempts.delete(`auth_${clientId}`);
       log.info("Client disconnected", { clientId });
     });
@@ -319,7 +321,7 @@ async function handleMessage(
           return ok({ type: "auth_failed", id: message.id, payload: { message: "Token required" } });
         }
 
-        if (payloadResult.data.token === config.authToken) {
+        if (safeTokenCompare(payloadResult.data.token, config.authToken)) {
           client.authenticated = true;
           authAttempts.delete(authKey);
           log.info("Client authenticated", { clientId: client.id });
@@ -341,7 +343,7 @@ async function handleMessage(
         return ok({ type: "auth_failed", id: message.id, payload: { message: "Token required" } });
       }
 
-      if (payloadResult.data.token === config.authToken) {
+      if (safeTokenCompare(payloadResult.data.token, config.authToken)) {
         client.authenticated = true;
         return ok({ type: "auth_success", id: message.id, payload: { clientId: client.id } });
       } else {
@@ -362,6 +364,15 @@ async function handleMessage(
 
       return err(new GatewayError(`Unknown message type: ${message.type}`, "VALIDATION_ERROR", client.id));
   }
+}
+
+/** Constant-time token comparison to prevent timing attacks.
+ *  Uses SHA-256 hashing so both buffers are always 32 bytes,
+ *  eliminating any length-leakage side channel. */
+function safeTokenCompare(provided: string, expected: string): boolean {
+  const providedHash = createHash("sha256").update(provided).digest();
+  const expectedHash = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(providedHash, expectedHash);
 }
 
 /** Send message to WebSocket client */

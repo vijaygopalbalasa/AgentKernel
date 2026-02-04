@@ -5,7 +5,7 @@ export const sampleSkillManifest = {
   name: "Test Skill",
   version: "0.1.0",
   description: "A sample skill for testing",
-  author: "Agent OS Team",
+  author: "AgentRun Team",
   permissions: ["tools.execute"],
   tools: [
     {
@@ -68,6 +68,6 @@ export const mcpServerConfig = {
   },
   memory: {
     command: "npx",
-    args: ["-y", "@agent-os/mcp-memory"],
+    args: ["-y", "@agentrun/mcp-memory"],
   },
 };

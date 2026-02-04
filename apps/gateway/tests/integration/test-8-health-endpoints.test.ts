@@ -255,7 +255,7 @@ describe("Integration Test 8: Health Endpoints", () => {
         endpoints: string[];
       };
 
-      expect(info.name).toBe("Agent OS Gateway");
+      expect(info.name).toBe("AgentRun Gateway");
       expect(info.version).toBeDefined();
       expect(Array.isArray(info.endpoints)).toBe(true);
       expect(info.endpoints).toContain("/health");

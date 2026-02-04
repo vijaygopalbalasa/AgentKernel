@@ -1,0 +1,10 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/agents/page": "/agents",
+  "/chat/page": "/chat",
+  "/memory/page": "/memory",
+  "/page": "/",
+  "/security/page": "/security",
+  "/settings/page": "/settings"
+}

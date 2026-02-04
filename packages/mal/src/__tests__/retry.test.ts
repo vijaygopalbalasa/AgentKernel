@@ -7,7 +7,7 @@ import {
   DEFAULT_RETRY_CONFIG,
   type RetryConfig,
 } from "../retry.js";
-import { ok, err } from "@agent-os/shared";
+import { ok, err } from "@agentrun/shared";
 
 describe("Retry Module", () => {
   beforeEach(() => {

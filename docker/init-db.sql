@@ -1,4 +1,4 @@
--- Agent OS Database Initialization (minimal)
+-- AgentRun Database Initialization (minimal)
 -- Schema is managed by kernel migrations on gateway startup.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

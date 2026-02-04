@@ -1,18 +1,18 @@
 {
-  "name": "@agent-os/agent-researcher",
+  "name": "@agentrun/agent-researcher",
   "version": "0.1.0",
-  "description": "Research and information-gathering agent for AgentOS",
+  "description": "Research and information-gathering agent for AgentRun",
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@agent-os/sdk": "workspace:*"
+    "@agentrun/sdk": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

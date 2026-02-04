@@ -1,68 +1,133 @@
-# First 5 Minutes (Self-hosted)
+# First 5 Minutes
 
-This is the fastest way to see AgentOS working end‑to‑end.
+The fastest way to see AgentRun working.
 
 ---
 
-## 1) Configure
+## Option A: Run a single agent (fastest)
 
 ```bash
-agent-os init
+git clone https://github.com/vijaygopalbalasa/AgentRun.git
+cd AgentRun
+pnpm install
+pnpm build
 ```
 
-Or manually:
+Create a file called `my-agent.ts`:
+
+```typescript
+import { defineAgent } from "@agentrun/sdk";
+
+export default defineAgent({
+  manifest: {
+    id: "my-agent",
+    name: "My Agent",
+    version: "0.1.0",
+    permissions: ["memory.read", "memory.write"],
+  },
+  async handleTask(task) {
+    return { message: `Hello! You said: ${JSON.stringify(task)}` };
+  },
+});
+```
+
+Validate it (standalone mode uses `tsx` under the hood for TypeScript files — it's included as a dev dependency):
+
 ```bash
-cp .env.example .env
+pnpm -C apps/cli exec agentrun run my-agent.ts --standalone
 ```
 
-Set **at least one** provider key in `.env`:
+Or validate a built agent directly:
+
+```bash
+pnpm -C apps/cli exec agentrun run agents/assistant/dist/index.js --standalone
+```
+
+You should see:
+
+```
+AgentRun
+────────────────────────────────────
+  ✓ Agent loaded        My Agent v0.1.0
+  ✓ Sandbox active      4 default capabilities
+  ✓ Mode                standalone (validation)
+
+  Exported handlers:
+  ✓ handleTask
+  – initialize
+  – terminate
+
+  Agent is valid and ready to deploy.
+```
+
+To run it against a live gateway, start the gateway first (see Option B), then:
+
+```bash
+pnpm -C apps/cli exec agentrun run my-agent.ts
+```
+
+---
+
+## Option B: Full stack with Docker
+
+```bash
+git clone https://github.com/vijaygopalbalasa/AgentRun.git
+cd AgentRun
+pnpm install
+pnpm -C apps/cli build
+pnpm -C apps/cli exec agentrun init
+```
+
+Edit `.env` — set **at least one** provider key:
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` or `GOOGLE_AI_API_KEY`
 - Or use local models via `OLLAMA_URL=http://localhost:11434`
 
-Also set required secrets:
-- `GATEWAY_AUTH_TOKEN`
-- `INTERNAL_AUTH_TOKEN`
-- `PERMISSION_SECRET`
-
----
-
-## 2) Start AgentOS
+Start everything:
 
 ```bash
 docker compose up --build
 ```
 
-Production hardening (AppArmor + egress proxy for network tools):
+Services:
+- **Dashboard**: `http://localhost:3000`
+- **Gateway WebSocket**: `ws://localhost:18800`
+- **Health**: `http://localhost:18801/health`
+
+---
+
+## Verify
+
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+# Check health
+curl http://localhost:18801/health
+
+# Chat with an LLM
+pnpm -C apps/cli exec agentrun chat "Hello" --token <GATEWAY_AUTH_TOKEN>
+
+# List running agents
+pnpm -C apps/cli exec agentrun agents --token <GATEWAY_AUTH_TOKEN>
+
+# Run diagnostics
+pnpm -C apps/cli exec agentrun doctor --docker --infra
 ```
 
 ---
 
-## 3) Open the dashboard
+## 4) Run an OpenClaw agent (optional)
 
-- `http://localhost:3000`
-- Paste `GATEWAY_AUTH_TOKEN` when prompted.
+If you have an OpenClaw config file:
 
-The default agents (Research, Monitor, Coder) are auto‑deployed by the bootstrap container.
+```bash
+pnpm -C apps/cli exec agentrun run openclaw.yaml --adapter openclaw
+```
+
+AgentRun wraps the OpenClaw agent in a sandbox, maps its skills to capabilities, and enforces permissions.
 
 ---
 
-## 4) Verify the system
+## What's next?
 
-```bash
-pnpm -C apps/cli build
-pnpm -C apps/cli exec agent-os status
-pnpm -C apps/cli exec agent-os agents --token <GATEWAY_AUTH_TOKEN>
-pnpm -C apps/cli exec agent-os doctor --docker --infra
-```
-
----
-
-## 5) Send a first message
-
-```bash
-pnpm -C apps/cli exec agent-os chat "hello" --model <model-id> --token <GATEWAY_AUTH_TOKEN>
-```
-
-Pick any model supported by your configured provider.
+- **Build your own agent**: `agentrun new-agent my-bot --template chat` — see [DEVELOPER.md](DEVELOPER.md)
+- **Configure the runtime**: Create `agentrun.config.ts` — see [USAGE.md](USAGE.md)
+- **Add LLM providers**: See [PROVIDERS.md](PROVIDERS.md)
+- **Production hardening**: See [INSTALL.md](INSTALL.md)

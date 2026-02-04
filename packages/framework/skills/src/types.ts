@@ -2,7 +2,7 @@
 // Skills are like Android apps — modular, installable, and sandboxed
 
 import { z } from "zod";
-import type { ToolDefinition, ToolHandler } from "@agent-os/tools";
+import type { ToolDefinition, ToolHandler } from "@agentrun/tools";
 
 // ─── ERROR CLASS ────────────────────────────────────────────
 
@@ -72,8 +72,8 @@ export interface SkillManifest {
   tools?: ToolDefinition[];
   /** Entry point (for dynamic loading) */
   entryPoint?: string;
-  /** Minimum Agent OS version required */
-  minAgentOSVersion?: string;
+  /** Minimum AgentRun version required */
+  minAgentRunVersion?: string;
   /** Icon URL */
   icon?: string;
 }
@@ -227,7 +227,7 @@ export const SkillManifestSchema = z.object({
   permissions: z.array(SkillPermissionSchema).optional(),
   dependencies: z.array(SkillDependencySchema).optional(),
   entryPoint: z.string().optional(),
-  minAgentOSVersion: z.string().optional(),
+  minAgentRunVersion: z.string().optional(),
   icon: z.string().optional(),
 });
 

@@ -1,19 +1,30 @@
 {
-  "name": "@agent-os/dashboard",
+  "name": "@agentrun/dashboard",
   "version": "0.1.0",
-  "description": "AgentOS web dashboard for monitoring agents, memory, and events",
+  "description": "AgentRun web dashboard — OS experience for monitoring agents, memory, chat, and governance",
   "license": "MIT",
   "private": true,
-  "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "vite --host",
-    "build": "vite build",
-    "preview": "vite preview --host"
+    "dev": "next dev --port 3000",
+    "build": "tsx scripts/generate-manifests.ts && next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "16.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "vite": "^5.4.14"
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^4.1.18",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
   }
 }

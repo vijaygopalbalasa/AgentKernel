@@ -257,7 +257,12 @@ export function createEventBus(config: RedisConfig, logger?: Logger): EventBus {
 
       if (!channelHandlers.has(fullChannel)) {
         channelHandlers.set(fullChannel, new Set());
-        await subClient.subscribe(fullChannel);
+        try {
+          await subClient.subscribe(fullChannel);
+        } catch (error) {
+          channelHandlers.delete(fullChannel);
+          throw error;
+        }
       }
 
       channelHandlers.get(fullChannel)!.add(handler as EventHandler);

@@ -1,17 +1,67 @@
-// @agent-os/provider-google — Google Gemini adapter for the Model Abstraction Layer
-// Updated for @google/genai SDK (2026)
+// @agentrun/provider-google — Google Gemini adapter for the Model Abstraction Layer
+// Uses @google/genai SDK (unified Google AI SDK)
 
 import { GoogleGenAI } from "@google/genai";
-import type { ChatRequest, ChatResponse, Result } from "@agent-os/shared";
-import { ok, err } from "@agent-os/shared";
-import type { ProviderAdapter } from "@agent-os/mal";
+import type { ChatRequest, ChatResponse, Result } from "@agentrun/shared";
+import { ok, err } from "@agentrun/shared";
+import type { StreamingProviderAdapter, StreamChunk } from "@agentrun/mal";
+
+/** Google-specific error with HTTP status for classification */
+interface GoogleApiError extends Error {
+  status?: number;
+  code?: number;
+  errorDetails?: unknown[];
+}
+
+/** Classify Google API errors for intelligent retry decisions */
+function classifyError(error: unknown): Error {
+  if (!(error instanceof Error)) {
+    return new Error(String(error));
+  }
+
+  const apiError = error as GoogleApiError;
+  const status = apiError.status ?? apiError.code;
+
+  if (status === 429) {
+    const classified = new Error(`Google AI rate limit exceeded: ${error.message}`);
+    classified.name = "RateLimitError";
+    return classified;
+  }
+  if (status === 401 || status === 403) {
+    const classified = new Error(`Google AI authentication failed: ${error.message}`);
+    classified.name = "AuthenticationError";
+    return classified;
+  }
+  if (status !== undefined && status >= 500) {
+    const classified = new Error(`Google AI server error (${status}): ${error.message}`);
+    classified.name = "ServerError";
+    return classified;
+  }
+  if (error.name === "AbortError" || error.message.includes("timeout") || error.message.includes("DEADLINE_EXCEEDED")) {
+    const classified = new Error(`Google AI request timeout: ${error.message}`);
+    classified.name = "TimeoutError";
+    return classified;
+  }
+  if (error.message.includes("ECONNREFUSED") || error.message.includes("ENOTFOUND") || error.message.includes("fetch failed")) {
+    const classified = new Error(`Google AI network error: ${error.message}`);
+    classified.name = "NetworkError";
+    return classified;
+  }
+
+  return error;
+}
+
+/** Resolve model name - ensure it has the gemini- prefix */
+function resolveModelName(model: string): string {
+  return model.startsWith("gemini-") ? model : `gemini-${model}`;
+}
 
 /**
  * Creates a Google Gemini provider adapter for the Model Abstraction Layer.
- * Supports Gemini 2.0, 2.5, and other Google AI models.
- * Uses the new unified @google/genai SDK.
+ * Supports Gemini 2.5, 2.0, and 1.5 models.
+ * Implements full streaming via the @google/genai SDK's generateContentStream() API.
  */
-export function createGoogleProvider(apiKey?: string): ProviderAdapter {
+export function createGoogleProvider(apiKey?: string): StreamingProviderAdapter {
   const key = apiKey ?? process.env.GOOGLE_AI_API_KEY;
 
   return {
@@ -33,6 +83,8 @@ export function createGoogleProvider(apiKey?: string): ProviderAdapter {
       "gemini-1.5-flash-8b",
     ],
 
+    supportsStreaming: true,
+
     async isAvailable(): Promise<boolean> {
       return !!key;
     },
@@ -43,20 +95,19 @@ export function createGoogleProvider(apiKey?: string): ProviderAdapter {
       try {
         const ai = new GoogleGenAI({ apiKey: key });
 
-        // Build contents array for the new SDK
-        // The new SDK expects contents as an array of parts or a string
+        // Build contents array for the SDK
         const systemMsg = request.messages.find((m) => m.role === "system");
         const chatMsgs = request.messages.filter((m) => m.role !== "system");
 
-        // Build the contents array
         const contents = chatMsgs.map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
+          role: m.role === "assistant" ? ("model" as const) : ("user" as const),
           parts: [{ text: m.content }],
         }));
 
-        // Use generateContent for single-turn or multi-turn conversations
+        const resolvedModel = resolveModelName(request.model);
+
         const response = await ai.models.generateContent({
-          model: request.model.startsWith("gemini-") ? request.model : `gemini-${request.model}`,
+          model: resolvedModel,
           contents: contents,
           config: {
             maxOutputTokens: request.maxTokens ?? 4096,
@@ -80,7 +131,72 @@ export function createGoogleProvider(apiKey?: string): ProviderAdapter {
           },
         });
       } catch (error) {
-        return err(error instanceof Error ? error : new Error(String(error)));
+        return err(classifyError(error));
+      }
+    },
+
+    async *chatStream(request: ChatRequest): AsyncGenerator<StreamChunk> {
+      if (!key) throw new Error("GOOGLE_AI_API_KEY not set");
+
+      const ai = new GoogleGenAI({ apiKey: key });
+
+      const systemMsg = request.messages.find((m) => m.role === "system");
+      const chatMsgs = request.messages.filter((m) => m.role !== "system");
+
+      const contents = chatMsgs.map((m) => ({
+        role: m.role === "assistant" ? ("model" as const) : ("user" as const),
+        parts: [{ text: m.content }],
+      }));
+
+      const resolvedModel = resolveModelName(request.model);
+
+      try {
+        const streamResponse = await ai.models.generateContentStream({
+          model: resolvedModel,
+          contents: contents,
+          config: {
+            maxOutputTokens: request.maxTokens ?? 4096,
+            temperature: request.temperature ?? 1,
+            systemInstruction: systemMsg ? systemMsg.content : undefined,
+          },
+        });
+
+        let lastUsage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined;
+
+        for await (const chunk of streamResponse) {
+          // Track usage from the last chunk
+          if (chunk.usageMetadata) {
+            lastUsage = chunk.usageMetadata;
+          }
+
+          const candidate = chunk.candidates?.[0];
+          const text = candidate?.content?.parts?.[0]?.text;
+
+          if (text) {
+            yield {
+              content: text,
+              isComplete: false,
+              model: request.model,
+            };
+          }
+
+          // Check for finish
+          if (candidate?.finishReason && candidate.finishReason !== "FINISH_REASON_UNSPECIFIED") {
+            yield {
+              content: "",
+              isComplete: true,
+              model: request.model,
+              tokens: lastUsage?.candidatesTokenCount,
+              metadata: {
+                finishReason: candidate.finishReason,
+                inputTokens: lastUsage?.promptTokenCount,
+                outputTokens: lastUsage?.candidatesTokenCount,
+              },
+            };
+          }
+        }
+      } catch (error) {
+        throw classifyError(error);
       }
     },
   };

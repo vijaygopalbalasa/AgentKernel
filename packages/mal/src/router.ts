@@ -1,9 +1,9 @@
 // Model router with retry, rate limiting, failover, and token tracking
 // Distributes requests across providers intelligently
 
-import type { ChatRequest, ChatResponse, Result } from "@agent-os/shared";
-import { ok, err } from "@agent-os/shared";
-import { createLogger, type Logger, getCircuitBreaker, getMetricsRegistry } from "@agent-os/kernel";
+import type { ChatRequest, ChatResponse, Result } from "@agentrun/shared";
+import { ok, err } from "@agentrun/shared";
+import { createLogger, type Logger, getCircuitBreaker, getMetricsRegistry } from "@agentrun/kernel";
 import type { ProviderAdapter, ModelRouter, ProviderStatus, StreamingProviderAdapter } from "./index.js";
 import { createRateLimiterRegistry, type RateLimiterRegistry } from "./rate-limiter.js";
 import { withRetry, type RetryConfig, DEFAULT_RETRY_CONFIG } from "./retry.js";
@@ -76,6 +76,9 @@ export interface ExtendedModelRouter extends ModelRouter {
 
   /** Get provider by ID */
   getProvider(providerId: string): ProviderAdapter | undefined;
+
+  /** Clean up resources (health check intervals) */
+  dispose(): void;
 }
 
 /** Default router configuration */
@@ -243,7 +246,14 @@ export function createModelRouter(config?: RouterConfig): ExtendedModelRouter {
         operation: async () => {
           const streamingProvider = provider as StreamingProviderAdapter;
           if (request.stream && streamingProvider.supportsStreaming && streamingProvider.chatStream) {
-            const stream = streamingProvider.chatStream(request);
+            // Timeout on stream initialization to prevent hanging on connection setup
+            const streamPromise = Promise.resolve(streamingProvider.chatStream(request));
+            const stream = await Promise.race([
+              streamPromise,
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Stream initialization timed out")), 30_000)
+              ),
+            ]);
             const collected = await collectStream(stream, log);
             if (!collected.ok) {
               return err(collected.error);
@@ -610,6 +620,14 @@ export function createModelRouter(config?: RouterConfig): ExtendedModelRouter {
       period?: "hourly" | "daily" | "weekly" | "monthly"
     ): void {
       tokenTracker.setBudget(limitUsd, period);
+    },
+
+    dispose(): void {
+      if (healthCheckInterval) {
+        clearInterval(healthCheckInterval);
+        healthCheckInterval = null;
+        log.debug("Router health checks stopped");
+      }
     },
   };
 

@@ -2,7 +2,7 @@
 // Production quality with runtime validation
 
 import { z } from "zod";
-import { A2ASkillSchema } from "@agent-os/communication";
+import { A2ASkillSchema } from "@agentrun/communication";
 
 // ─── ERROR CLASS ────────────────────────────────────────────
 

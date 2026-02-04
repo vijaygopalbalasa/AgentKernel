@@ -2,8 +2,8 @@
 // Like an app store for skills
 
 import { z } from "zod";
-import { type Result, ok, err } from "@agent-os/shared";
-import { type Logger, createLogger } from "@agent-os/kernel";
+import { type Result, ok, err } from "@agentrun/shared";
+import { type Logger, createLogger } from "@agentrun/kernel";
 import type {
   SkillId,
   SkillManifest,

@@ -1,7 +1,7 @@
 {
-  "name": "@agent-os/shared",
+  "name": "@agentrun/shared",
   "version": "0.1.0",
-  "description": "Shared types, utilities, and constants for Agent OS",
+  "description": "Shared types, utilities, and constants for AgentRun",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,18 +13,18 @@
     }
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   },
   "files": ["dist", "README.md"],
-  "keywords": ["agent-os", "shared", "types"],
+  "keywords": ["agentrun", "shared", "types"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/vijaygopalbalasa/AgentOS",
+    "url": "https://github.com/vijaygopalbalasa/AgentRun",
     "directory": "packages/shared"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "test:watch": "vitest watch"
   }
 }

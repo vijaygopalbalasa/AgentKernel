@@ -3,14 +3,14 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import type { ValidateFunction } from "ajv";
-import { createLogger, type Database } from "@agent-os/kernel";
-import { type ModelRouter } from "@agent-os/mal";
-import { ok, err, type Result } from "@agent-os/shared";
-import { createEventBus, type EventBus } from "@agent-os/events";
-import { MemoryManager } from "@agent-os/memory";
-import { createCapabilityManager } from "@agent-os/permissions";
-import { createToolRegistry } from "@agent-os/tools";
-import type { JobRunner } from "@agent-os/runtime";
+import { createLogger, type Database } from "@agentrun/kernel";
+import { type ModelRouter } from "@agentrun/mal";
+import { ok, err, type Result } from "@agentrun/shared";
+import { createEventBus, type EventBus } from "@agentrun/events";
+import { MemoryManager } from "@agentrun/memory";
+import { createCapabilityManager } from "@agentrun/permissions";
+import { createToolRegistry } from "@agentrun/tools";
+import type { JobRunner } from "@agentrun/runtime";
 import {
   type AgentEntry,
   type A2ATaskEntry,
@@ -720,7 +720,19 @@ export async function handleClientMessage(
           });
         }
 
-        const shouldUseWorker = agent.entryPoint && agent.worker && !isInternal;
+        // Gateway-level infrastructure tasks are always handled by the gateway,
+        // even when the agent has a running worker process. These tasks need
+        // direct access to the memory store, database, and other gateway services.
+        const GATEWAY_HANDLED_TASKS = new Set([
+          "store_fact", "record_episode", "search_memory",
+          "list_tools", "invoke_tool", "emit_event",
+          "agent_directory", "a2a_delegate",
+        ]);
+        const taskType = typeof (task as { type?: unknown }).type === "string"
+          ? (task as { type: string }).type
+          : "";
+        const isGatewayTask = GATEWAY_HANDLED_TASKS.has(taskType);
+        const shouldUseWorker = agent.entryPoint && agent.worker && !isInternal && !isGatewayTask;
         const result = shouldUseWorker
           ? await sendTaskToWorker(agent, task, timeoutMs, log)
           : await handleAgentTask(task, agent, {

@@ -1,6 +1,6 @@
 # LLM Providers
 
-AgentOS uses the Model Abstraction Layer (MAL) to route requests across providers.
+AgentRun uses the Model Abstraction Layer (MAL) to route requests across providers.
 Providers are enabled by setting the right environment variables.
 
 ---

@@ -2,8 +2,8 @@
 
 import { createHash, randomUUID } from "crypto";
 import { WebSocket } from "ws";
-import { createLogger, type Config, type Database } from "@agent-os/kernel";
-import type { JobLockProvider } from "@agent-os/runtime";
+import { createLogger, type Config, type Database } from "@agentrun/kernel";
+import type { JobLockProvider } from "@agentrun/runtime";
 import type { WsMessage } from "./types.js";
 import { type ClusterCoordinator, type ReservedConnection } from "./gateway-types.js";
 import { parseBoolean } from "./security-utils.js";

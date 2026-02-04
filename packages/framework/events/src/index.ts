@@ -1,4 +1,4 @@
-// @agent-os/events — Event System (Layer 4: Framework)
+// @agentrun/events — Event System (Layer 4: Framework)
 // Pub/sub for agent lifecycle, tools, skills, and system events
 
 // Error class
@@ -16,7 +16,7 @@ export type {
   CommunicationEvent,
   SystemEvent,
   AlertEvent,
-  AgentOSEvent,
+  AgentRunEvent,
   EventSubscription,
   EventHandler,
   SubscriptionOptions,
@@ -62,7 +62,7 @@ export {
   AlertEventDataSchema,
   AlertEventSchema,
   // Union schema
-  AgentOSEventSchema,
+  AgentRunEventSchema,
   // Subscription schemas
   SubscriptionOptionsSchema,
   // Webhook schemas

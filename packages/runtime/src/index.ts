@@ -1,4 +1,4 @@
-// @agent-os/runtime — Agent Runtime (Layer 3)
+// @agentrun/runtime — Agent Runtime (Layer 3)
 // Handles agent lifecycle, state management, sandboxing, persistence, and health monitoring
 
 // State Machine
@@ -122,3 +122,15 @@ export {
   type JobLockProvider,
   type JobLockRelease,
 } from "./job-runner.js";
+
+// Adapter (Universal Agent Framework Bridge)
+export {
+  AdapterRegistry,
+  defaultAdapterRegistry,
+  type AgentAdapter,
+  type AdapterConfig,
+  type AdapterMessage,
+  type AdapterResponse,
+  type AdapterState,
+  type AdapterFactory,
+} from "./adapter.js";

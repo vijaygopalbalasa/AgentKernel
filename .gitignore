@@ -43,4 +43,16 @@ coverage/
 # Bootstrap artifacts (one-time scaffolding)
 bootstrap.sh
 *.tar.gz
-agent-os.jsx
+agentrun.jsx
+
+# Playwright MCP screenshots
+.playwright-mcp/
+
+# Dashboard build output
+apps/dashboard/out/
+
+# pnpm store
+.pnpm-store/
+
+# Screenshot artifacts
+*.png

@@ -1,9 +1,9 @@
 // Streaming support for LLM responses
 // Provides unified streaming interface across providers
 
-import type { Result } from "@agent-os/shared";
-import { ok, err } from "@agent-os/shared";
-import type { Logger } from "@agent-os/kernel";
+import type { Result } from "@agentrun/shared";
+import { ok, err } from "@agentrun/shared";
+import type { Logger } from "@agentrun/kernel";
 
 /** Streaming chunk from an LLM */
 export interface StreamChunk {
@@ -237,7 +237,8 @@ export async function* transformProviderStream<T>(
 /** Buffer stream chunks for batch processing */
 export function createChunkBuffer(
   flushIntervalMs: number = 100,
-  onFlush: (chunks: StreamChunk[]) => void | Promise<void>
+  onFlush: (chunks: StreamChunk[]) => void | Promise<void>,
+  maxBufferSize: number = 10000
 ): {
   add: (chunk: StreamChunk) => void;
   flush: () => Promise<void>;
@@ -260,6 +261,10 @@ export function createChunkBuffer(
 
   return {
     add(chunk: StreamChunk): void {
+      if (buffer.length >= maxBufferSize) {
+        // Drop oldest chunks to prevent memory exhaustion
+        buffer = buffer.slice(Math.floor(maxBufferSize / 2));
+      }
       buffer.push(chunk);
     },
 

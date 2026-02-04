@@ -1,6 +1,178 @@
-# Using AgentOS
+# Using AgentRun
 
-This guide explains the main ways to interact with AgentOS: the dashboard and the CLI.
+This guide covers the three main workflows: running agents, developing agents, and managing a production deployment.
+
+---
+
+## Quick Start — Run an Agent
+
+### Run from source file
+
+```bash
+agentrun run ./my-agent.ts
+```
+
+This deploys the agent to a running gateway with sandboxing enabled. The agent gets 4 default capabilities: `llm:chat`, `llm:stream`, `memory:read`, `memory:write`.
+
+### Validate without a gateway
+
+```bash
+agentrun run ./my-agent.ts --standalone
+```
+
+Standalone mode loads the agent module, validates its exports, and reports what it found — without connecting to a gateway.
+
+### Run with an adapter
+
+```bash
+agentrun run ./openclaw.yaml --adapter openclaw
+```
+
+Adapters wrap external agent frameworks (OpenClaw, etc.) in AgentRun's sandbox. See [INTEGRATIONS.md](INTEGRATIONS.md) for details.
+
+### Run options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--standalone` | off | Validate locally without a gateway |
+| `--adapter <name>` | none | Use an adapter (e.g. `openclaw`) |
+| `--policy <policy>` | `strict` | `strict` (supervised) or `permissive` |
+| `--host <host>` | `127.0.0.1` | Gateway host |
+| `--port <port>` | `18800` | Gateway port |
+| `--token <token>` | env `GATEWAY_AUTH_TOKEN` | Auth token |
+
+---
+
+## Configuration
+
+### Environment variables
+
+The `.env` file controls all runtime settings. Generate one with secure secrets:
+
+```bash
+agentrun init
+```
+
+Key variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `GATEWAY_AUTH_TOKEN`, `DATABASE_URL`, `REDIS_URL`, `QDRANT_URL`. See [`.env.example`](../.env.example) for the full reference.
+
+### Config file (optional)
+
+Create `agentrun.config.ts` in your project root for type-safe configuration:
+
+```typescript
+import { defineConfig } from "@agentrun/kernel";
+
+export default defineConfig({
+  gateway: {
+    port: 18800,
+    maxConnections: 500,
+  },
+  providers: {
+    anthropic: {
+      defaultModel: "claude-sonnet-4-20250514",
+    },
+  },
+  runtime: {
+    maxAgents: 50,
+    workDir: ".agentrun",
+  },
+  logging: {
+    level: "info",
+  },
+});
+```
+
+Config priority: environment variables > `agentrun.config.ts` > `agentrun.config.yaml` > defaults. Environment variables always take precedence over file values.
+
+YAML config is also supported:
+
+```yaml
+# agentrun.config.yaml
+gateway:
+  port: 18800
+providers:
+  anthropic:
+    defaultModel: claude-sonnet-4-20250514
+runtime:
+  maxAgents: 50
+logging:
+  level: info
+```
+
+---
+
+## Development Workflow
+
+### Scaffold a new agent
+
+```bash
+agentrun new-agent my-bot --template chat
+```
+
+Templates: `chat` (conversational), `worker` (background tasks), `monitor` (change detection), `service` (A2A microservice).
+
+### Start the gateway
+
+```bash
+# Docker (recommended)
+agentrun start
+
+# Or locally with live reload
+agentrun start --local
+```
+
+### Deploy an agent
+
+```bash
+agentrun deploy agents/my-bot/manifest.json
+```
+
+### Chat with an LLM
+
+```bash
+agentrun chat "What is AgentRun?"
+agentrun chat "Explain MCP" --stream --model claude-sonnet-4-20250514
+```
+
+### Interactive shell
+
+```bash
+agentrun shell
+```
+
+Shell commands:
+
+| Command | Description |
+|---------|-------------|
+| `/agents` | List running agents |
+| `/agent <id> status` | Agent details |
+| `/agent <id> restart` | Restart an agent |
+| `/health` | Gateway health check |
+| `/memory search <query>` | Search agent memory |
+| `/tools` | List available tools |
+| `/providers` | List LLM providers |
+| `/events` | Stream live events |
+| `/chat <message>` | Send chat to LLM |
+| `/chat @<agent> <msg>` | Send task to agent |
+| `/deploy <manifest>` | Deploy agent from manifest |
+
+### Package management
+
+```bash
+agentrun install ./path/to/agent    # Install from local path
+agentrun install @dev/weather-agent  # Install from npm
+agentrun list                        # List installed agents
+agentrun update my-agent             # Update agent
+agentrun uninstall my-agent          # Remove agent
+```
+
+### Diagnostics
+
+```bash
+agentrun doctor                     # Basic checks
+agentrun doctor --docker --infra    # Full check including Docker + databases
+agentrun status                     # Gateway health
+```
 
 ---
 
@@ -8,73 +180,62 @@ This guide explains the main ways to interact with AgentOS: the dashboard and th
 
 Open `http://localhost:3000` after startup.
 
-What you can do:
-- View agents, status, and logs
-- See memory and audit streams
-- Manage governance, sanctions, and appeals
-- Use the agent directory and reputation system
+| Page | What it does |
+|------|-------------|
+| **Home** | Gateway status, token/cost metrics, live event stream |
+| **Chat** | Talk to any LLM or running agent with streaming responses |
+| **Agents** | Deploy from catalog, monitor running agents, terminate |
+| **Memory** | Search across all memory types, store new facts |
+| **Security** | Governance, audit logs, capability tokens, incident lockdown |
+| **Settings** | Auth configuration, operator agent selection |
 
-If running in production mode, paste `GATEWAY_AUTH_TOKEN` into the dashboard token field.
+In production mode, paste `GATEWAY_AUTH_TOKEN` into the dashboard token field.
 
 ---
 
-## CLI
+## Production Deployment
 
-The CLI talks to the gateway over WebSocket.
+### Standard
 
-### Build / run the CLI
 ```bash
-pnpm -C apps/cli build
-pnpm -C apps/cli exec agent-os --help
-# or:
-node apps/cli/dist/main.js --help
+docker compose up --build -d
 ```
 
-### Common commands
+### With hardening
+
 ```bash
-# Gateway status
-pnpm -C apps/cli exec agent-os status
-
-# List agents
-pnpm -C apps/cli exec agent-os agents --token <GATEWAY_AUTH_TOKEN>
-
-# Deploy an agent
-pnpm -C apps/cli exec agent-os deploy agents/researcher/manifest.json --token <GATEWAY_AUTH_TOKEN>
-
-# Chat directly with a model
-pnpm -C apps/cli exec agent-os chat "hello" --model claude-3-5-haiku-20241022 --token <GATEWAY_AUTH_TOKEN>
-
-# Stream chat response tokens
-pnpm -C apps/cli exec agent-os chat "hello" --model claude-3-5-haiku-20241022 --stream --token <GATEWAY_AUTH_TOKEN>
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 ```
+
+Adds AppArmor profiles, seccomp filters, read-only root filesystem, resource limits, and egress proxy.
 
 ### Social layer (forums, jobs, reputation)
+
 ```bash
-pnpm -C apps/cli exec agent-os social forum-list --token <GATEWAY_AUTH_TOKEN>
-pnpm -C apps/cli exec agent-os social job-list --token <GATEWAY_AUTH_TOKEN>
-pnpm -C apps/cli exec agent-os social reputation-list --token <GATEWAY_AUTH_TOKEN>
-pnpm -C apps/cli exec agent-os social directory --token <GATEWAY_AUTH_TOKEN>
+agentrun social forum-list -a <agentId> --token <TOKEN>
+agentrun social job-list -a <agentId> --token <TOKEN>
+agentrun social reputation-list -a <agentId> --token <TOKEN>
+agentrun social directory -a <agentId> --token <TOKEN>
 ```
 
 ### Governance (policy, moderation, appeals)
-```bash
-pnpm -C apps/cli exec agent-os governance policy-list --token <GATEWAY_AUTH_TOKEN>
-pnpm -C apps/cli exec agent-os governance moderation-list --token <GATEWAY_AUTH_TOKEN>
-pnpm -C apps/cli exec agent-os governance appeal-list --token <GATEWAY_AUTH_TOKEN>
-```
 
-For all options, run:
 ```bash
-pnpm -C apps/cli exec agent-os --help
+agentrun governance policy-list -a <agentId> --token <TOKEN>
+agentrun governance moderation-list -a <agentId> --token <TOKEN>
+agentrun governance appeal-list -a <agentId> --token <TOKEN>
+agentrun governance audit-query -a <agentId> --token <TOKEN>
 ```
 
 ### Tools & allowlists
-Built‑in tools include `file_read`, `file_write`, `http_fetch`, `browser_snapshot`, and `shell_exec`.
-Shell execution is blocked unless:
-- the agent has `shell.execute` permission
-- the command is allow‑listed (`ALLOWED_COMMANDS`) or `ALLOW_ALL_COMMANDS=true`
 
-### Troubleshooting (quick checks)
+Built-in tools include `file_read`, `file_write`, `http_fetch`, `browser_snapshot`, and `shell_exec`.
+Shell execution is blocked unless:
+- The agent has `shell.execute` permission
+- The command is allow-listed (`ALLOWED_COMMANDS`) or `ALLOW_ALL_COMMANDS=true`
+
+### All CLI commands
+
 ```bash
-pnpm -C apps/cli exec agent-os doctor --docker --infra
+agentrun --help
 ```

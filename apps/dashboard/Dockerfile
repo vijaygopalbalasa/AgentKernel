@@ -6,11 +6,12 @@ COPY . .
 ENV CI=true
 RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @agent-os/dashboard build
+RUN pnpm --filter @agentrun/dashboard build
 
 FROM nginx:1.27-alpine
 
-COPY --from=build /app/apps/dashboard/dist /usr/share/nginx/html
+COPY apps/dashboard/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/dashboard/out /usr/share/nginx/html
 
 EXPOSE 80
 

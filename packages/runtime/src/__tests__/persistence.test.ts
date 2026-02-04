@@ -157,7 +157,7 @@ describe("MemoryPersistenceStorage", () => {
 });
 
 describe("FilePersistenceStorage", () => {
-  const testDir = "/tmp/agent-os-test-persistence";
+  const testDir = "/tmp/agentrun-test-persistence";
   let storage: FilePersistenceStorage;
 
   beforeEach(async () => {

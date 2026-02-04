@@ -4,15 +4,16 @@
 import { z } from "zod";
 import { readFileSync, existsSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 /** Database configuration */
 export const DatabaseConfigSchema = z.object({
   host: z.string().default("localhost"),
   port: z.number().default(5432),
-  database: z.string().default("agent_os"),
-  user: z.string().default("agent_os"),
-  password: z.string().default(""),
+  database: z.string().default("agentdb"),
+  user: z.string().default("agentuser"),
+  password: z.string().default("agentpass"),
   maxConnections: z.number().default(100),
   idleTimeout: z.number().default(30000),
   ssl: z.boolean().default(false),
@@ -106,7 +107,7 @@ export const RuntimeConfigSchema = z.object({
   defaultCpuLimit: z.number().default(1),
   heartbeatInterval: z.number().default(30000),
   shutdownTimeout: z.number().default(10000),
-  workDir: z.string().default(".agent-os"),
+  workDir: z.string().default(".agentrun"),
 });
 
 /** Full configuration schema */
@@ -128,6 +129,11 @@ export type GatewayConfig = z.infer<typeof GatewayConfigSchema>;
 export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type RuntimeConfig = z.infer<typeof RuntimeConfigSchema>;
+
+/** Helper for type-safe configuration in agentrun.config.ts files. */
+export function defineConfig(config: Partial<Config>): Partial<Config> {
+  return config;
+}
 
 /** Environment variable mappings */
 const ENV_MAPPINGS: Record<string, string> = {
@@ -246,6 +252,32 @@ function loadYamlConfig(configPath: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+/** Load configuration from a TypeScript or ESM config file (async). */
+async function loadTsConfig(configPath: string): Promise<Record<string, unknown>> {
+  const absPath = resolve(configPath);
+  if (!existsSync(absPath)) {
+    return {};
+  }
+
+  try {
+    const fileUrl = pathToFileURL(absPath).href;
+    const mod = (await import(fileUrl)) as Record<string, unknown>;
+    const exported = (mod.default ?? mod.config ?? {}) as Record<string, unknown>;
+    if (typeof exported === "object" && exported !== null && !Array.isArray(exported)) {
+      return exported;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+/** Check if a config path uses a TypeScript extension. */
+function isTsConfig(configPath: string): boolean {
+  const ext = configPath.split(".").pop()?.toLowerCase() ?? "";
+  return ext === "ts" || ext === "mts";
 }
 
 /** Resolve an environment value, supporting *_FILE secrets */
@@ -367,10 +399,14 @@ export class ConfigManager {
 
   private findConfigFile(): string {
     const locations = [
-      "agent-os.config.yaml",
-      "agent-os.config.yml",
-      join(process.cwd(), "agent-os.config.yaml"),
-      join(process.cwd(), ".agent-os", "config.yaml"),
+      "agentrun.config.yaml",
+      "agentrun.config.yml",
+      join(process.cwd(), "agentrun.config.yaml"),
+      join(process.cwd(), ".agentrun", "config.yaml"),
+      "agentrun.config.ts",
+      "agentrun.config.mts",
+      join(process.cwd(), "agentrun.config.ts"),
+      join(process.cwd(), ".agentrun", "config.ts"),
     ];
 
     for (const loc of locations) {
@@ -379,10 +415,38 @@ export class ConfigManager {
       }
     }
 
-    return "agent-os.config.yaml";
+    return "agentrun.config.yaml";
+  }
+
+  /** Find config file, preferring TS over YAML for async loading. */
+  private findConfigFileAsync(): string {
+    const locations = [
+      "agentrun.config.ts",
+      "agentrun.config.mts",
+      join(process.cwd(), "agentrun.config.ts"),
+      join(process.cwd(), ".agentrun", "config.ts"),
+      "agentrun.config.yaml",
+      "agentrun.config.yml",
+      join(process.cwd(), "agentrun.config.yaml"),
+      join(process.cwd(), ".agentrun", "config.yaml"),
+    ];
+
+    for (const loc of locations) {
+      if (existsSync(loc)) {
+        return loc;
+      }
+    }
+
+    return "agentrun.config.yaml";
   }
 
   load(overrides: Partial<Config> = {}): Config {
+    if (isTsConfig(this.configPath)) {
+      throw new Error(
+        `TypeScript config file detected (${this.configPath}). ` +
+        `Use loadConfigAsync() or ConfigManager.loadAsync() instead of the synchronous load().`
+      );
+    }
     const yamlConfig = loadYamlConfig(this.configPath);
     const envConfig = loadEnvConfig();
 
@@ -394,6 +458,24 @@ export class ConfigManager {
     const result = ConfigSchema.parse(merged);
     this.config = result;
 
+    return result;
+  }
+
+  /** Load configuration with support for TypeScript config files. */
+  async loadAsync(overrides: Partial<Config> = {}): Promise<Config> {
+    const asyncPath = this.findConfigFileAsync();
+    const fileConfig = isTsConfig(asyncPath)
+      ? await loadTsConfig(asyncPath)
+      : loadYamlConfig(asyncPath);
+    const envConfig = loadEnvConfig();
+
+    const merged = deepMerge(
+      deepMerge(fileConfig, envConfig),
+      overrides as Record<string, unknown>
+    );
+
+    const result = ConfigSchema.parse(merged);
+    this.config = result;
     return result;
   }
 
@@ -443,6 +525,11 @@ export function getConfig(): ConfigManager {
 
 export function loadConfig(overrides: Partial<Config> = {}): Config {
   return getConfig().load(overrides);
+}
+
+/** Load configuration with support for TypeScript config files. */
+export async function loadConfigAsync(overrides: Partial<Config> = {}): Promise<Config> {
+  return getConfig().loadAsync(overrides);
 }
 
 export function createConfigManager(configPath?: string): ConfigManager {

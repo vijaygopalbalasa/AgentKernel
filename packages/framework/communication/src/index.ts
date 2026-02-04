@@ -1,4 +1,4 @@
-// @agent-os/communication — Agent-to-Agent Communication (Layer 4: Framework)
+// @agentrun/communication — Agent-to-Agent Communication (Layer 4: Framework)
 // Enables agents to discover and communicate with each other via A2A protocol
 
 // ─── Types ──────────────────────────────────────────────────

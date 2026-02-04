@@ -1,9 +1,9 @@
-# Agent OS Ingress
+# AgentRun Ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: gateway
-  namespace: agent-os
+  namespace: agentrun
   labels:
     app: gateway
   annotations:
@@ -32,10 +32,10 @@ spec:
   # TLS configuration (uncomment for production)
   # tls:
   #   - hosts:
-  #       - api.agent-os.example.com
+  #       - api.agentrun.example.com
   #     secretName: gateway-tls
   rules:
-    - host: api.agent-os.example.com
+    - host: api.agentrun.example.com
       http:
         paths:
           - path: /
@@ -51,7 +51,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gateway-network-policy
-  namespace: agent-os
+  namespace: agentrun
 spec:
   podSelector:
     matchLabels:

@@ -2,11 +2,11 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in Agent OS, please report it responsibly.
+If you discover a security vulnerability in AgentRun, please report it responsibly.
 
 **DO NOT** open a public GitHub issue for security vulnerabilities.
 
-Instead, open a [private security advisory](https://github.com/vijaygopalbalasa/AgentOS/security/advisories/new) on GitHub with:
+Instead, open a [private security advisory](https://github.com/vijaygopalbalasa/AgentRun/security/advisories/new) on GitHub with:
 - Description of the vulnerability
 - Steps to reproduce
 - Impact assessment
@@ -18,7 +18,7 @@ We will acknowledge receipt within 48 hours and provide a timeline for a fix.
 
 ### Threat Model
 
-Agent OS runs AI agents that execute code, make API calls, and interact with external systems. The primary threats are:
+AgentRun runs AI agents that execute code, make API calls, and interact with external systems. The primary threats are:
 
 1. **Prompt injection** — Malicious inputs causing agents to perform unintended actions
 2. **Agent escape** — An agent breaking out of its sandbox to access host resources
@@ -84,7 +84,7 @@ Before deploying to production:
 
 ### Security Standards
 
-Agent OS follows:
+AgentRun follows:
 - OWASP Top 10 for LLM Applications (2025)
 - OWASP API Security Top 10
 - CIS Docker Benchmark

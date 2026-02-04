@@ -1,7 +1,7 @@
 // Rate limiter using token bucket algorithm
 // Controls request rate per provider to prevent API throttling
 
-import type { Logger } from "@agent-os/kernel";
+import type { Logger } from "@agentrun/kernel";
 
 /** Rate limit configuration */
 export interface RateLimitConfig {
@@ -165,6 +165,16 @@ export function createRateLimiter(
     },
 
     async acquire(estimatedTokens: number = 1000): Promise<boolean> {
+      // Bound pending requests to prevent memory exhaustion
+      const maxPending = finalConfig.requestsPerMinute * 2;
+      if (pendingRequests >= maxPending) {
+        logger?.warn("Rate limiter overloaded, rejecting request", {
+          providerId,
+          pendingRequests,
+          maxPending,
+        });
+        return false;
+      }
       pendingRequests++;
 
       try {

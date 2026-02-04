@@ -1,11 +1,11 @@
 {
-  "name": "@agent-os/system-agent",
+  "name": "@agentrun/system-agent",
   "version": "0.1.0",
-  "description": "System monitoring and health agent for AgentOS",
+  "description": "System monitoring and health agent for AgentRun",
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
@@ -13,9 +13,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-os/kernel": "workspace:*",
-    "@agent-os/shared": "workspace:*",
-    "@agent-os/events": "workspace:*",
+    "@agentrun/kernel": "workspace:*",
+    "@agentrun/shared": "workspace:*",
+    "@agentrun/events": "workspace:*",
     "zod": "^3.25.0"
   },
   "devDependencies": {

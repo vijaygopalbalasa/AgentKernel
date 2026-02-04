@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { SkillManager, createSkillManager } from "./manager.js";
 import { SkillRegistry, createSkillRegistry } from "./registry.js";
 import { SkillError } from "./types.js";
-import { createToolRegistry } from "@agent-os/tools";
+import { createToolRegistry } from "@agentrun/tools";
 import type {
   SkillManifest,
   SkillModule,
@@ -637,7 +637,7 @@ describe("SkillRegistry", () => {
         name: "Web Browse",
         description: "Browse the web",
         version: "1.0.0",
-        author: "Agent OS Team",
+        author: "AgentRun Team",
         categories: ["network", "utility"],
         tags: ["web", "browser", "http"],
         permissions: [{ id: "network:fetch", reason: "To fetch web pages" }],
@@ -647,7 +647,7 @@ describe("SkillRegistry", () => {
         name: "File System",
         description: "Access the file system",
         version: "1.0.0",
-        author: "Agent OS Team",
+        author: "AgentRun Team",
         categories: ["storage", "utility"],
         tags: ["files", "disk"],
         permissions: [{ id: "file:read", reason: "To read files" }],
@@ -682,7 +682,7 @@ describe("SkillRegistry", () => {
     });
 
     it("should find by author", () => {
-      const teamSkills = registry.findByAuthor("Agent OS Team");
+      const teamSkills = registry.findByAuthor("AgentRun Team");
       expect(teamSkills.length).toBe(2);
     });
 

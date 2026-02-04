@@ -286,17 +286,28 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
       if (ids.length === 0) return [];
 
       try {
-        const results = await client.retrieve(collectionName, {
-          ids,
-          with_payload: true,
-          with_vector: true,
-        });
+        // Paginate to avoid overloading Qdrant with huge requests
+        const BATCH_SIZE = 500;
+        const allResults: VectorPoint[] = [];
 
-        return results.map((point) => ({
-          id: String(point.id),
-          vector: point.vector as Embedding,
-          payload: (point.payload ?? {}) as Record<string, unknown>,
-        }));
+        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+          const batch = ids.slice(i, i + BATCH_SIZE);
+          const results = await client.retrieve(collectionName, {
+            ids: batch,
+            with_payload: true,
+            with_vector: true,
+          });
+
+          for (const point of results) {
+            allResults.push({
+              id: String(point.id),
+              vector: point.vector as Embedding,
+              payload: (point.payload ?? {}) as Record<string, unknown>,
+            });
+          }
+        }
+
+        return allResults;
       } catch {
         return [];
       }

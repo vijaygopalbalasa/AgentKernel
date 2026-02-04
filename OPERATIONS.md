@@ -1,6 +1,6 @@
-# AgentOS Operational Playbooks
+# AgentRun Operational Playbooks
 
-This document provides operational runbooks for self‑hosted AgentOS deployments.
+This document provides operational runbooks for self‑hosted AgentRun deployments.
 
 ## Incident Response
 1) **Triage**
@@ -45,7 +45,7 @@ This document provides operational runbooks for self‑hosted AgentOS deployment
 - Set `TRACING_ENABLED=true` and `TRACING_EXPORTER_URL` for detailed latency analysis.
 
 ## Agent Isolation (Docker Workers)
-AgentOS can run agents in isolated Docker containers (recommended for production hardening).
+AgentRun can run agents in isolated Docker containers (recommended for production hardening).
 
 Environment settings:
 - `AGENT_WORKER_RUNTIME=docker`
@@ -56,7 +56,7 @@ Environment settings:
 - `AGENT_WORKER_DOCKER_SECCOMP_PROFILE=<host-path>` (default profile at `docker/seccomp/agentos-worker.json`)
 - `AGENT_WORKER_REQUIRE_APPARMOR=true` (enforce AppArmor profile in strict prod)
 - Optional: `AGENT_WORKER_GATEWAY_URL=ws://...` to override host/port
-- Optional: `AGENT_WORKER_DOCKER_MOUNT=/absolute/path/to/AgentOS` to mount host artifacts.
+- Optional: `AGENT_WORKER_DOCKER_MOUNT=/absolute/path/to/AgentRun` to mount host artifacts.
 - Optional hardening:
   - `AGENT_WORKER_DOCKER_READONLY=true`
   - `AGENT_WORKER_DOCKER_TMPFS=/tmp:rw,size=64m,/var/tmp:rw,size=64m`
@@ -79,7 +79,7 @@ Notes:
 - For tool egress proxying from the gateway, set `AGENT_EGRESS_PROXY_URL` and run the `egress-proxy` service (see `docker-compose.yml`).
 
 ## Distributed Scheduler (Multi-node)
-AgentOS supports distributed job execution via Postgres advisory locks.
+AgentRun supports distributed job execution via Postgres advisory locks.
 
 Environment settings:
 - `CLUSTER_MODE=true`
@@ -92,7 +92,7 @@ Notes:
 - Default compose uses an internal network for workers to prevent outbound egress unless explicitly configured.
 
 ## Memory Archival
-AgentOS can archive memory rows into `memory_archives` before deletion.
+AgentRun can archive memory rows into `memory_archives` before deletion.
 
 Environment settings:
 - `EPISODIC_ARCHIVE_DAYS`, `SEMANTIC_ARCHIVE_DAYS`, `PROCEDURAL_ARCHIVE_DAYS` (0 disables archiving)
@@ -103,7 +103,7 @@ Notes:
 - Archive retention applies only to archived rows (active retention still uses `*_RETENTION_DAYS`).
 
 ## Memory Encryption
-AgentOS supports optional at-rest encryption for memory payloads.
+AgentRun supports optional at-rest encryption for memory payloads.
 
 Environment settings:
 - `MEMORY_ENCRYPTION_ENABLED=true`
@@ -125,7 +125,7 @@ AGENT_COUNT=10 TASKS_PER_AGENT=50 node scripts/load-test.mjs
 ```
 
 ## Cluster Mode (HA-lite)
-AgentOS supports a lightweight leader election using PostgreSQL advisory locks.
+AgentRun supports a lightweight leader election using PostgreSQL advisory locks.
 
 Environment settings:
 - `CLUSTER_MODE=true`

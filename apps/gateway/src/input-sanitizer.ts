@@ -1,7 +1,7 @@
 // Input Sanitizer — Prompt injection detection for LLM inputs
 // Logs warnings when injection patterns are detected (non-blocking)
 
-import { createLogger } from "@agent-os/kernel";
+import { createLogger } from "@agentrun/kernel";
 
 const log = createLogger({ name: "input-sanitizer" });
 

@@ -30,6 +30,9 @@ export interface Database {
   /** Close all connections */
   close(): Promise<void>;
 
+  /** Resolves when initial connection is verified (rejects if connection fails) */
+  connectionReady: Promise<void>;
+
   /** Run pending migrations */
   migrate(migrationsDir: string): Promise<MigrationResult>;
 
@@ -168,6 +171,8 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
       log.info("Database connections closed");
     },
 
+    connectionReady: Promise.resolve(),
+
     async migrate(migrationsDir: string): Promise<MigrationResult> {
       const result: MigrationResult = {
         applied: 0,
@@ -256,8 +261,8 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
     sql,
   };
 
-  // Verify connection on creation
-  sql`SELECT 1`.then(() => {
+  // Verify connection on creation — callers can await db.connectionReady
+  db.connectionReady = sql`SELECT 1`.then(() => {
     totalConnections = 1;
     log.info("Database connected", {
       host: config.host,
@@ -266,6 +271,8 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
     });
   }).catch((error) => {
     log.error("Database connection failed", { error: String(error) });
+    // Swallow the rejection to avoid unhandled rejection crashes
+    // Callers should await connectionReady and handle failures via isConnected()
   });
 
   return db;

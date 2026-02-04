@@ -41,7 +41,7 @@
 
 ### Layer 5: Applications
 - **Gateway**: WebSocket server with auth, rate limiting, clustering
-- **CLI**: `agent-os init`, `status`, `agents`, `chat`, `doctor`
+- **CLI**: `agentrun init`, `status`, `agents`, `chat`, `doctor`
 - **Dashboard**: Web UI for monitoring agents, memory, events
 
 ### Security

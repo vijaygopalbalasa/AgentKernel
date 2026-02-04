@@ -1,11 +1,11 @@
-# Agent OS Production Docker Compose
+# AgentRun Production Docker Compose
 # Full stack with PostgreSQL, Qdrant, Redis, and Gateway
 
 services:
   # PostgreSQL - Primary database
   postgres:
     image: postgres:16-alpine
-    container_name: agent-os-postgres
+    container_name: agentrun-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-agentuser}
@@ -30,12 +30,12 @@ services:
           cpus: "0.25"
           memory: 256M
     networks:
-      - agent-os-network
+      - agentrun-network
 
   # Qdrant - Vector database for memory
   qdrant:
     image: qdrant/qdrant:v1.13.6
-    container_name: agent-os-qdrant
+    container_name: agentrun-qdrant
     restart: unless-stopped
     volumes:
       - qdrant_data:/qdrant/storage
@@ -44,6 +44,12 @@ services:
       - "6334:6334"
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     deploy:
       resources:
         limits:
@@ -53,12 +59,12 @@ services:
           cpus: "0.25"
           memory: 512M
     networks:
-      - agent-os-network
+      - agentrun-network
 
   # Redis - Cache and pub/sub
   redis:
     image: redis:7-alpine
-    container_name: agent-os-redis
+    container_name: agentrun-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
@@ -79,21 +85,21 @@ services:
           cpus: "0.1"
           memory: 64M
     networks:
-      - agent-os-network
+      - agentrun-network
 
-  # Agent OS Gateway
+  # AgentRun Gateway
   gateway:
     build:
       context: .
       dockerfile: Dockerfile
-    image: agent-os-gateway:latest
-    container_name: agent-os-gateway
+    image: agentrun-gateway:latest
+    container_name: agentrun-gateway
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
       qdrant:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
@@ -101,7 +107,7 @@ services:
       PORT: 18800
       GATEWAY_HOST: 0.0.0.0
       GATEWAY_PORT: 18800
-      GATEWAY_URL: ws://127.0.0.1:18800
+      GATEWAY_URL: ws://gateway:18800
       GATEWAY_AUTH_TOKEN: ${GATEWAY_AUTH_TOKEN:-}
       INTERNAL_AUTH_TOKEN: ${INTERNAL_AUTH_TOKEN:-}
       GATEWAY_MAX_PAYLOAD_BYTES: ${GATEWAY_MAX_PAYLOAD_BYTES:-10485760}
@@ -148,7 +154,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
 
       # LLM Providers
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
 
@@ -156,7 +162,7 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-}
 
       # Sandboxing / Access Control
-      ALLOWED_PATHS: ${ALLOWED_PATHS:-/tmp/agent-os}
+      ALLOWED_PATHS: ${ALLOWED_PATHS:-/tmp/agentrun}
       ALLOWED_DOMAINS: ${ALLOWED_DOMAINS:-}
       ALLOW_ALL_PATHS: ${ALLOW_ALL_PATHS:-false}
       ALLOW_ALL_DOMAINS: ${ALLOW_ALL_DOMAINS:-false}
@@ -167,13 +173,14 @@ services:
       ENFORCE_EGRESS_PROXY: ${ENFORCE_EGRESS_PROXY:-true}
       HTTP_PROXY: ${HTTP_PROXY:-http://egress-proxy:3128}
       HTTPS_PROXY: ${HTTPS_PROXY:-http://egress-proxy:3128}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agent-os-gateway,postgres,redis,qdrant,egress-proxy}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,gateway,agentrun-gateway,postgres,redis,qdrant,egress-proxy}
       ENFORCE_PRODUCTION_HARDENING: ${ENFORCE_PRODUCTION_HARDENING:-true}
 
-      # Agent worker runtime (docker isolation)
-      AGENT_WORKER_RUNTIME: ${AGENT_WORKER_RUNTIME:-docker}
-      AGENT_WORKER_IMAGE: ${AGENT_WORKER_IMAGE:-agent-os-gateway:latest}
-      AGENT_WORKER_DOCKER_NETWORK: ${AGENT_WORKER_DOCKER_NETWORK:-agent-os-internal}
+      # Agent worker runtime — defaults to 'local' (in-process).
+      # Set to 'docker' and mount /var/run/docker.sock for container isolation.
+      AGENT_WORKER_RUNTIME: ${AGENT_WORKER_RUNTIME:-local}
+      AGENT_WORKER_IMAGE: ${AGENT_WORKER_IMAGE:-agentrun-gateway:latest}
+      AGENT_WORKER_DOCKER_NETWORK: ${AGENT_WORKER_DOCKER_NETWORK:-agentrun-internal}
       AGENT_WORKER_GATEWAY_HOST: ${AGENT_WORKER_GATEWAY_HOST:-gateway}
       AGENT_WORKER_DOCKER_READONLY: ${AGENT_WORKER_DOCKER_READONLY:-true}
       AGENT_WORKER_DOCKER_TMPFS: ${AGENT_WORKER_DOCKER_TMPFS:-/tmp:rw,size=64m,/var/tmp:rw,size=64m}
@@ -207,8 +214,8 @@ services:
       start_period: 60s
       retries: 3
     networks:
-      - agent-os-network
-      - agent-os-internal
+      - agentrun-network
+      - agentrun-internal
     # Resource limits
     deploy:
       resources:
@@ -223,34 +230,40 @@ services:
     build:
       context: .
       dockerfile: docker/egress-proxy/Dockerfile
-    container_name: agent-os-egress-proxy
+    container_name: agentrun-egress-proxy
     restart: unless-stopped
     environment:
       EGRESS_ALLOWED_DOMAINS: ${EGRESS_ALLOWED_DOMAINS:-${ALLOWED_DOMAINS:-}}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3128/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
-      - agent-os-network
-      - agent-os-internal
+      - agentrun-network
+      - agentrun-internal
 
-  # Agent OS Dashboard
+  # AgentRun Dashboard
   dashboard:
     build:
       context: .
       dockerfile: apps/dashboard/Dockerfile
-    container_name: agent-os-dashboard
+    container_name: agentrun-dashboard
     restart: unless-stopped
     depends_on:
       gateway:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "3000:80"
     networks:
-      - agent-os-network
+      - agentrun-network
 
   agent-bootstrap:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: agent-os-bootstrap
+    container_name: agentrun-bootstrap
     restart: "no"
     depends_on:
       gateway:
@@ -261,7 +274,7 @@ services:
       GATEWAY_AUTH_TOKEN: ${GATEWAY_AUTH_TOKEN:-}
     command: ["node", "docker/bootstrap-agents.mjs"]
     networks:
-      - agent-os-network
+      - agentrun-network
 
 volumes:
   postgres_data:
@@ -274,8 +287,8 @@ volumes:
     driver: local
 
 networks:
-  agent-os-network:
+  agentrun-network:
     driver: bridge
-  agent-os-internal:
+  agentrun-internal:
     driver: bridge
     internal: true

@@ -11,8 +11,8 @@ import {
   type Config,
   type Database,
   type VectorStore,
-} from "@agent-os/kernel";
-import { MemoryManager, InMemoryStore, PersistentMemoryStore } from "@agent-os/memory";
+} from "@agentrun/kernel";
+import { MemoryManager, InMemoryStore, PersistentMemoryStore } from "@agentrun/memory";
 import { type AgentEntry, type AgentManifest, isUuid } from "./gateway-types.js";
 import { toJsonValue } from "./task-schemas.js";
 import { parseBoolean } from "./security-utils.js";

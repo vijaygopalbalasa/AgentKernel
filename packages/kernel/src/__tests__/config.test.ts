@@ -16,7 +16,7 @@ describe("ConfigSchema", () => {
 
     expect(result.database.host).toBe("localhost");
     expect(result.database.port).toBe(5432);
-    expect(result.database.database).toBe("agent_os");
+    expect(result.database.database).toBe("agentdb");
     expect(result.qdrant.host).toBe("localhost");
     expect(result.qdrant.port).toBe(6333);
     expect(result.redis.host).toBe("localhost");
@@ -33,7 +33,7 @@ describe("ConfigSchema", () => {
 
     expect(result.database.host).toBe("db.example.com");
     expect(result.database.port).toBe(5433);
-    expect(result.database.database).toBe("agent_os"); // default
+    expect(result.database.database).toBe("agentdb"); // default
     expect(result.logging.level).toBe("debug");
   });
 
@@ -68,6 +68,12 @@ describe("ConfigManager", () => {
     if (!existsSync(testDir)) {
       mkdirSync(testDir, { recursive: true });
     }
+    // Clear env vars that interfere with default-checking tests
+    delete process.env.DATABASE_HOST;
+    delete process.env.DATABASE_PORT;
+    delete process.env.DATABASE_URL;
+    delete process.env.LOG_LEVEL;
+    delete process.env.ANTHROPIC_API_KEY;
   });
 
   afterEach(() => {
@@ -77,6 +83,7 @@ describe("ConfigManager", () => {
     // Reset environment variables
     delete process.env.DATABASE_HOST;
     delete process.env.DATABASE_PORT;
+    delete process.env.DATABASE_URL;
     delete process.env.LOG_LEVEL;
     delete process.env.ANTHROPIC_API_KEY;
   });

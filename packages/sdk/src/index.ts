@@ -1,9 +1,16 @@
-// @agent-os/sdk — Agent definition helpers
-// Provides typed manifest validation and agent lifecycle hooks
+// @agentrun/sdk — AgentRun Software Development Kit
+// The primary API for building agents on AgentRun.
+//
+// Key exports:
+// - defineAgent()  — Define an agent with manifest + task handler
+// - AgentClient    — High-level API for LLM, memory, tools, A2A, events
+// - AgentContext    — Context passed to agent task handlers (includes client)
+// - signManifest() — Sign agent manifests for production deployment
 
 import { z } from "zod";
 import { createHmac } from "crypto";
-import { type Result, ok, err } from "@agent-os/shared";
+import { type Result, ok, err } from "@agentrun/shared";
+import { AgentClient } from "./agent-client.js";
 
 // ─── MANIFEST ───────────────────────────────────────────────
 
@@ -79,13 +86,48 @@ export type AgentManifest = z.infer<typeof AgentManifestSchema>;
 
 // ─── AGENT LIFECYCLE ────────────────────────────────────────
 
+/** Logger interface available in agent context. */
+export interface AgentLogger {
+  info: (message: string, data?: Record<string, unknown>) => void;
+  warn: (message: string, data?: Record<string, unknown>) => void;
+  error: (message: string, data?: Record<string, unknown>) => void;
+}
+
+/**
+ * Context provided to agent task handlers.
+ *
+ * The `client` property provides the high-level AgentClient API
+ * for interacting with the gateway (LLM, memory, tools, A2A, events).
+ *
+ * @example
+ * ```typescript
+ * async handleTask(task, context) {
+ *   // Use the client to call an LLM
+ *   const response = await context.client.chat([
+ *     { role: "user", content: task.question }
+ *   ]);
+ *
+ *   // Store a fact in memory
+ *   await context.client.storeFact({
+ *     category: "answers",
+ *     fact: response.content,
+ *   });
+ *
+ *   return { answer: response.content };
+ * }
+ * ```
+ */
 export interface AgentContext {
+  /** The agent's unique ID. */
   agentId: string;
-  log?: {
-    info: (message: string, data?: Record<string, unknown>) => void;
-    warn: (message: string, data?: Record<string, unknown>) => void;
-    error: (message: string, data?: Record<string, unknown>) => void;
-  };
+  /** Structured logger. */
+  log?: AgentLogger;
+  /**
+   * High-level client for gateway operations.
+   * Provides typed methods for LLM chat, memory, tools, A2A, and events.
+   * Available when the agent is running connected to a gateway.
+   */
+  client: AgentClient;
 }
 
 export type AgentTaskHandler<TTask = Record<string, unknown>, TResult = unknown> = (
@@ -155,8 +197,26 @@ export function signManifest(manifest: AgentManifest, secret: string): AgentMani
 
 export {
   sendGatewayTask,
+  GatewayClientOptionsSchema,
+  GatewayValidationError,
   type GatewayClientOptions,
   type GatewayTaskResult,
 } from "./gateway-client.js";
+
+export { AgentClient, createAgentClient, type AgentClientOptions } from "./agent-client.js";
+
+export type {
+  ChatMessage,
+  ChatOptions,
+  ChatResponse,
+  StoreFact,
+  SearchMemoryOptions,
+  MemoryResult,
+  RecordEpisode,
+  ToolResult,
+  ToolInfo,
+  AgentInfo,
+  EmitEvent,
+} from "./types.js";
 
 export * from "./tasks.js";

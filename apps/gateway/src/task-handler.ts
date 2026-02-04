@@ -2,19 +2,19 @@
 
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { createLogger, type Database } from "@agent-os/kernel";
-import { type ModelRouter } from "@agent-os/mal";
-import { ok, err, type ChatRequest } from "@agent-os/shared";
-import { createEventBus, type EventBus } from "@agent-os/events";
-import { MemoryManager } from "@agent-os/memory";
+import { createLogger, type Database } from "@agentrun/kernel";
+import { type ModelRouter } from "@agentrun/mal";
+import { ok, err, type ChatRequest } from "@agentrun/shared";
+import { createEventBus, type EventBus } from "@agentrun/events";
+import { MemoryManager } from "@agentrun/memory";
 import {
   createCapabilityManager,
   type Permission,
   type PermissionAction,
   type PermissionCategory,
-} from "@agent-os/permissions";
-import { createToolRegistry, type ToolDefinition, type ToolResult } from "@agent-os/tools";
-import { estimateCost } from "@agent-os/runtime";
+} from "@agentrun/permissions";
+import { createToolRegistry, type ToolDefinition, type ToolResult } from "@agentrun/tools";
+import { estimateCost } from "@agentrun/runtime";
 import {
   type AgentEntry,
   type A2ATaskEntry,
@@ -27,6 +27,7 @@ import {
   isDomainAllowed,
   isCommandAllowed,
   parseBoolean,
+  escapeILikePattern,
 } from "./security-utils.js";
 import {
   createEventId,
@@ -84,6 +85,12 @@ import {
   A2ATaskSyncSchema,
   A2ATaskAsyncSchema,
   A2ATaskStatusSchema,
+  ListSkillsTaskSchema,
+  InvokeSkillTaskSchema,
+  StoreProcedureTaskSchema,
+  GetProcedureTaskSchema,
+  FindProceduresTaskSchema,
+  RecordProcedureExecutionTaskSchema,
   ComputeTaskSchema,
   MemoryIntensiveTaskSchema,
 } from "./task-schemas.js";
@@ -93,6 +100,18 @@ import {
   recordAuditLog,
   recordEvent,
 } from "./db-operations.js";
+import { generateEmbedding } from "@agentrun/provider-openai";
+
+/** Try to generate an embedding vector for text. Returns undefined on failure or if OpenAI is unavailable. */
+async function tryGenerateEmbedding(text: string, log: ReturnType<typeof createLogger>): Promise<number[] | undefined> {
+  try {
+    const embedding = await generateEmbedding(text);
+    return embedding ?? undefined;
+  } catch (error) {
+    log.debug("Embedding generation skipped", { error: error instanceof Error ? error.message : String(error) });
+    return undefined;
+  }
+}
 
 /** Context required by the task handler */
 export interface TaskHandlerContext {
@@ -392,29 +411,36 @@ export async function handleAgentTask(
   };
 
   const validateA2ATask = (target: AgentEntry, payload: Record<string, unknown>): void => {
-    if (!target.a2aSkills.length) return;
-
-    const payloadType = payload.type;
-    const payloadSkill = (payload as { skillId?: unknown }).skillId;
-    const skillId = typeof payloadSkill === "string"
-      ? payloadSkill
-      : typeof payloadType === "string"
-        ? payloadType
-        : undefined;
-
-    if (!skillId) {
-      throw new Error("A2A task missing skill identifier");
+    // Enforce payload size limit to prevent resource exhaustion
+    const payloadStr = JSON.stringify(payload);
+    if (payloadStr.length > 1_048_576) { // 1 MB
+      throw new Error("A2A task payload exceeds maximum size (1 MB)");
     }
 
-    const skill = target.a2aSkills.find((entry) => entry.id === skillId);
-    if (!skill) {
-      throw new Error(`Target agent does not support skill: ${skillId}`);
-    }
+    // If agent has declared A2A skills, validate against them
+    if (target.a2aSkills.length > 0) {
+      const payloadType = payload.type;
+      const payloadSkill = (payload as { skillId?: unknown }).skillId;
+      const skillId = typeof payloadSkill === "string"
+        ? payloadSkill
+        : typeof payloadType === "string"
+          ? payloadType
+          : undefined;
 
-    const validator = target.a2aValidators.get(skillId);
-    if (validator && !validator(payload)) {
-      const errorText = ajv.errorsText(validator.errors, { separator: "; " });
-      throw new Error(`A2A task validation failed: ${errorText}`);
+      if (!skillId) {
+        throw new Error("A2A task missing skill identifier");
+      }
+
+      const skill = target.a2aSkills.find((entry) => entry.id === skillId);
+      if (!skill) {
+        throw new Error(`Target agent does not support skill: ${skillId}`);
+      }
+
+      const validator = target.a2aValidators.get(skillId);
+      if (validator && !validator(payload)) {
+        const errorText = ajv.errorsText(validator.errors, { separator: "; " });
+        throw new Error(`A2A task validation failed: ${errorText}`);
+      }
     }
   };
 
@@ -430,6 +456,30 @@ export async function handleAgentTask(
 
       if (!model) {
         throw new Error("No model available for chat task");
+      }
+
+      // Check user messages for prompt injection patterns
+      for (const msg of parsed.messages) {
+        if (msg.role === "user" && typeof msg.content === "string") {
+          const sanitizeResult = sanitizeUserInput(msg.content, agent.id);
+          if (!sanitizeResult.safe) {
+            log.warn("Prompt injection blocked in chat", {
+              agentId: agent.id,
+              warnings: sanitizeResult.warnings,
+            });
+            if (eventBus) {
+              await eventBus.publish({
+                id: createEventId(),
+                channel: "alerts",
+                type: "security.prompt_injection",
+                timestamp: new Date(),
+                agentId: agent.id,
+                data: { warnings: sanitizeResult.warnings },
+              });
+            }
+            throw new Error("Input rejected: potential prompt injection detected");
+          }
+        }
       }
 
       const maxTokens = parsed.maxTokens ?? 1024;
@@ -569,6 +619,8 @@ export async function handleAgentTask(
         new Set([parsed.category, ...(parsed.tags ?? [])].filter((tag): tag is string => Boolean(tag)))
       );
 
+      const embedding = parsed.embedding ?? await tryGenerateEmbedding(parsed.fact, log);
+
       const factResult = await memory.storeFact(
         agent.id,
         parsed.category ?? "fact",
@@ -577,7 +629,7 @@ export async function handleAgentTask(
         {
           importance: parsed.importance,
           tags,
-          embedding: parsed.embedding,
+          embedding,
           source: "agent_task",
         }
       );
@@ -612,6 +664,11 @@ export async function handleAgentTask(
     case "record_episode": {
       const parsed = RecordEpisodeTaskSchema.parse(task);
       await ensurePermission("memory", "write");
+      const episodeEmbedding = parsed.embedding ?? await tryGenerateEmbedding(
+        `${parsed.event}: ${parsed.context}`.slice(0, 8000),
+        log
+      );
+
       const episodeResult = await memory.recordEpisode(agent.id, parsed.event, parsed.context, {
         outcome: parsed.outcome,
         success: parsed.success,
@@ -619,7 +676,7 @@ export async function handleAgentTask(
         tags: parsed.tags,
         sessionId: parsed.sessionId,
         relatedEpisodes: parsed.relatedEpisodes,
-        embedding: parsed.embedding,
+        embedding: episodeEmbedding,
       });
 
       if (!episodeResult.ok) {
@@ -656,9 +713,13 @@ export async function handleAgentTask(
         throw new Error("search_memory task requires query or embedding");
       }
 
+      const searchEmbedding = parsed.embedding ?? (parsed.query
+        ? await tryGenerateEmbedding(parsed.query, log)
+        : undefined);
+
       const searchResult = await memory.search(agent.id, {
         query: parsed.query,
-        embedding: parsed.embedding,
+        embedding: searchEmbedding,
         types: parsed.types,
         tags: parsed.tags,
         minImportance: parsed.minImportance,
@@ -1075,7 +1136,7 @@ export async function handleAgentTask(
               agent_reputation.score, agent_reputation.updated_at
             FROM agents
             LEFT JOIN agent_reputation ON agent_reputation.agent_id = agents.id
-            WHERE agents.name ILIKE ${`%${query}%`} AND agents.state = ${parsed.status}
+            WHERE agents.name ILIKE ${`%${escapeILikePattern(query)}%`} AND agents.state = ${parsed.status}
             ORDER BY agents.created_at DESC
             LIMIT ${limit}
             OFFSET ${offset}
@@ -1087,7 +1148,7 @@ export async function handleAgentTask(
               agent_reputation.score, agent_reputation.updated_at
             FROM agents
             LEFT JOIN agent_reputation ON agent_reputation.agent_id = agents.id
-            WHERE agents.name ILIKE ${`%${query}%`}
+            WHERE agents.name ILIKE ${`%${escapeILikePattern(query)}%`}
             ORDER BY agents.created_at DESC
             LIMIT ${limit}
             OFFSET ${offset}
@@ -1179,7 +1240,7 @@ export async function handleAgentTask(
         ? sql`
             SELECT id, name, description, created_by, created_at
             FROM forums
-            WHERE name ILIKE ${`%${query}%`}
+            WHERE name ILIKE ${`%${escapeILikePattern(query)}%`}
             ORDER BY created_at DESC
             LIMIT ${limit}
           `
@@ -2210,6 +2271,7 @@ export async function handleAgentTask(
       return { type: "sanction_lift", sanction };
     }
 
+    case "a2a_delegate":
     case "a2a_task":
     case "a2a_task_async": {
       const parsed = baseResult.data.type === "a2a_task_async"
@@ -2433,6 +2495,207 @@ export async function handleAgentTask(
         status: entry.status,
         result: entry.result,
         error: entry.error,
+      };
+    }
+
+    // ─── SKILLS SYSTEM ─────────────────────────────────────────
+
+    case "list_skills": {
+      const parsed = ListSkillsTaskSchema.parse(task);
+      await ensurePermission("agents", "read");
+
+      const skills: Array<{
+        id: string;
+        name: string;
+        description?: string;
+        providedBy: string;
+        agentName: string;
+      }> = [];
+
+      for (const [, agentEntry] of agents) {
+        if (agentEntry.state !== "ready" && agentEntry.state !== "running") continue;
+        if (parsed.filter?.agentId && agentEntry.id !== parsed.filter.agentId) continue;
+
+        for (const skill of agentEntry.a2aSkills ?? []) {
+          if (parsed.filter?.capability && !skill.name.toLowerCase().includes(parsed.filter.capability.toLowerCase())) {
+            continue;
+          }
+          skills.push({
+            id: skill.id,
+            name: skill.name,
+            description: skill.description,
+            providedBy: agentEntry.id,
+            agentName: agentEntry.name,
+          });
+        }
+      }
+
+      return { type: "list_skills", skills, count: skills.length };
+    }
+
+    case "invoke_skill": {
+      const parsed = InvokeSkillTaskSchema.parse(task);
+      await ensureApproval(parsed.approval, "invoke_skill");
+
+      // Find which agent provides this skill
+      let targetAgent: AgentEntry | undefined;
+      let matchedSkill: (typeof targetAgent extends AgentEntry ? AgentEntry["a2aSkills"][number] : never) | undefined;
+
+      for (const [, agentEntry] of agents) {
+        if (agentEntry.state !== "ready" && agentEntry.state !== "running") continue;
+        const found = (agentEntry.a2aSkills ?? []).find((s) => s.id === parsed.skillId);
+        if (found) {
+          targetAgent = agentEntry;
+          matchedSkill = found;
+          break;
+        }
+      }
+
+      if (!targetAgent || !matchedSkill) {
+        throw new Error(`Skill not found: ${parsed.skillId}`);
+      }
+
+      await ensurePermission("agents", "execute", targetAgent.id);
+
+      // Route to the agent via A2A task dispatch
+      const skillTask = {
+        type: matchedSkill.id,
+        ...parsed.input,
+      };
+
+      const result = await handleAgentTask(skillTask, targetAgent, taskContext);
+
+      if (db) {
+        await recordAuditLog(db, {
+          action: "skill.invoked",
+          resourceType: "skill",
+          resourceId: parsed.skillId,
+          actorId: agent.id,
+          details: { targetAgentId: targetAgent.id, skillName: matchedSkill.name },
+          outcome: "success",
+        }, log);
+      }
+
+      return { type: "invoke_skill", skillId: parsed.skillId, result };
+    }
+
+    // ─── PROCEDURAL MEMORY ───────────────────────────────────────
+
+    case "store_procedure": {
+      const parsed = StoreProcedureTaskSchema.parse(task);
+      await ensurePermission("memory", "write");
+
+      const embedding = await tryGenerateEmbedding(
+        `${parsed.name}: ${parsed.description}. Trigger: ${parsed.trigger}`,
+        log
+      );
+
+      const result = await memory.learnProcedure(
+        agent.id,
+        parsed.name,
+        parsed.description,
+        parsed.trigger,
+        parsed.steps.map((s) => ({
+          action: s.action,
+          description: s.description,
+          parameters: s.parameters as Record<string, unknown> | undefined,
+        })),
+        {
+          inputs: parsed.inputs,
+          outputs: parsed.outputs,
+          tags: parsed.tags,
+          scope: parsed.scope,
+          importance: parsed.importance,
+        }
+      );
+
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
+      if (db) {
+        await recordAuditLog(db, {
+          action: "memory.write",
+          resourceType: "procedural_memory",
+          resourceId: result.value,
+          actorId: agent.id,
+          details: { name: parsed.name, trigger: parsed.trigger },
+          outcome: "success",
+        }, log);
+      }
+
+      return { type: "store_procedure", procedureId: result.value, name: parsed.name };
+    }
+
+    case "get_procedure": {
+      const parsed = GetProcedureTaskSchema.parse(task);
+      await ensurePermission("memory", "read");
+
+      const result = await memory.findProcedure(agent.id, parsed.name);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
+      return {
+        type: "get_procedure",
+        found: result.value !== null,
+        procedure: result.value ? {
+          id: result.value.id,
+          name: result.value.name,
+          description: result.value.description,
+          trigger: result.value.trigger,
+          steps: result.value.steps,
+          inputs: result.value.inputs,
+          outputs: result.value.outputs,
+          version: result.value.version,
+          successRate: result.value.successRate,
+          executionCount: result.value.executionCount,
+          active: result.value.active,
+        } : null,
+      };
+    }
+
+    case "find_procedures": {
+      const parsed = FindProceduresTaskSchema.parse(task);
+      await ensurePermission("memory", "read");
+
+      const result = await memory.matchProcedures(agent.id, parsed.situation, {
+        limit: parsed.limit,
+        minSuccessRate: parsed.minSuccessRate,
+      });
+
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
+      return {
+        type: "find_procedures",
+        procedures: result.value.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          trigger: p.trigger,
+          steps: p.steps,
+          successRate: p.successRate,
+          executionCount: p.executionCount,
+        })),
+        count: result.value.length,
+      };
+    }
+
+    case "record_procedure_execution": {
+      const parsed = RecordProcedureExecutionTaskSchema.parse(task);
+      await ensurePermission("memory", "write");
+
+      const result = await memory.recordProcedureExecution(parsed.procedureId, parsed.success);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
+      return {
+        type: "record_procedure_execution",
+        procedureId: parsed.procedureId,
+        success: parsed.success,
       };
     }
 

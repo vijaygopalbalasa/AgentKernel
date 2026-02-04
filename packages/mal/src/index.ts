@@ -1,7 +1,7 @@
-// @agent-os/mal — Model Abstraction Layer (Layer 2)
+// @agentrun/mal — Model Abstraction Layer (Layer 2)
 // Like Android's HAL — makes ANY AI model work through a standard interface
 
-import type { ChatRequest, ChatResponse, Result } from "@agent-os/shared";
+import type { ChatRequest, ChatResponse, Result } from "@agentrun/shared";
 import type { RateLimiterState } from "./rate-limiter.js";
 
 // ─── Provider Adapter Interface ───

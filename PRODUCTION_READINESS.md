@@ -1,6 +1,6 @@
-# AgentOS Production Readiness Spec
+# AgentRun Production Readiness Spec
 
-This document defines what “production ready” means for AgentOS, with explicit
+This document defines what “production ready” means for AgentRun, with explicit
 SLOs, security posture, operational policies, and release gates. It follows the
 5‑layer architecture and assumes self‑hosted deployments.
 
@@ -161,7 +161,7 @@ Retention controls are configured via `*_RETENTION_DAYS` environment variables i
 ---
 
 ## Production Readiness Checklist (Summary)
-- [x] Signed manifests + permission validation (CLI `agent-os sign` command)
+- [x] Signed manifests + permission validation (CLI `agentrun sign` command)
 - [x] OS-level isolation defaults (seccomp enforced; AppArmor enforceable via prod overlay)
 - [x] Disk I/O quotas and network egress enforcement (storage limits + internal worker network + optional egress proxy)
 - [x] Process isolation + resource caps (Docker worker optional; CPU/memory/pids caps supported)

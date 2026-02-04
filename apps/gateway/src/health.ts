@@ -1,9 +1,9 @@
-// Health Check HTTP Server for Agent OS Gateway
+// Health Check HTTP Server for AgentRun Gateway
 // Provides /health endpoint for monitoring with Zod validation
 
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { z } from "zod";
-import { type Logger, createLogger } from "@agent-os/kernel";
+import { type Logger, createLogger } from "@agentrun/kernel";
 import { type HealthStatus, HealthStatusSchema } from "./types.js";
 
 /** Health server configuration schema */
@@ -170,7 +170,7 @@ function handleMetrics(
   const uptime = Math.floor((Date.now() - startTime) / 1000);
 
   const baseMetrics = [
-    `# HELP agent_os_up Whether Agent OS gateway is up`,
+    `# HELP agent_os_up Whether AgentRun gateway is up`,
     `# TYPE agent_os_up gauge`,
     `agent_os_up ${status.status === "error" ? 0 : 1}`,
     ``,
@@ -204,7 +204,7 @@ function handleRoot(res: ServerResponse): void {
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(
     JSON.stringify({
-      name: "Agent OS Gateway",
+      name: "AgentRun Gateway",
       version: "0.1.0",
       endpoints: ["/health", "/ready", "/live", "/metrics"],
     })

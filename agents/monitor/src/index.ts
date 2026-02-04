@@ -1,4 +1,4 @@
-import { defineAgent, sendGatewayTask } from "@agent-os/sdk";
+import { defineAgent, sendGatewayTask } from "@agentrun/sdk";
 import { createHash } from "node:crypto";
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -24,7 +24,15 @@ type MonitorListTask = {
   type: "monitor_list";
 };
 
-type MonitorTask = MonitorAddTask | MonitorRemoveTask | MonitorCheckTask | MonitorListTask;
+type ChatTask = {
+  type: "chat";
+  messages: Array<{ role: string; content: string }>;
+  model?: string;
+  maxTokens?: number;
+  temperature?: number;
+};
+
+type MonitorTask = ChatTask | MonitorAddTask | MonitorRemoveTask | MonitorCheckTask | MonitorListTask;
 
 type WatchConfig = {
   id: string;
@@ -212,8 +220,75 @@ const agent = defineAgent({
   async initialize(context) {
     await loadWatches(context.agentId);
     context.log?.info(`Loaded ${watchState.size} watch configs`);
+    try {
+      await callGateway(context.agentId, {
+        type: "store_fact",
+        category: "identity",
+        fact: "I am the Monitor Agent (v0.1.0). I track URLs and feeds, detecting content changes and emitting alerts. I run as a persistent autonomous process on AgentRun with scheduled periodic checks.",
+        tags: ["identity", "monitor"],
+        importance: 1.0,
+      });
+    } catch {
+      // Continue without storing identity
+    }
   },
   async handleTask(task: MonitorTask, context) {
+    if (task.type === "chat") {
+      const userMessages = task.messages ?? [];
+      const lastUserMsg = userMessages.filter((m) => m.role === "user").pop();
+      const userContent = lastUserMsg?.content ?? "";
+
+      const watcherSummary = watchState.size > 0
+        ? `\nCurrently monitoring ${watchState.size} URL(s):\n` +
+          Array.from(watchState.values())
+            .filter((w) => w.active)
+            .map((w) => `- ${w.name ?? w.url} (${w.lastChecked ? `last checked: ${w.lastChecked}` : "not yet checked"})`)
+            .join("\n")
+        : "\nNo URLs currently being monitored.";
+
+      const systemPrompt = `You are the Monitor Agent running on AgentRun — a secure runtime for AI agents.
+You track URLs and feeds, detecting content changes and emitting alerts when things change.
+You are NOT a generic chatbot. You are a persistent autonomous process with scheduled checks.
+
+Your capabilities:
+- Add URL monitors: Track any URL for content changes
+- Remove monitors: Stop tracking a URL
+- Check monitors: Manually trigger a check on all or specific URLs
+- List monitors: Show all active watchers
+- Automatic periodic checks: The OS scheduler runs checks at regular intervals
+${watcherSummary}
+
+Guide users on how to use your monitoring capabilities.`;
+
+      const chatResponse = await callGateway<{ content?: string; model?: string }>(context.agentId, {
+        type: "chat",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...userMessages,
+        ],
+        maxTokens: task.maxTokens ?? 1024,
+        temperature: task.temperature ?? 0.4,
+      });
+
+      try {
+        await callGateway(context.agentId, {
+          type: "record_episode",
+          event: "monitor.chat",
+          context: JSON.stringify({ query: userContent.slice(0, 200) }),
+          tags: ["monitor", "chat"],
+          success: true,
+        });
+      } catch {
+        // Non-critical
+      }
+
+      return {
+        type: "chat",
+        content: chatResponse.content ?? "",
+        model: chatResponse.model,
+      };
+    }
+
     if (task.type === "monitor_add") {
       const id = `watch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const config: WatchConfig = {

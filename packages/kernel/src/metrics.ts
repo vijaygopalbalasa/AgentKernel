@@ -459,9 +459,28 @@ export function resetMetricsRegistry(): void {
 // ─── BUILT-IN METRICS ────────────────────────────────────────
 
 /**
- * Standard metrics for Agent OS.
+ * Standard metrics for AgentRun.
  */
-export function createStandardMetrics(registry: MetricsRegistry) {
+/** Standard metrics return type */
+export interface StandardMetrics {
+  requestsTotal: Counter;
+  requestDuration: Histogram;
+  requestsInFlight: Gauge;
+  agentsActive: Gauge;
+  agentTasksTotal: Counter;
+  agentTaskDuration: Histogram;
+  llmRequestsTotal: Counter;
+  llmTokensTotal: Counter;
+  llmRequestDuration: Histogram;
+  circuitBreakerState: Gauge;
+  circuitBreakerRejections: Counter;
+  errorsTotal: Counter;
+  memoriesStored: Gauge;
+  eventsPublished: Counter;
+  eventsProcessed: Counter;
+}
+
+export function createStandardMetrics(registry: MetricsRegistry): StandardMetrics {
   return {
     // Request metrics
     requestsTotal: registry.counter("requests_total", "Total number of requests", [

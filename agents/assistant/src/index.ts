@@ -1,6 +1,6 @@
-// Assistant Agent — General purpose AI assistant for Agent OS
+// Assistant Agent — General purpose AI assistant for AgentRun
 //
-// This agent demonstrates the Agent OS framework architecture:
+// This agent demonstrates the AgentRun framework architecture:
 // - Identity via manifest (who the agent is)
 // - Memory for conversation history and facts
 // - Tools for specific actions (calculate, datetime, etc.)
@@ -14,11 +14,11 @@
 // that can handle common requests like calculations, time queries, and greetings.
 
 import { z } from "zod";
-import { type Result, ok, err } from "@agent-os/shared";
-import { type Logger, createLogger } from "@agent-os/kernel";
-import { MemoryManager, InMemoryStore } from "@agent-os/memory";
-import { ToolRegistry, registerBuiltinTools } from "@agent-os/tools";
-import { createEventBus, type EventBus } from "@agent-os/events";
+import { type Result, ok, err } from "@agentrun/shared";
+import { type Logger, createLogger } from "@agentrun/kernel";
+import { MemoryManager, InMemoryStore } from "@agentrun/memory";
+import { ToolRegistry, registerBuiltinTools } from "@agentrun/tools";
+import { createEventBus, type EventBus } from "@agentrun/events";
 
 // ─── MANIFEST ───────────────────────────────────────────────
 
@@ -41,9 +41,9 @@ export const DEFAULT_MANIFEST: AssistantManifest = {
   id: "assistant",
   name: "Assistant Agent",
   version: "0.1.0",
-  description: "A general purpose AI assistant running on Agent OS",
+  description: "A general purpose AI assistant running on AgentRun",
   model: "claude-3-haiku-20240307",
-  systemPrompt: `You are an AI assistant running on Agent OS. You have access to:
+  systemPrompt: `You are an AI assistant running on AgentRun. You have access to:
 - Memory: You can remember previous conversations and facts
 - Tools: You can use tools like calculations, date/time, etc.
 
@@ -94,7 +94,7 @@ export interface AgentContext {
 /**
  * Assistant Agent — A general purpose AI assistant.
  *
- * Demonstrates the Agent OS framework:
+ * Demonstrates the AgentRun framework:
  * - Identity via manifest
  * - Memory for conversation history and facts
  * - Tools for specific actions
@@ -306,7 +306,7 @@ export class AssistantAgent {
     const lowerContent = content.toLowerCase();
 
     if (lowerContent.includes("hello") || lowerContent.includes("hi")) {
-      return "Hello! I'm the Assistant Agent running on Agent OS. How can I help you today?";
+      return "Hello! I'm the Assistant Agent running on AgentRun. How can I help you today?";
     }
 
     if (lowerContent.includes("help")) {

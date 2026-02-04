@@ -3,8 +3,8 @@
 import { z } from "zod";
 import type { ValidateFunction } from "ajv";
 import type { ChildProcess } from "node:child_process";
-import type { Permission } from "@agent-os/permissions";
-import type { A2ASkill } from "@agent-os/communication";
+import type { Permission } from "@agentrun/permissions";
+import type { A2ASkill } from "@agentrun/communication";
 import { AgentSpawnPayloadSchema } from "./types.js";
 
 /** Gateway state */

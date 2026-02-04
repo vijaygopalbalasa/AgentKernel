@@ -1,7 +1,7 @@
 {
-  "name": "@agent-os/sdk",
+  "name": "@agentrun/sdk",
   "version": "0.1.0",
-  "description": "SDK for building AI agents on Agent OS",
+  "description": "SDK for building AI agents on AgentRun",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,17 +13,17 @@
     }
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   },
   "files": ["dist", "README.md"],
-  "keywords": ["agent", "ai", "mcp", "a2a", "agent-os", "llm"],
+  "keywords": ["agent", "ai", "mcp", "a2a", "agentrun", "llm"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/vijaygopalbalasa/AgentOS",
+    "url": "https://github.com/vijaygopalbalasa/AgentRun",
     "directory": "packages/sdk"
   },
   "dependencies": {
-    "@agent-os/shared": "workspace:*",
+    "@agentrun/shared": "workspace:*",
     "ws": "^8.18.0",
     "zod": "^3.25.0"
   },

@@ -6,16 +6,16 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
-import { createLogger, type Database, type VectorStore } from "@agent-os/kernel";
-import { ok, err, type Result, type ChatResponse } from "@agent-os/shared";
+import { createLogger, type Database, type VectorStore } from "@agentrun/kernel";
+import { ok, err, type Result, type ChatResponse } from "@agentrun/shared";
 import {
   createCapabilityManager,
   type Permission,
   type PermissionAction,
   type PermissionCategory,
-} from "@agent-os/permissions";
-import type { MCPServerConfig } from "@agent-os/tools";
-import type { ProviderAdapter } from "@agent-os/mal";
+} from "@agentrun/permissions";
+import type { MCPServerConfig } from "@agentrun/tools";
+import type { ProviderAdapter } from "@agentrun/mal";
 import { type AgentEntry, type AgentManifest, type WorkerRuntime, UUID_REGEX, isUuid } from "./gateway-types.js";
 import { parseBoolean } from "./security-utils.js";
 import { type ChatTestFlags } from "./task-schemas.js";
@@ -636,7 +636,7 @@ export function resolveWorkerRuntime(): WorkerRuntime {
 }
 
 export function resolveDockerWorkerImage(): string {
-  return process.env.AGENT_WORKER_IMAGE?.trim() || "agent-os-worker:latest";
+  return process.env.AGENT_WORKER_IMAGE?.trim() || "agentrun-worker:latest";
 }
 
 export function resolveDockerWorkerNetwork(): string | undefined {

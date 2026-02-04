@@ -1,10 +1,10 @@
 // Webhooks — deliver events to external endpoints
 // HTTP callbacks for event notifications
 
-import { type Result, ok, err } from "@agent-os/shared";
-import { type Logger, createLogger } from "@agent-os/kernel";
+import { type Result, ok, err } from "@agentrun/shared";
+import { type Logger, createLogger } from "@agentrun/kernel";
 import type {
-  AgentOSEvent,
+  AgentRunEvent,
   WebhookConfig,
   WebhookDeliveryResult,
 } from "./types.js";
@@ -187,7 +187,7 @@ export class WebhookManager {
    */
   async deliver(
     webhookId: string,
-    event: AgentOSEvent
+    event: AgentRunEvent
   ): Promise<Result<WebhookDeliveryResult, EventError>> {
     const config = this.webhooks.get(webhookId);
     if (!config) {
@@ -222,7 +222,7 @@ export class WebhookManager {
   }
 
   /** Process an event from the bus */
-  private async processEvent(event: AgentOSEvent): Promise<void> {
+  private async processEvent(event: AgentRunEvent): Promise<void> {
     const matchingWebhooks = this.findMatchingWebhooks(event);
 
     // Deliver to all matching webhooks in parallel
@@ -244,7 +244,7 @@ export class WebhookManager {
   }
 
   /** Find webhooks that match an event */
-  private findMatchingWebhooks(event: AgentOSEvent): WebhookConfig[] {
+  private findMatchingWebhooks(event: AgentRunEvent): WebhookConfig[] {
     const matching: WebhookConfig[] = [];
 
     for (const config of this.webhooks.values()) {
@@ -273,7 +273,7 @@ export class WebhookManager {
   /** Deliver event to a webhook */
   private async deliverToWebhook(
     config: WebhookConfig,
-    event: AgentOSEvent
+    event: AgentRunEvent
   ): Promise<WebhookDeliveryResult> {
     const maxAttempts = config.retry?.maxAttempts ?? 3;
     const backoffMs = config.retry?.backoffMs ?? 1000;

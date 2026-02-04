@@ -348,6 +348,60 @@ export const A2ATaskStatusSchema = z.object({
   taskId: z.string().min(1),
 });
 
+// ─── SKILLS TASK SCHEMAS ────────────────────────────────────
+
+export const ListSkillsTaskSchema = z.object({
+  type: z.literal("list_skills"),
+  filter: z.object({
+    capability: z.string().optional(),
+    agentId: z.string().optional(),
+  }).optional(),
+});
+
+export const InvokeSkillTaskSchema = z.object({
+  type: z.literal("invoke_skill"),
+  skillId: z.string().min(1),
+  input: z.record(z.unknown()).optional(),
+  approval: ApprovalSchema.optional(),
+});
+
+// ─── PROCEDURAL MEMORY TASK SCHEMAS ─────────────────────────
+
+export const StoreProcedureTaskSchema = z.object({
+  type: z.literal("store_procedure"),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  trigger: z.string().min(1),
+  steps: z.array(z.object({
+    action: z.string().min(1),
+    description: z.string().optional(),
+    parameters: z.record(z.unknown()).optional(),
+  })),
+  inputs: z.array(z.string()).optional(),
+  outputs: z.array(z.string()).optional(),
+  tags: z.array(z.string()).optional(),
+  scope: z.enum(["private", "shared", "public"]).optional(),
+  importance: z.number().min(0).max(1).optional(),
+});
+
+export const GetProcedureTaskSchema = z.object({
+  type: z.literal("get_procedure"),
+  name: z.string().min(1),
+});
+
+export const FindProceduresTaskSchema = z.object({
+  type: z.literal("find_procedures"),
+  situation: z.string().min(1),
+  limit: z.number().int().min(1).max(50).optional(),
+  minSuccessRate: z.number().min(0).max(1).optional(),
+});
+
+export const RecordProcedureExecutionTaskSchema = z.object({
+  type: z.literal("record_procedure_execution"),
+  procedureId: z.string().min(1),
+  success: z.boolean(),
+});
+
 // ─── COMPUTE TASK SCHEMAS ───────────────────────────────────
 
 export const ComputeTaskSchema = z.object({

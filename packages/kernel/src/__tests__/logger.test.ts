@@ -11,6 +11,20 @@ import {
 } from "../logger.js";
 
 describe("Logger", () => {
+  const savedLogLevel = process.env.LOG_LEVEL;
+
+  beforeEach(() => {
+    // Clear LOG_LEVEL so tests see real defaults and explicit configs
+    delete process.env.LOG_LEVEL;
+  });
+
+  afterEach(() => {
+    // Restore LOG_LEVEL for other test suites
+    if (savedLogLevel !== undefined) {
+      process.env.LOG_LEVEL = savedLogLevel;
+    }
+  });
+
   describe("LOG_LEVELS", () => {
     it("should have all log levels in correct order", () => {
       expect(LOG_LEVELS).toEqual(["trace", "debug", "info", "warn", "error", "fatal"]);

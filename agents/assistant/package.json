@@ -1,11 +1,11 @@
 {
-  "name": "@agent-os/assistant",
+  "name": "@agentrun/assistant",
   "version": "0.1.0",
-  "description": "General-purpose assistant agent for AgentOS",
+  "description": "General-purpose assistant agent for AgentRun",
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
@@ -13,14 +13,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-os/kernel": "workspace:*",
-    "@agent-os/shared": "workspace:*",
-    "@agent-os/identity": "workspace:*",
-    "@agent-os/memory": "workspace:*",
-    "@agent-os/skills": "workspace:*",
-    "@agent-os/tools": "workspace:*",
-    "@agent-os/events": "workspace:*",
-    "@agent-os/permissions": "workspace:*",
+    "@agentrun/kernel": "workspace:*",
+    "@agentrun/shared": "workspace:*",
+    "@agentrun/identity": "workspace:*",
+    "@agentrun/memory": "workspace:*",
+    "@agentrun/skills": "workspace:*",
+    "@agentrun/tools": "workspace:*",
+    "@agentrun/events": "workspace:*",
+    "@agentrun/permissions": "workspace:*",
     "zod": "^3.25.0"
   },
   "devDependencies": {

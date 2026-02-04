@@ -1,4 +1,4 @@
-// Security utilities for Agent OS Gateway
+// Security utilities for AgentRun Gateway
 // Path and domain allowlist checking, manifest verification
 
 import { createHmac } from "crypto";
@@ -217,4 +217,12 @@ export function validateProductionSecurity(config: {
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Escape ILIKE special characters in user input to prevent pattern injection.
+ * Prevents `%` and `_` wildcards from being used in ILIKE queries.
+ */
+export function escapeILikePattern(input: string): string {
+  return input.replace(/[%_\\]/g, "\\$&");
 }

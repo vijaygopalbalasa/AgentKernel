@@ -1,8 +1,8 @@
 // Agent Registry — discovers and tracks agents
 // Central registry for both local and remote agents
 
-import { type Result, ok, err } from "@agent-os/shared";
-import { type Logger, createLogger } from "@agent-os/kernel";
+import { type Result, ok, err } from "@agentrun/shared";
+import { type Logger, createLogger } from "@agentrun/kernel";
 import type {
   A2AAgentCard,
   AgentRegistryEntry,

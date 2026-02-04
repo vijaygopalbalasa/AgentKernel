@@ -56,6 +56,7 @@ let rootLogger: PinoLogger | null = null;
 
 /** Initialize the root logger with configuration */
 export function initLogger(config: LoggingConfig): Logger {
+
   // Set up transport for pretty printing or file output
   const transports: pino.TransportTargetOptions[] = [];
 
@@ -87,7 +88,7 @@ export function initLogger(config: LoggingConfig): Logger {
   // So we use a simpler configuration with transports
   if (transports.length > 0) {
     rootLogger = pino({
-      name: "agent-os",
+      name: "agentrun",
       level: config.level,
       timestamp: pino.stdTimeFunctions.isoTime,
       base: {
@@ -100,7 +101,7 @@ export function initLogger(config: LoggingConfig): Logger {
   } else {
     // Without transports, we can use full configuration
     rootLogger = pino({
-      name: "agent-os",
+      name: "agentrun",
       level: config.level,
       timestamp: pino.stdTimeFunctions.isoTime,
       formatters: {
@@ -125,8 +126,8 @@ export function createLogger(options: CreateLoggerOptions): Logger {
   if (!rootLogger) {
     // Initialize with defaults if not already initialized
     rootLogger = pino({
-      name: "agent-os",
-      level: options.level ?? "info",
+      name: "agentrun",
+      level: process.env.LOG_LEVEL ?? options.level ?? "info",
       timestamp: pino.stdTimeFunctions.isoTime,
     });
   }
@@ -147,8 +148,8 @@ export function createLogger(options: CreateLoggerOptions): Logger {
 export function getLogger(): Logger {
   if (!rootLogger) {
     rootLogger = pino({
-      name: "agent-os",
-      level: "info",
+      name: "agentrun",
+      level: process.env.LOG_LEVEL ?? "info",
       timestamp: pino.stdTimeFunctions.isoTime,
     });
   }

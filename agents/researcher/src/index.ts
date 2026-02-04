@@ -1,4 +1,4 @@
-import { defineAgent, sendGatewayTask } from "@agent-os/sdk";
+import { defineAgent, type AgentContext } from "@agentrun/sdk";
 
 const MAX_CONTENT_CHARS = 6000;
 
@@ -17,109 +17,33 @@ type ResearchQueryTask = {
   topK?: number;
 };
 
-type ResearchTask = ResearchIngestTask | ResearchQueryTask;
-
-type GatewayTaskResult<T> = {
-  type?: string;
-  content?: T;
-  success?: boolean;
-  error?: string;
-  memories?: unknown[];
-  total?: number;
+type ChatTask = {
+  type: "chat";
+  messages: Array<{ role: string; content: string }>;
+  model?: string;
+  maxTokens?: number;
+  temperature?: number;
 };
 
-function resolveGatewayUrl(): string {
-  const host = process.env.GATEWAY_HOST ?? "127.0.0.1";
-  const port = process.env.GATEWAY_PORT ?? "18800";
-  return process.env.GATEWAY_URL ?? `ws://${host}:${port}`;
-}
-
-async function callGateway<T>(agentId: string, task: Record<string, unknown>): Promise<T> {
-  const result = await sendGatewayTask<T>(
-    {
-      url: resolveGatewayUrl(),
-      agentId,
-      authToken: process.env.GATEWAY_AUTH_TOKEN,
-      internalToken: process.env.INTERNAL_AUTH_TOKEN,
-    },
-    task,
-    true
-  );
-
-  if (!result.ok) {
-    throw new Error(result.error ?? "Gateway task failed");
-  }
-
-  return result.result as T;
-}
+type ResearchTask = ChatTask | ResearchIngestTask | ResearchQueryTask;
 
 function truncateContent(content: string): string {
   if (content.length <= MAX_CONTENT_CHARS) return content;
   return content.slice(0, MAX_CONTENT_CHARS);
 }
 
-async function fetchUrl(agentId: string, url: string): Promise<string> {
-  const response = await callGateway<GatewayTaskResult<{ body?: string }>>(agentId, {
-    type: "invoke_tool",
-    toolId: "builtin:http_fetch",
-    arguments: {
-      url,
-      timeoutMs: 15000,
-      maxBytes: 1024 * 1024,
-    },
-  });
+const RESEARCHER_SYSTEM_PROMPT = `You are the Research Agent running on AgentRun — a secure runtime for AI agents.
+You are a knowledge specialist who ingests sources, stores knowledge in memory, and answers questions using accumulated knowledge.
+You are NOT a generic chatbot. You are a persistent process with your own memory, identity, and capabilities.
 
-  if (!response.success) {
-    throw new Error(response.error ?? "HTTP fetch failed");
-  }
+Your capabilities:
+- Source ingestion: Fetch URLs or read files and store their content in long-term memory
+- Knowledge queries: Answer questions using your stored memory and cite sources
+- Fact storage: Organize and maintain a knowledge base across conversations
+- Summarization: Condense long content into key insights
 
-  const body = response.content?.body;
-  if (typeof body !== "string") {
-    throw new Error("HTTP fetch returned no body");
-  }
-
-  return body;
-}
-
-async function fetchFile(agentId: string, path: string): Promise<string> {
-  const response = await callGateway<GatewayTaskResult<string>>(agentId, {
-    type: "invoke_tool",
-    toolId: "builtin:file_read",
-    arguments: { path },
-  });
-
-  if (!response.success) {
-    throw new Error(response.error ?? "File read failed");
-  }
-
-  if (typeof response.content !== "string") {
-    throw new Error("File read returned no content");
-  }
-
-  return response.content;
-}
-
-async function summarize(agentId: string, title: string, content: string): Promise<string | undefined> {
-  if (content.length < 800) return undefined;
-
-  const response = await callGateway<{ content?: string }>(agentId, {
-    type: "chat",
-    messages: [
-      {
-        role: "system",
-        content: "You are a research assistant. Summarize the source into 5 concise bullet points.",
-      },
-      {
-        role: "user",
-        content: `Title: ${title}\n\nContent:\n${truncateContent(content)}`,
-      },
-    ],
-    maxTokens: 512,
-    temperature: 0.2,
-  });
-
-  return typeof response.content === "string" ? response.content : undefined;
-}
+You remember everything you've ingested and learned across conversations.
+When answering, cite your sources when available and be thorough but concise.`;
 
 const agent = defineAgent({
   manifest: {
@@ -183,24 +107,149 @@ const agent = defineAgent({
       },
     ],
   },
-  async handleTask(task: ResearchTask, context) {
+  async initialize(context: AgentContext) {
+    const { client } = context;
+    try {
+      await client.storeFact({
+        category: "identity",
+        fact: "I am the Research Agent (v0.1.0). I specialize in ingesting sources, storing knowledge, and answering questions from my accumulated memory. I run as a persistent process on AgentRun.",
+        tags: ["identity", "researcher"],
+        importance: 1.0,
+      });
+      await client.recordEpisode({
+        event: "agent.initialized",
+        context: JSON.stringify({ agent: "researcher", version: "0.1.0" }),
+        tags: ["lifecycle", "init"],
+        success: true,
+      });
+    } catch {
+      // Memory may not be available yet
+    }
+  },
+  async handleTask(task: ResearchTask, context: AgentContext) {
+    const { client } = context;
+
+    if (task.type === "chat") {
+      const userMessages = task.messages ?? [];
+      const lastUserMsg = userMessages.filter((m) => m.role === "user").pop();
+      const userContent = lastUserMsg?.content ?? "";
+
+      // Recall relevant memories
+      let memoryContext = "";
+      if (userContent) {
+        try {
+          const memories = await client.searchMemory(userContent, {
+            types: ["semantic", "episodic"],
+            limit: 6,
+          });
+          if (memories.length > 0) {
+            memoryContext = "\n\nRelevant knowledge from my memory:\n" +
+              memories.map((m) => `- ${m.content}`).join("\n");
+          }
+        } catch {
+          // Continue without memory context
+        }
+      }
+
+      const systemContent = RESEARCHER_SYSTEM_PROMPT +
+        (memoryContext ? memoryContext : "");
+
+      const response = await client.chat(
+        [
+          { role: "system", content: systemContent },
+          ...userMessages.map((m) => ({
+            role: m.role as "user" | "assistant" | "system",
+            content: m.content,
+          })),
+        ],
+        {
+          maxTokens: task.maxTokens ?? 1024,
+          temperature: task.temperature ?? 0.3,
+        }
+      );
+
+      // Record the interaction
+      try {
+        await client.recordEpisode({
+          event: "researcher.chat",
+          context: JSON.stringify({
+            query: truncateContent(userContent).slice(0, 200),
+            responseLength: response.content.length,
+          }),
+          tags: ["researcher", "chat"],
+          success: true,
+        });
+      } catch {
+        // Non-critical
+      }
+
+      return {
+        type: "chat",
+        content: response.content,
+        model: response.model,
+        usage: response.usage,
+      };
+    }
+
     if (task.type === "research_ingest") {
       const sourceUrl = task.url;
       const sourcePath = task.path;
       const title = task.title ?? sourceUrl ?? "Untitled Source";
-      const rawContent = task.content
-        ?? (sourceUrl ? await fetchUrl(context.agentId, sourceUrl) : "")
-        ?? (sourcePath ? await fetchFile(context.agentId, sourcePath) : "");
+
+      let rawContent = task.content ?? "";
+
+      if (!rawContent && sourceUrl) {
+        const fetchResult = await client.invokeTool<{ body?: string }>(
+          "builtin:http_fetch",
+          { url: sourceUrl, timeoutMs: 15000, maxBytes: 1024 * 1024 }
+        );
+        if (!fetchResult.success) {
+          throw new Error(fetchResult.error ?? "HTTP fetch failed");
+        }
+        const body = fetchResult.content?.body;
+        if (typeof body !== "string") {
+          throw new Error("HTTP fetch returned no body");
+        }
+        rawContent = body;
+      }
+
+      if (!rawContent && sourcePath) {
+        const readResult = await client.invokeTool<string>(
+          "builtin:file_read",
+          { path: sourcePath }
+        );
+        if (!readResult.success) {
+          throw new Error(readResult.error ?? "File read failed");
+        }
+        if (typeof readResult.content !== "string") {
+          throw new Error("File read returned no content");
+        }
+        rawContent = readResult.content;
+      }
 
       if (!rawContent) {
         throw new Error("research_ingest requires url, path, or content");
       }
 
       const content = truncateContent(rawContent);
-      const summary = await summarize(context.agentId, title, rawContent);
 
-      await callGateway(context.agentId, {
-        type: "store_fact",
+      // Summarize long content
+      let summary: string | undefined;
+      if (rawContent.length >= 800) {
+        const summaryResponse = await client.chat([
+          {
+            role: "system",
+            content: "You are a research assistant. Summarize the source into 5 concise bullet points.",
+          },
+          {
+            role: "user",
+            content: `Title: ${title}\n\nContent:\n${content}`,
+          },
+        ], { maxTokens: 512, temperature: 0.2 });
+        summary = summaryResponse.content || undefined;
+      }
+
+      await client.storeFact({
         category: `research:${title}`,
         fact: JSON.stringify({
           title,
@@ -214,8 +263,7 @@ const agent = defineAgent({
         importance: 0.7,
       });
 
-      await callGateway(context.agentId, {
-        type: "record_episode",
+      await client.recordEpisode({
         event: "research.ingest",
         context: JSON.stringify({
           title,
@@ -241,37 +289,28 @@ const agent = defineAgent({
         throw new Error("research_query requires a question");
       }
 
-      const searchResult = await callGateway<GatewayTaskResult<unknown>>(context.agentId, {
-        type: "search_memory",
-        query: question,
+      const memories = await client.searchMemory(question, {
         types: ["semantic", "episodic"],
         limit: task.topK ?? 6,
       });
 
-      const memories = Array.isArray(searchResult.memories) ? searchResult.memories : [];
       const memoryContext = memories
-        .map((memory) => JSON.stringify(memory))
+        .map((m) => m.content)
         .slice(0, 6)
         .join("\n\n");
 
-      const answer = await callGateway<{ content?: string }>(context.agentId, {
-        type: "chat",
-        messages: [
-          {
-            role: "system",
-            content: "Answer the question using the provided memory context. Cite sources by title when possible.",
-          },
-          {
-            role: "user",
-            content: `Question: ${question}\n\nMemory Context:\n${memoryContext}`,
-          },
-        ],
-        maxTokens: 700,
-        temperature: 0.3,
-      });
+      const answer = await client.chat([
+        {
+          role: "system",
+          content: "Answer the question using the provided memory context. Cite sources by title when possible.",
+        },
+        {
+          role: "user",
+          content: `Question: ${question}\n\nMemory Context:\n${memoryContext}`,
+        },
+      ], { maxTokens: 700, temperature: 0.3 });
 
-      await callGateway(context.agentId, {
-        type: "record_episode",
+      await client.recordEpisode({
         event: "research.query",
         context: JSON.stringify({ question, memoryCount: memories.length }),
         tags: ["research", "query"],
@@ -280,7 +319,7 @@ const agent = defineAgent({
 
       return {
         type: "research_query",
-        answer: answer.content ?? "No answer generated",
+        answer: answer.content,
         sources: memories,
       };
     }

@@ -4,7 +4,7 @@ import { EventBus, createEventBus } from "./bus.js";
 import { WebhookManager, createWebhookManager } from "./webhooks.js";
 import { EventError } from "./types.js";
 import type {
-  AgentOSEvent,
+  AgentRunEvent,
   AgentLifecycleEvent,
   ToolEvent,
   WebhookConfig,
@@ -160,7 +160,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "priority" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       expect(order).toEqual([2, 1, 0]);
     });
@@ -176,7 +176,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "once" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       await bus.publish({
         id: "2",
@@ -184,7 +184,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "once" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       expect(handler).toHaveBeenCalledTimes(1);
     });
@@ -245,7 +245,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "unsubscribe" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       expect(handler).not.toHaveBeenCalled();
     });
@@ -283,7 +283,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "history-a" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       await bus.publish({
         id: "2",
@@ -291,7 +291,7 @@ describe("EventBus", () => {
         type: "system.error",
         timestamp: new Date(),
         data: { error: "history-b" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       const historyResult = bus.getHistory();
       expect(historyResult.ok).toBe(true);
@@ -307,7 +307,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "history" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       await bus.publish({
         id: "2",
@@ -315,7 +315,7 @@ describe("EventBus", () => {
         type: "tool.registered",
         timestamp: new Date(),
         data: { toolId: "test-tool" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       const historyResult = bus.getHistory({ channel: "system" });
       expect(historyResult.ok).toBe(true);
@@ -331,7 +331,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "history-a" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       await bus.publish({
         id: "2",
@@ -339,7 +339,7 @@ describe("EventBus", () => {
         type: "system.error",
         timestamp: new Date(),
         data: { error: "history-b" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       const historyResult = bus.getHistory({ eventType: "system.warning" });
       expect(historyResult.ok).toBe(true);
@@ -358,7 +358,7 @@ describe("EventBus", () => {
           type: "system.warning",
           timestamp: new Date(),
           data: { message: `history-${i}` },
-        } as AgentOSEvent);
+        } as AgentRunEvent);
       }
 
       const historyResult = bus.getHistory();
@@ -375,7 +375,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "clear" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       bus.clearHistory();
 
@@ -396,7 +396,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "replay-1" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       await bus.publish({
         id: "2",
@@ -404,7 +404,7 @@ describe("EventBus", () => {
         type: "system.warning",
         timestamp: new Date(),
         data: { message: "replay-2" },
-      } as AgentOSEvent);
+      } as AgentRunEvent);
 
       // Subscribe after events
       const handler = vi.fn();

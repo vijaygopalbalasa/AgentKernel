@@ -2,6 +2,7 @@
 
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { AgentClient } from "@agentrun/sdk";
 
 type InitMessage = {
   type: "init";
@@ -22,10 +23,16 @@ type ShutdownMessage = {
 
 type IncomingMessage = InitMessage | TaskMessage | ShutdownMessage;
 
+type AgentContext = {
+  agentId: string;
+  log: Logger;
+  client: AgentClient;
+};
+
 type AgentModule = {
-  handleTask?: (task: Record<string, unknown>, context: { agentId: string; log: Logger }) => Promise<unknown> | unknown;
-  initialize?: (context: { agentId: string; log: Logger }) => Promise<void> | void;
-  terminate?: (context: { agentId: string; log: Logger }) => Promise<void> | void;
+  handleTask?: (task: Record<string, unknown>, context: AgentContext) => Promise<unknown> | unknown;
+  initialize?: (context: AgentContext) => Promise<void> | void;
+  terminate?: (context: AgentContext) => Promise<void> | void;
 };
 
 type Logger = {
@@ -74,13 +81,21 @@ async function loadAgent(entryPoint: string): Promise<AgentModule> {
   return candidate;
 }
 
+function createContext(): AgentContext {
+  return {
+    agentId: state.agentId,
+    log,
+    client: new AgentClient({ agentId: state.agentId }),
+  };
+}
+
 async function handleInit(message: InitMessage): Promise<void> {
   state.agentId = message.agentId;
   state.entryPoint = message.entryPoint;
   state.agent = await loadAgent(message.entryPoint);
 
   if (state.agent.initialize) {
-    await state.agent.initialize({ agentId: state.agentId, log });
+    await state.agent.initialize(createContext());
   }
 
   state.initialized = true;
@@ -93,10 +108,7 @@ async function handleTask(message: TaskMessage): Promise<void> {
   }
 
   try {
-    const result = await state.agent.handleTask?.(message.task, {
-      agentId: state.agentId,
-      log,
-    });
+    const result = await state.agent.handleTask?.(message.task, createContext());
 
     sendMessage({
       type: "result",
@@ -118,7 +130,7 @@ async function handleTask(message: TaskMessage): Promise<void> {
 async function handleShutdown(): Promise<void> {
   try {
     if (state.agent?.terminate) {
-      await state.agent.terminate({ agentId: state.agentId, log });
+      await state.agent.terminate(createContext());
     }
   } finally {
     process.exit(0);
