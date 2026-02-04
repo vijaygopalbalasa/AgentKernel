@@ -80,5 +80,8 @@ export {
 // Event Bus
 export { EventBus, createEventBus } from "./bus.js";
 
+// Redis-backed Event Bus
+export { RedisEventBus, createRedisEventBus, type RedisEventBusConfig } from "./redis-bus.js";
+
 // Webhooks
 export { WebhookManager, createWebhookManager } from "./webhooks.js";

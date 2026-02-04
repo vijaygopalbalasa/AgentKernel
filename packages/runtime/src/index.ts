@@ -9,6 +9,13 @@ export {
   type StateTransition,
 } from "./state-machine.js";
 
+// Persistent State Machine (PostgreSQL-backed)
+export {
+  PersistentStateMachine,
+  createPersistentStateMachine,
+  type PersistentStateMachineConfig,
+} from "./persistent-state-machine.js";
+
 // Agent Context
 export {
   type AgentId,
@@ -134,3 +141,12 @@ export {
   type AdapterState,
   type AdapterFactory,
 } from "./adapter.js";
+
+// Worker Sandbox (Real Process Isolation)
+export {
+  WorkerSandbox,
+  SandboxPool,
+  type SandboxResourceLimits,
+  type SandboxResult,
+  DEFAULT_SANDBOX_LIMITS,
+} from "./worker-sandbox.js";
