@@ -56,3 +56,4 @@ apps/dashboard/out/
 
 # Screenshot artifacts
 *.png
+.next/
