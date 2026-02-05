@@ -11,14 +11,23 @@
   },
   "keywords": [
     "ai",
+    "ai-security",
     "agent",
+    "agent-security",
     "security",
     "sandbox",
+    "firewall",
+    "policy",
     "openclaw",
     "langchain",
+    "autogpt",
     "llm",
-    "policy",
-    "firewall"
+    "mcp",
+    "tool-use",
+    "prompt-injection",
+    "data-exfiltration",
+    "capability-tokens",
+    "audit-logging"
   ],
   "repository": {
     "type": "git",
