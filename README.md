@@ -321,7 +321,7 @@ Set `AGENTKERNEL_PRODUCTION_HARDENING=true` (or `NODE_ENV=production`) to fail f
 - **Runtime:** Node.js 20+
 - **Package Manager:** pnpm
 - **Database:** PostgreSQL
-- **Testing:** Vitest (1,200+ tests)
+- **Testing:** Vitest (1,140+ tests)
 - **Build:** tsup
 - **Linting:** Biome
 
@@ -363,7 +363,7 @@ agentkernel/
 - Permissions: HMAC capability tokens with constant-time verify
 - AgentKernel CLI: Security proxy, tool interceptor, policy manager, audit logging
 - LangChain Adapter: Tool interception with PolicyEngine
-- 1,200+ tests across all packages
+- 1,140+ tests across all packages
 
 ### AgentKernel CLI
 One-command security for any agent:
@@ -389,6 +389,15 @@ const safeTool = wrapToolWithPolicy(myTool, policyEngine, { agentId: 'my-agent' 
 
 ### In Progress
 - Additional framework adapters (AutoGen, CrewAI)
+
+---
+
+## Documentation
+
+- **[Getting Started](docs/GETTING_STARTED.md)** — Install, configure, and run in 5 minutes
+- **[Architecture Guide](docs/ARCHITECTURE.md)** — How AgentKernel works under the hood
+- **[Examples](docs/EXAMPLES.md)** — LangChain, HTTP API, WebSocket, Docker, CI/CD patterns
+- **[CLI README](packages/agentkernel-cli/README.md)** — Full CLI reference and HTTP API docs
 
 ---
 
