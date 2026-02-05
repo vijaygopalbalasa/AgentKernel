@@ -1,0 +1,41 @@
+{
+  "name": "agentkernel",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Security runtime for AI agents — protect against malicious tools, data theft, and prompt injection",
+  "license": "MIT",
+  "exports": { ".": "./dist/index.js" },
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "agentkernel": "./dist/cli.js"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "security",
+    "sandbox",
+    "openclaw",
+    "langchain",
+    "llm",
+    "policy",
+    "firewall"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel"
+  },
+  "engines": { "node": ">=20.0.0" },
+  "dependencies": {
+    "@agentkernel/shared": "workspace:*",
+    "@agentkernel/runtime": "workspace:*",
+    "ws": "^8.18.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts --format esm --dts",
+    "test": "vitest run"
+  }
+}
