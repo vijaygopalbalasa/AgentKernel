@@ -1,6 +1,6 @@
 {
   "name": "@agentkernel/agent-kernel",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "type": "module",
   "description": "Security runtime for AI agents — protect against malicious tools, data theft, and prompt injection",
   "license": "MIT",

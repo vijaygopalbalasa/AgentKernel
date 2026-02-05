@@ -82,7 +82,7 @@ ${colors.cyan}${colors.bold}
     ║    ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝     ║
     ║                                                           ║
     ║           Security Runtime for AI Agents                  ║
-    ║                     v0.1.6                                ║
+    ║                     v0.1.7                                ║
     ╚═══════════════════════════════════════════════════════════╝
 ${colors.reset}`);
 }
@@ -909,7 +909,7 @@ async function main(): Promise<void> {
   });
 
   if (values.version) {
-    console.log("agentkernel v0.1.6");
+    console.log("agentkernel v0.1.7");
     return;
   }
 

@@ -321,7 +321,7 @@ Set `AGENTKERNEL_PRODUCTION_HARDENING=true` (or `NODE_ENV=production`) to fail f
 - **Runtime:** Node.js 20+
 - **Package Manager:** pnpm
 - **Database:** PostgreSQL
-- **Testing:** Vitest (1,140+ tests)
+- **Testing:** Vitest (1,170+ tests)
 - **Build:** tsup
 - **Linting:** Biome
 
@@ -363,7 +363,7 @@ agentkernel/
 - Permissions: HMAC capability tokens with constant-time verify
 - AgentKernel CLI: Security proxy, tool interceptor, policy manager, audit logging
 - LangChain Adapter: Tool interception with PolicyEngine
-- 1,140+ tests across all packages
+- 1,170+ tests across all packages
 
 ### AgentKernel CLI
 One-command security for any agent:
