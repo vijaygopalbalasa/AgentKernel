@@ -37,7 +37,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "test": "vitest run --exclude '**/*.integration.test.ts'",
-    "test:integration": "vitest run --include '**/*.integration.test.ts'",
+    "test:integration": "vitest run '**/*.integration.test.ts'",
     "test:all": "vitest run",
     "test:watch": "vitest watch",
     "migrate": "tsx src/migrations/run.ts"
