@@ -82,7 +82,7 @@ ${colors.cyan}${colors.bold}
     ║    ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝     ║
     ║                                                           ║
     ║           Security Runtime for AI Agents                  ║
-    ║                     v0.1.1                                ║
+    ║                     v0.1.3                                ║
     ╚═══════════════════════════════════════════════════════════╝
 ${colors.reset}`);
 }
@@ -120,7 +120,7 @@ ${colors.bold}Init Options:${colors.reset}
 ${colors.bold}Start Options:${colors.reset}
   --host <ip>             Bind address (default: 0.0.0.0 — all interfaces)
   --port <number>         Proxy listen port (default: 18788)
-  --gateway <url>         Agent gateway URL (default: ws://127.0.0.1:18789)
+  --gateway <url>         Agent gateway URL (if not set, runs standalone)
   --policy <file>         Custom policy YAML file
   --log-file <file>       Audit log file path
 
@@ -132,7 +132,8 @@ ${colors.bold}Audit Options:${colors.reset}
 
 ${colors.bold}Examples:${colors.reset}
   agentkernel init                          # Interactive setup wizard
-  agentkernel start                         # Start the proxy
+  agentkernel start                         # Start in standalone mode
+  agentkernel start --gateway ws://gw:18789 # Start in proxy mode
   agentkernel allow "github"                # Allow GitHub access
   agentkernel block "telegram"              # Block Telegram
   agentkernel allow --domain api.example.com
@@ -515,29 +516,38 @@ async function startCommand(args: {
 
   // Load config from environment
   const envConfig = loadOpenClawProxyConfigFromEnv();
-  const gatewayUrl = args.gateway ?? envConfig.gatewayUrl ?? "ws://127.0.0.1:18789";
-  const localGateway = isLocalGatewayUrl(gatewayUrl);
-  const explicitSkip = envConfig.skipSsrfValidation === true;
-  const hostname = getGatewayHostname(gatewayUrl);
 
-  // Merge with CLI args
+  // Auto-detect mode: evaluate (standalone) if no gateway specified, proxy if gateway given
+  const hasGateway = !!(args.gateway ?? envConfig.gatewayUrl);
   const listenHost = args.host ?? envConfig.listenHost ?? "0.0.0.0";
+  const listenPort = args.port ?? envConfig.listenPort ?? 18788;
+
   const config: OpenClawProxyConfig = {
     ...envConfig,
     listenHost,
-    listenPort: args.port ?? envConfig.listenPort ?? 18788,
-    gatewayUrl,
-    skipSsrfValidation: explicitSkip && localGateway,
-    allowedGatewayHosts:
-      envConfig.allowedGatewayHosts ??
-      (localGateway && hostname && !explicitSkip ? [hostname] : undefined),
+    listenPort,
+    mode: hasGateway ? "proxy" : "evaluate",
   };
 
-  if (explicitSkip && !localGateway) {
-    log(
-      "Ignoring AGENTKERNEL_SKIP_SSRF_VALIDATION because gateway is not localhost/loopback",
-      "yellow",
-    );
+  // Only set gateway URL in proxy mode
+  if (hasGateway) {
+    const gatewayUrl = args.gateway ?? envConfig.gatewayUrl ?? "ws://127.0.0.1:18789";
+    const localGateway = isLocalGatewayUrl(gatewayUrl);
+    const explicitSkip = envConfig.skipSsrfValidation === true;
+    const hostname = getGatewayHostname(gatewayUrl);
+
+    config.gatewayUrl = gatewayUrl;
+    config.skipSsrfValidation = explicitSkip && localGateway;
+    config.allowedGatewayHosts =
+      envConfig.allowedGatewayHosts ??
+      (localGateway && hostname && !explicitSkip ? [hostname] : undefined);
+
+    if (explicitSkip && !localGateway) {
+      log(
+        "Ignoring AGENTKERNEL_SKIP_SSRF_VALIDATION because gateway is not localhost/loopback",
+        "yellow",
+      );
+    }
   }
 
   // Load policy
@@ -583,36 +593,79 @@ async function startCommand(args: {
     }
   };
 
-  // Approval callback
-  config.onApprovalRequest = async (call) => {
-    log(`\n  [APPROVAL REQUIRED] ${call.tool}`, "yellow");
-    log(`  Args: ${JSON.stringify(call.args)}`, "yellow");
-    log("  Approve? (y/n): ", "yellow");
-    return false; // Non-interactive mode
-  };
+  // Approval callback: interactive when TTY, auto-deny otherwise
+  if (process.stdin.isTTY) {
+    config.onApprovalRequest = async (call) => {
+      log(`\n  [APPROVAL REQUIRED] ${call.tool}`, "yellow");
+      log(`  Args: ${JSON.stringify(call.args)}`, "yellow");
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        const answer = await rl.question(`${colors.yellow}  Approve? (y/n): ${colors.reset}`);
+        return answer.trim().toLowerCase() === "y";
+      } finally {
+        rl.close();
+      }
+    };
+  } else {
+    config.onApprovalRequest = async (call) => {
+      log(`  [APPROVAL REQUIRED] ${call.tool} — auto-denied (non-interactive)`, "yellow");
+      return false;
+    };
+  }
 
-  log("\nStarting AgentKernel security proxy...", "cyan");
+  const mode = config.mode ?? "evaluate";
+  log(`\nStarting AgentKernel in ${mode.toUpperCase()} mode...`, "cyan");
   log(`  Listen: ${config.listenHost}:${config.listenPort}`, "blue");
-  log(`  Gateway URL: ${config.gatewayUrl}`, "blue");
+  if (mode === "proxy") {
+    log(`  Gateway URL: ${config.gatewayUrl}`, "blue");
+  }
   log(`  Audit log: ${logFile}`, "blue");
 
   try {
     const proxy = await createOpenClawProxy(config);
 
-    log(`
-${colors.green}${colors.bold}AgentKernel is running!${colors.reset}
+    if (mode === "evaluate") {
+      const addr = listenHost === "0.0.0.0" ? "localhost" : listenHost;
+      log(`
+${colors.green}${colors.bold}AgentKernel is running in STANDALONE mode!${colors.reset}
 
 Your AI agents are now protected against:
-  ${colors.green}✓${colors.reset} Credential theft (API keys, tokens, SSH keys)
-  ${colors.green}✓${colors.reset} Data exfiltration (Telegram, Discord, paste sites)
-  ${colors.green}✓${colors.reset} Malware (reverse shells, download & execute)
-  ${colors.green}✓${colors.reset} SSRF attacks (cloud metadata, internal networks)
+  ${colors.green}+${colors.reset} Credential theft (API keys, tokens, SSH keys)
+  ${colors.green}+${colors.reset} Data exfiltration (Telegram, Discord, paste sites)
+  ${colors.green}+${colors.reset} Malware (reverse shells, download & execute)
+  ${colors.green}+${colors.reset} SSRF attacks (cloud metadata, internal networks)
 
-${colors.bold}Configure your agent gateway:${colors.reset}
-  ws://${config.listenHost === "0.0.0.0" ? "<your-ip>" : config.listenHost}:${config.listenPort}
+${colors.bold}HTTP API:${colors.reset}
+  curl http://${addr}:${listenPort}/health
+  curl -X POST http://${addr}:${listenPort}/evaluate \\
+    -H "Content-Type: application/json" \\
+    -d '{"tool":"bash","args":{"command":"cat ~/.ssh/id_rsa"}}'
+
+${colors.bold}WebSocket:${colors.reset} ws://${addr}:${listenPort}
+  Accepts: OpenClaw, MCP/JSON-RPC, or Simple format
+
+${colors.bold}Proxy mode:${colors.reset} agentkernel start --gateway ws://your-gateway:port
 
 Press Ctrl+C to stop
 `);
+    } else {
+      log(`
+${colors.green}${colors.bold}AgentKernel is running in PROXY mode!${colors.reset}
+
+Your AI agents are now protected against:
+  ${colors.green}+${colors.reset} Credential theft (API keys, tokens, SSH keys)
+  ${colors.green}+${colors.reset} Data exfiltration (Telegram, Discord, paste sites)
+  ${colors.green}+${colors.reset} Malware (reverse shells, download & execute)
+  ${colors.green}+${colors.reset} SSRF attacks (cloud metadata, internal networks)
+
+${colors.bold}Connect your agent to:${colors.reset}
+  ws://${listenHost === "0.0.0.0" ? "<your-ip>" : listenHost}:${listenPort}
+
+${colors.bold}Gateway:${colors.reset} ${config.gatewayUrl}
+
+Press Ctrl+C to stop
+`);
+    }
 
     // Handle shutdown
     const shutdown = async (signal: string) => {
@@ -622,6 +675,7 @@ Press Ctrl+C to stop
       const stats = proxy.getStats();
       log(`
 ${colors.cyan}Session Statistics:${colors.reset}
+  Mode:            ${stats.mode}
   Total messages:  ${stats.totalMessages}
   Tool calls:      ${stats.totalToolCalls}
   ${colors.green}Allowed:${colors.reset}         ${stats.allowedCalls}
@@ -667,7 +721,37 @@ async function statusCommand(): Promise<void> {
     log("  Policy file: Using defaults", "yellow");
   }
 
-  log("\n  Run 'agentkernel start' to start the security proxy");
+  // Try to connect to a running proxy's HTTP API
+  const envConfig = loadOpenClawProxyConfigFromEnv();
+  const port = envConfig.listenPort ?? 18788;
+  const host = envConfig.listenHost ?? "127.0.0.1";
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    const resp = await fetch(`http://${host}:${port}/health`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (resp.ok) {
+      const health = (await resp.json()) as { status: string; mode: string; uptime: number };
+      log(`\n  Proxy:   ${colors.green}RUNNING${colors.reset} (${health.mode} mode)`, "green");
+      log(`  Uptime:  ${health.uptime}s`);
+      // Also fetch stats
+      const statsResp = await fetch(`http://${host}:${port}/stats`);
+      if (statsResp.ok) {
+        const stats = (await statsResp.json()) as {
+          totalToolCalls: number;
+          allowedCalls: number;
+          blockedCalls: number;
+          activeConnections: number;
+        };
+        log(`  Connections: ${stats.activeConnections}`);
+        log(`  Tool calls:  ${stats.totalToolCalls} (${colors.green}${stats.allowedCalls} allowed${colors.reset}, ${colors.red}${stats.blockedCalls} blocked${colors.reset})`);
+      }
+    }
+  } catch {
+    log(`\n  Proxy:   ${colors.yellow}NOT RUNNING${colors.reset}`, "yellow");
+    log(`  Run 'agentkernel start' to start the security proxy`);
+  }
+  log("");
 }
 
 // ─── AUDIT COMMAND ────────────────────────────────────────────────
@@ -772,8 +856,12 @@ async function configCommand(): Promise<void> {
 
   const envConfig = loadOpenClawProxyConfigFromEnv();
 
+  const mode = envConfig.gatewayUrl ? "proxy" : "evaluate (standalone)";
+  log(`  Mode:         ${mode}`, "blue");
   log(`  Listen:       ${envConfig.listenHost ?? "0.0.0.0"}:${envConfig.listenPort ?? 18788}`, "blue");
-  log(`  Gateway URL:  ${envConfig.gatewayUrl ?? "ws://127.0.0.1:18789"}`, "blue");
+  if (envConfig.gatewayUrl) {
+    log(`  Gateway URL:  ${envConfig.gatewayUrl}`, "blue");
+  }
   log(`  Config dir:   ${getConfigDir()}`, "blue");
 
   const policyFile = getPolicyFile();
@@ -787,7 +875,7 @@ async function configCommand(): Promise<void> {
 ${colors.bold}Environment Variables:${colors.reset}
   AGENTKERNEL_HOST                       Bind address (default: 0.0.0.0)
   AGENTKERNEL_PORT                       Proxy listen port
-  AGENTKERNEL_GATEWAY_URL                Agent gateway URL
+  AGENTKERNEL_GATEWAY_URL                Gateway URL (if set, enables proxy mode)
   AGENTKERNEL_POLICY_FILE                Custom policy file path
   AGENTKERNEL_SKIP_SSRF_VALIDATION       Allow localhost SSRF bypass only
   AGENTKERNEL_ALLOWED_GATEWAY_HOSTS      CSV allowlist (example: host1,host2)
@@ -821,7 +909,7 @@ async function main(): Promise<void> {
   });
 
   if (values.version) {
-    console.log("agentkernel v0.1.1");
+    console.log("agentkernel v0.1.3");
     return;
   }
 
