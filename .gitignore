@@ -40,6 +40,9 @@ coverage/
 .claude/plans/
 .claude/settings.*
 
+# Private/internal docs
+docs/LAUNCH_POSTS.md
+
 # Bootstrap artifacts (one-time scaffolding)
 bootstrap.sh
 *.tar.gz
