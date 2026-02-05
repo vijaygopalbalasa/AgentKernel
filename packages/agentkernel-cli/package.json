@@ -1,6 +1,6 @@
 {
   "name": "@agentkernel/agent-kernel",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Security runtime for AI agents — protect against malicious tools, data theft, and prompt injection",
   "license": "MIT",
@@ -35,8 +35,8 @@
     "README.md"
   ],
   "dependencies": {
-    "@agentkernel/shared": "workspace:*",
-    "@agentkernel/runtime": "workspace:*",
+    "@agentkernel/shared": ">=0.1.1",
+    "@agentkernel/runtime": ">=0.1.1",
     "ws": "^8.18.0",
     "zod": "^3.25.0"
   },
