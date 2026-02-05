@@ -9,6 +9,7 @@ import type { OpenClawProxyConfig } from "./proxy.js";
 export const loadPolicySetFromFile = runtime.loadPolicySetFromFile;
 
 const EnvConfigSchema = z.object({
+  AGENTKERNEL_HOST: z.string().optional(),
   AGENTKERNEL_PORT: z.string().optional(),
   AGENTKERNEL_GATEWAY_URL: z.string().optional(),
   AGENTKERNEL_AGENT_ID: z.string().optional(),
@@ -59,6 +60,9 @@ export function loadOpenClawProxyConfigFromEnv(
 ): Partial<OpenClawProxyConfig> {
   const raw = EnvConfigSchema.parse(env);
   const config: Partial<OpenClawProxyConfig> = {};
+
+  const listenHost = raw.AGENTKERNEL_HOST;
+  if (listenHost) config.listenHost = listenHost;
 
   const listenPort = parseEnvNumber(raw.AGENTKERNEL_PORT ?? raw.OPENCLAW_PROXY_PORT);
   if (listenPort) config.listenPort = listenPort;

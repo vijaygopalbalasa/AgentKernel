@@ -1,6 +1,6 @@
 {
   "name": "@agentkernel/langchain-adapter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "LangChain adapter for AgentKernel — intercepts tool calls with PolicyEngine",
   "type": "module",
   "main": "./dist/index.js",

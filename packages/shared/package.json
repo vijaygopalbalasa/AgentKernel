@@ -1,6 +1,6 @@
 {
   "name": "@agentkernel/shared",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared types, utilities, and constants for AgentKernel",
   "license": "MIT",
   "type": "module",

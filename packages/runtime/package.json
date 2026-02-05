@@ -1,6 +1,6 @@
 {
   "name": "@agentkernel/runtime",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Agent runtime for AgentKernel — policy engine, sandboxing, audit logging, rate limiting",
   "license": "MIT",

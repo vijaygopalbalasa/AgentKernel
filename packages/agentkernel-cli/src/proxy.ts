@@ -181,6 +181,8 @@ function createRateLimiter(
 export interface OpenClawProxyConfig {
   /** Port to listen on (default: 18788) */
   listenPort?: number;
+  /** Host/IP to bind to (default: "0.0.0.0" — all interfaces) */
+  listenHost?: string;
   /** OpenClaw Gateway URL (default: ws://127.0.0.1:18789) */
   gatewayUrl?: string;
   /** Allowed gateway hosts (if set, only these hosts are permitted) */
@@ -298,6 +300,7 @@ export class OpenClawSecurityProxy {
 
     this.config = {
       listenPort: config.listenPort ?? 18788,
+      listenHost: config.listenHost ?? "0.0.0.0",
       gatewayUrl,
       allowedGatewayHosts: derivedAllowedHosts,
       skipSsrfValidation: config.skipSsrfValidation ?? false,
@@ -356,6 +359,7 @@ export class OpenClawSecurityProxy {
 
     return new Promise((resolve, reject) => {
       this.server = new WebSocketServer({
+        host: this.config.listenHost,
         port: this.config.listenPort,
         maxPayload: this.config.maxMessageSizeBytes,
       });

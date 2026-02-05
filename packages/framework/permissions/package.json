@@ -1,6 +1,6 @@
 {
   "name": "@agentkernel/permissions",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Capability-based permission system for AgentKernel — HMAC-signed tokens with constant-time verification",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@agentkernel/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Programmatic API for AgentKernel — run proxies, check status, query audit logs via PostgreSQL",
   "type": "module",
   "main": "./dist/index.js",

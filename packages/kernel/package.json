@@ -1,6 +1,6 @@
 {
   "name": "@agentkernel/kernel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Compute kernel for AgentKernel — database, vector store, cache, logging, health checks",
   "license": "MIT",

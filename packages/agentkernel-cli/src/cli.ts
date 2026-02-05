@@ -82,7 +82,7 @@ ${colors.cyan}${colors.bold}
     ║    ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝     ║
     ║                                                           ║
     ║           Security Runtime for AI Agents                  ║
-    ║                     v0.1.0                                ║
+    ║                     v0.1.1                                ║
     ╚═══════════════════════════════════════════════════════════╝
 ${colors.reset}`);
 }
@@ -118,6 +118,7 @@ ${colors.bold}Init Options:${colors.reset}
   --force                 Overwrite existing policy
 
 ${colors.bold}Start Options:${colors.reset}
+  --host <ip>             Bind address (default: 0.0.0.0 — all interfaces)
   --port <number>         Proxy listen port (default: 18788)
   --gateway <url>         Agent gateway URL (default: ws://127.0.0.1:18789)
   --policy <file>         Custom policy YAML file
@@ -504,6 +505,7 @@ function resolveCommandTarget(args: {
 // ─── START COMMAND ────────────────────────────────────────────────
 
 async function startCommand(args: {
+  host?: string;
   port?: number;
   gateway?: string;
   policy?: string;
@@ -519,8 +521,10 @@ async function startCommand(args: {
   const hostname = getGatewayHostname(gatewayUrl);
 
   // Merge with CLI args
+  const listenHost = args.host ?? envConfig.listenHost ?? "0.0.0.0";
   const config: OpenClawProxyConfig = {
     ...envConfig,
+    listenHost,
     listenPort: args.port ?? envConfig.listenPort ?? 18788,
     gatewayUrl,
     skipSsrfValidation: explicitSkip && localGateway,
@@ -588,7 +592,7 @@ async function startCommand(args: {
   };
 
   log("\nStarting AgentKernel security proxy...", "cyan");
-  log(`  Listen port: ${config.listenPort}`, "blue");
+  log(`  Listen: ${config.listenHost}:${config.listenPort}`, "blue");
   log(`  Gateway URL: ${config.gatewayUrl}`, "blue");
   log(`  Audit log: ${logFile}`, "blue");
 
@@ -605,7 +609,7 @@ Your AI agents are now protected against:
   ${colors.green}✓${colors.reset} SSRF attacks (cloud metadata, internal networks)
 
 ${colors.bold}Configure your agent gateway:${colors.reset}
-  ws://localhost:${config.listenPort}
+  ws://${config.listenHost === "0.0.0.0" ? "<your-ip>" : config.listenHost}:${config.listenPort}
 
 Press Ctrl+C to stop
 `);
@@ -768,7 +772,7 @@ async function configCommand(): Promise<void> {
 
   const envConfig = loadOpenClawProxyConfigFromEnv();
 
-  log(`  Listen port:  ${envConfig.listenPort ?? 18788}`, "blue");
+  log(`  Listen:       ${envConfig.listenHost ?? "0.0.0.0"}:${envConfig.listenPort ?? 18788}`, "blue");
   log(`  Gateway URL:  ${envConfig.gatewayUrl ?? "ws://127.0.0.1:18789"}`, "blue");
   log(`  Config dir:   ${getConfigDir()}`, "blue");
 
@@ -781,6 +785,7 @@ async function configCommand(): Promise<void> {
 
   log(`
 ${colors.bold}Environment Variables:${colors.reset}
+  AGENTKERNEL_HOST                       Bind address (default: 0.0.0.0)
   AGENTKERNEL_PORT                       Proxy listen port
   AGENTKERNEL_GATEWAY_URL                Agent gateway URL
   AGENTKERNEL_POLICY_FILE                Custom policy file path
@@ -798,6 +803,7 @@ async function main(): Promise<void> {
     options: {
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
+      host: { type: "string" },
       port: { type: "string" },
       gateway: { type: "string" },
       policy: { type: "string" },
@@ -815,7 +821,7 @@ async function main(): Promise<void> {
   });
 
   if (values.version) {
-    console.log("agentkernel v0.1.0");
+    console.log("agentkernel v0.1.1");
     return;
   }
 
@@ -829,6 +835,7 @@ async function main(): Promise<void> {
   switch (command) {
     case "start":
       await startCommand({
+        host: values.host,
         port: values.port ? Number.parseInt(values.port, 10) : undefined,
         gateway: values.gateway,
         policy: values.policy,
