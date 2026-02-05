@@ -63,7 +63,7 @@ export interface VectorStore {
       limit?: number;
       filter?: SearchFilter[];
       scoreThreshold?: number;
-    }
+    },
   ): Promise<SearchResult[]>;
 
   /** Get point by ID */
@@ -160,9 +160,7 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
       try {
         // Check if collection exists
         const collections = await client.getCollections();
-        const exists = collections.collections.some(
-          (c) => c.name === collectionName
-        );
+        const exists = collections.collections.some((c) => c.name === collectionName);
 
         if (!exists) {
           log.info("Creating Qdrant collection", { name: collectionName, vectorSize });
@@ -242,7 +240,7 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
         limit?: number;
         filter?: SearchFilter[];
         scoreThreshold?: number;
-      } = {}
+      } = {},
     ): Promise<SearchResult[]> {
       const { limit = 10, filter = [], scoreThreshold = 0 } = options;
 
@@ -438,7 +436,7 @@ export async function waitForVectorStore(
     maxRetries?: number;
     retryDelayMs?: number;
     logger?: Logger;
-  } = {}
+  } = {},
 ): Promise<boolean> {
   const { maxRetries = 30, retryDelayMs = 1000, logger } = options;
 

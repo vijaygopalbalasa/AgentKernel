@@ -1,14 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { RedisConfig } from "../config.js";
 import {
-  createEventBus,
-  checkEventBusHealth,
-  waitForEventBus,
   type EventBus,
+  type EventBusStats,
   type EventMessage,
   type Subscription,
-  type EventBusStats,
+  checkEventBusHealth,
+  createEventBus,
+  waitForEventBus,
 } from "../event-bus.js";
-import type { RedisConfig } from "../config.js";
 
 // Note: These tests verify API contracts without requiring a real Redis connection.
 // Integration tests with real Redis should be in a separate test suite.

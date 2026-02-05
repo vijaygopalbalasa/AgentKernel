@@ -1,8 +1,8 @@
 // Circuit Breaker Pattern Implementation
 // Prevents cascading failures by failing fast when a service is down
 
+import { type Result, err, ok } from "@agentkernel/shared";
 import { z } from "zod";
-import { type Result, ok, err } from "@agentkernel/shared";
 import { createLogger } from "./logger.js";
 
 const log = createLogger({ name: "circuit-breaker" });
@@ -25,7 +25,7 @@ export class CircuitOpenError extends Error {
   constructor(
     public readonly circuitName: string,
     public readonly openedAt: Date,
-    public readonly resetAt: Date
+    public readonly resetAt: Date,
   ) {
     super(`Circuit '${circuitName}' is OPEN. Will reset at ${resetAt.toISOString()}`);
     this.name = "CircuitOpenError";
@@ -82,23 +82,27 @@ export class CircuitBreaker {
     if (this.state === "OPEN") {
       this.rejections++;
       log.debug("Circuit open, rejecting request", { name: this.config.name });
+      const openedAt = this.openedAt ?? new Date();
       return err(
         new CircuitOpenError(
           this.config.name,
-          this.openedAt!,
-          new Date(this.openedAt!.getTime() + this.config.resetTimeout)
-        )
+          openedAt,
+          new Date(openedAt.getTime() + this.config.resetTimeout),
+        ),
       );
     }
 
     // In HALF_OPEN, limit attempts
     if (this.state === "HALF_OPEN" && this.halfOpenAttempts >= this.config.halfOpenMaxAttempts) {
       this.rejections++;
-      return err(new CircuitOpenError(
-        this.config.name,
-        this.openedAt!,
-        new Date(this.openedAt!.getTime() + this.config.resetTimeout)
-      ));
+      const openedAt = this.openedAt ?? new Date();
+      return err(
+        new CircuitOpenError(
+          this.config.name,
+          openedAt,
+          new Date(openedAt.getTime() + this.config.resetTimeout),
+        ),
+      );
     }
 
     if (this.state === "HALF_OPEN") {
@@ -293,7 +297,7 @@ const circuits = new Map<string, CircuitBreaker>();
  */
 export function getCircuitBreaker(
   name: string,
-  config?: Partial<Omit<CircuitBreakerConfig, "name">>
+  config?: Partial<Omit<CircuitBreakerConfig, "name">>,
 ): CircuitBreaker {
   let circuit = circuits.get(name);
   if (!circuit) {
@@ -314,14 +318,18 @@ export function getAllCircuitMetrics(): CircuitBreakerMetrics[] {
  * Reset all circuit breakers.
  */
 export function resetAllCircuits(): void {
-  circuits.forEach((c) => c.reset());
+  for (const circuit of circuits.values()) {
+    circuit.reset();
+  }
 }
 
 /**
  * Destroy all circuit breakers.
  */
 export function destroyAllCircuits(): void {
-  circuits.forEach((c) => c.destroy());
+  for (const circuit of circuits.values()) {
+    circuit.destroy();
+  }
   circuits.clear();
 }
 
@@ -333,7 +341,7 @@ export function destroyAllCircuits(): void {
 export function withCircuitBreaker<T extends (...args: unknown[]) => Promise<unknown>>(
   circuitName: string,
   fn: T,
-  config?: Partial<Omit<CircuitBreakerConfig, "name">>
+  config?: Partial<Omit<CircuitBreakerConfig, "name">>,
 ): T {
   const circuit = getCircuitBreaker(circuitName, config);
 

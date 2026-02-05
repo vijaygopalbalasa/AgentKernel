@@ -2,10 +2,15 @@
 // Requires: docker compose -f docker/docker-compose.test.yml up -d
 // Run with: vitest run src/event-bus.integration.test.ts
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { createEventBus, createRedisClient, type EventBus, type EventMessage } from "./event-bus.js";
-import { createLogger } from "./logger.js";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { RedisConfig } from "./config.js";
+import {
+  type EventBus,
+  type EventMessage,
+  createEventBus,
+  createRedisClient,
+} from "./event-bus.js";
+import { createLogger } from "./logger.js";
 
 const TEST_REDIS_CONFIG: RedisConfig = {
   host: "127.0.0.1",
@@ -36,7 +41,7 @@ describe("Event Bus Integration Tests (Real Redis)", () => {
     available = await isRedisAvailable();
     if (!available) {
       console.warn(
-        "⚠ Redis not available at 127.0.0.1:6380. Run: docker compose -f docker/docker-compose.test.yml up -d"
+        "⚠ Redis not available at 127.0.0.1:6380. Run: docker compose -f docker/docker-compose.test.yml up -d",
       );
       return;
     }
@@ -100,9 +105,9 @@ describe("Event Bus Integration Tests (Real Redis)", () => {
     expect(received.length).toBeGreaterThanOrEqual(1);
     const msg = received.find((m) => m.type === "test.event");
     expect(msg).toBeDefined();
-    expect(msg!.data).toEqual({ value: 42 });
-    expect(msg!.id).toBeTruthy();
-    expect(msg!.timestamp).toBeInstanceOf(Date);
+    expect(msg?.data).toEqual({ value: 42 });
+    expect(msg?.id).toBeTruthy();
+    expect(msg?.timestamp).toBeInstanceOf(Date);
 
     await subscription.unsubscribe();
   });
@@ -201,8 +206,8 @@ describe("Event Bus Integration Tests (Real Redis)", () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Should receive agent:lifecycle and agent:error, NOT system:health
-    const agentEvents = received.filter((m) =>
-      m.type === "agent.started" || m.type === "agent.failed"
+    const agentEvents = received.filter(
+      (m) => m.type === "agent.started" || m.type === "agent.failed",
     );
     expect(agentEvents.length).toBeGreaterThanOrEqual(2);
 
@@ -267,7 +272,7 @@ describe("Event Bus Integration Tests (Real Redis)", () => {
 
     // Rapid fire publish
     const publishPromises = Array.from({ length: messageCount }, (_, i) =>
-      bus.publish(channel, { type: "rapid", data: { index: i } })
+      bus.publish(channel, { type: "rapid", data: { index: i } }),
     );
     await Promise.all(publishPromises);
 
@@ -378,7 +383,7 @@ describe("Event Bus Integration Tests (Real Redis)", () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     expect(received.length).toBeGreaterThanOrEqual(1);
-    expect(received[0]!.data).toEqual(complexData);
+    expect(received[0]?.data).toEqual(complexData);
 
     await sub.unsubscribe();
   });

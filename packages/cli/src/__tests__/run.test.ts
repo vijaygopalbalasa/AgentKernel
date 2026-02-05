@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the external dependencies
 vi.mock("@agentkernel/kernel", () => ({
@@ -48,10 +48,10 @@ vi.mock("agentkernel", () => ({
   OpenClawSecurityProxy: vi.fn(),
 }));
 
-import { runProxy, type RunOptions } from "../commands/run.js";
-import { createLogger, createDatabase, onShutdown } from "@agentkernel/kernel";
-import { loadPolicySetFromFile, createAuditLoggerWithDatabase } from "@agentkernel/runtime";
+import { createDatabase, createLogger, onShutdown } from "@agentkernel/kernel";
+import { createAuditLoggerWithDatabase, loadPolicySetFromFile } from "@agentkernel/runtime";
 import { createOpenClawProxy } from "agentkernel";
+import { type RunOptions, runProxy } from "../commands/run.js";
 
 describe("runProxy", () => {
   let testDir: string;
@@ -66,10 +66,10 @@ describe("runProxy", () => {
 
   afterEach(() => {
     rmSync(testDir, { recursive: true, force: true });
-    delete process.env.DATABASE_URL;
-    delete process.env.OPENCLAW_GATEWAY_URL;
-    delete process.env.OPENCLAW_AGENT_ID;
-    delete process.env.AGENTKERNEL_SKIP_SSRF_VALIDATION;
+    Reflect.deleteProperty(process.env, "DATABASE_URL");
+    Reflect.deleteProperty(process.env, "OPENCLAW_GATEWAY_URL");
+    Reflect.deleteProperty(process.env, "OPENCLAW_AGENT_ID");
+    Reflect.deleteProperty(process.env, "AGENTKERNEL_SKIP_SSRF_VALIDATION");
   });
 
   it("should create logger with default settings", async () => {
@@ -81,7 +81,7 @@ describe("runProxy", () => {
         name: "agentkernel",
         level: "info",
         pretty: true,
-      })
+      }),
     );
     expect(context.logger).toBeDefined();
   });
@@ -93,7 +93,7 @@ describe("runProxy", () => {
     expect(createLogger).toHaveBeenCalledWith(
       expect.objectContaining({
         level: "debug",
-      })
+      }),
     );
   });
 
@@ -104,7 +104,7 @@ describe("runProxy", () => {
     expect(createOpenClawProxy).toHaveBeenCalledWith(
       expect.objectContaining({
         listenPort: 18788,
-      })
+      }),
     );
   });
 
@@ -115,7 +115,7 @@ describe("runProxy", () => {
     expect(createOpenClawProxy).toHaveBeenCalledWith(
       expect.objectContaining({
         listenPort: 8080,
-      })
+      }),
     );
   });
 
@@ -132,7 +132,7 @@ describe("runProxy", () => {
         policySet: expect.objectContaining({
           name: "test-policy",
         }),
-      })
+      }),
     );
   });
 
@@ -166,10 +166,7 @@ describe("runProxy", () => {
     const options: RunOptions = {};
     await runProxy(options);
 
-    expect(onShutdown).toHaveBeenCalledWith(
-      "agentkernel-proxy",
-      expect.any(Function)
-    );
+    expect(onShutdown).toHaveBeenCalledWith("agentkernel-proxy", expect.any(Function));
   });
 
   it("should return proxy in context", async () => {
@@ -187,7 +184,7 @@ describe("runProxy", () => {
     expect(createOpenClawProxy).toHaveBeenCalledWith(
       expect.objectContaining({
         gatewayUrl: "ws://custom:5555",
-      })
+      }),
     );
   });
 
@@ -198,13 +195,15 @@ describe("runProxy", () => {
     expect(createOpenClawProxy).toHaveBeenCalledWith(
       expect.objectContaining({
         agentId: "my-custom-agent",
-      })
+      }),
     );
   });
 
   it("should throw error when audit-db is enabled without DATABASE_URL", async () => {
     const options: RunOptions = { auditDb: true };
 
-    await expect(runProxy(options)).rejects.toThrow("DATABASE_URL environment variable is required");
+    await expect(runProxy(options)).rejects.toThrow(
+      "DATABASE_URL environment variable is required",
+    );
   });
 });

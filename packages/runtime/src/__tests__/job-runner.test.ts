@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JobRunner } from "../job-runner.js";
 
 describe("JobRunner", () => {
@@ -14,12 +14,9 @@ describe("JobRunner", () => {
     const runner = new JobRunner({ logExecutions: false });
     let runs = 0;
 
-    runner.register(
-      { id: "job-1", name: "Job 1", intervalMs: 1000 },
-      () => {
-        runs += 1;
-      }
-    );
+    runner.register({ id: "job-1", name: "Job 1", intervalMs: 1000 }, () => {
+      runs += 1;
+    });
 
     runner.start();
     await vi.advanceTimersByTimeAsync(3100);
@@ -33,22 +30,19 @@ describe("JobRunner", () => {
     let runs = 0;
     let resolveRun: (() => void) | null = null;
 
-    runner.register(
-      { id: "job-2", name: "Job 2", intervalMs: 1000 },
-      () => {
-        runs += 1;
-        return new Promise<void>((resolve) => {
-          resolveRun = resolve;
-        });
-      }
-    );
+    runner.register({ id: "job-2", name: "Job 2", intervalMs: 1000 }, () => {
+      runs += 1;
+      return new Promise<void>((resolve) => {
+        resolveRun = resolve;
+      });
+    });
 
     runner.start();
     await vi.advanceTimersByTimeAsync(3000);
 
     expect(runs).toBe(1);
 
-    resolveRun!();
+    resolveRun?.();
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(runs).toBe(2);

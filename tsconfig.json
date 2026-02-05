@@ -16,5 +16,13 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": false
   },
-  "exclude": ["node_modules", "dist", "**/dist/**"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/dist/**",
+    "scripts/**",
+    "**/*.test.ts",
+    "**/*.integration.test.ts",
+    "**/__tests__/**"
+  ]
 }

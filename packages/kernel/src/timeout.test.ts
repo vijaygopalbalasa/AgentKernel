@@ -1,19 +1,19 @@
 // Timeout Utilities Tests
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
+  Deadline,
   TimeoutError,
-  defaultTimeouts,
   configureTimeouts,
-  getTimeouts,
-  withTimeout,
   createTimeoutController,
-  withDbTimeout,
-  withLlmTimeout,
-  withMcpTimeout,
+  defaultTimeouts,
+  getTimeouts,
   withA2aTimeout,
   withAgentTaskTimeout,
+  withDbTimeout,
   withHttpTimeout,
-  Deadline,
+  withLlmTimeout,
+  withMcpTimeout,
+  withTimeout,
 } from "./timeout.js";
 
 describe("Timeout Utilities", () => {

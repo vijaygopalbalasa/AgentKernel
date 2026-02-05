@@ -1,11 +1,11 @@
 // Dead Letter Queue Tests
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type DeadLetter,
   DeadLetterQueue,
   InMemoryDlqStorage,
   getDeadLetterQueue,
   resetDeadLetterQueue,
-  type DeadLetter,
 } from "./dead-letter-queue.js";
 
 describe("InMemoryDlqStorage", () => {
@@ -56,9 +56,30 @@ describe("InMemoryDlqStorage", () => {
 
   it("should list letters with filtering", async () => {
     const letters: DeadLetter[] = [
-      { id: "1", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "pending" },
-      { id: "2", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "resolved" },
-      { id: "3", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "pending" },
+      {
+        id: "1",
+        originalEvent: {},
+        errorMessage: "",
+        retryCount: 0,
+        createdAt: new Date(),
+        status: "pending",
+      },
+      {
+        id: "2",
+        originalEvent: {},
+        errorMessage: "",
+        retryCount: 0,
+        createdAt: new Date(),
+        status: "resolved",
+      },
+      {
+        id: "3",
+        originalEvent: {},
+        errorMessage: "",
+        retryCount: 0,
+        createdAt: new Date(),
+        status: "pending",
+      },
     ];
 
     for (const letter of letters) {
@@ -95,9 +116,30 @@ describe("InMemoryDlqStorage", () => {
   });
 
   it("should count letters by status", async () => {
-    await storage.add({ id: "1", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "pending" });
-    await storage.add({ id: "2", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "pending" });
-    await storage.add({ id: "3", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "resolved" });
+    await storage.add({
+      id: "1",
+      originalEvent: {},
+      errorMessage: "",
+      retryCount: 0,
+      createdAt: new Date(),
+      status: "pending",
+    });
+    await storage.add({
+      id: "2",
+      originalEvent: {},
+      errorMessage: "",
+      retryCount: 0,
+      createdAt: new Date(),
+      status: "pending",
+    });
+    await storage.add({
+      id: "3",
+      originalEvent: {},
+      errorMessage: "",
+      retryCount: 0,
+      createdAt: new Date(),
+      status: "resolved",
+    });
 
     expect(await storage.count("pending")).toBe(2);
     expect(await storage.count("resolved")).toBe(1);
@@ -105,7 +147,14 @@ describe("InMemoryDlqStorage", () => {
   });
 
   it("should delete a letter", async () => {
-    await storage.add({ id: "1", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "pending" });
+    await storage.add({
+      id: "1",
+      originalEvent: {},
+      errorMessage: "",
+      retryCount: 0,
+      createdAt: new Date(),
+      status: "pending",
+    });
 
     await storage.delete("1");
 
@@ -116,8 +165,22 @@ describe("InMemoryDlqStorage", () => {
     const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
     const newDate = new Date();
 
-    await storage.add({ id: "old", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: oldDate, status: "pending" });
-    await storage.add({ id: "new", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: newDate, status: "pending" });
+    await storage.add({
+      id: "old",
+      originalEvent: {},
+      errorMessage: "",
+      retryCount: 0,
+      createdAt: oldDate,
+      status: "pending",
+    });
+    await storage.add({
+      id: "new",
+      originalEvent: {},
+      errorMessage: "",
+      retryCount: 0,
+      createdAt: newDate,
+      status: "pending",
+    });
 
     const purged = await storage.purge();
 
@@ -127,8 +190,22 @@ describe("InMemoryDlqStorage", () => {
   });
 
   it("should clear all letters", async () => {
-    await storage.add({ id: "1", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "pending" });
-    await storage.add({ id: "2", originalEvent: {}, errorMessage: "", retryCount: 0, createdAt: new Date(), status: "pending" });
+    await storage.add({
+      id: "1",
+      originalEvent: {},
+      errorMessage: "",
+      retryCount: 0,
+      createdAt: new Date(),
+      status: "pending",
+    });
+    await storage.add({
+      id: "2",
+      originalEvent: {},
+      errorMessage: "",
+      retryCount: 0,
+      createdAt: new Date(),
+      status: "pending",
+    });
 
     storage.clear();
 
@@ -164,11 +241,10 @@ describe("DeadLetterQueue", () => {
     });
 
     it("should store metadata with the letter", async () => {
-      const result = await dlq.add(
-        { type: "test.event" },
-        "Error",
-        { source: "agent-1", priority: "high" }
-      );
+      const result = await dlq.add({ type: "test.event" }, "Error", {
+        source: "agent-1",
+        priority: "high",
+      });
 
       if (result.ok) {
         const letter = await dlq.get(result.value);

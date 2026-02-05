@@ -1,12 +1,12 @@
 // PersistentStateMachine — PostgreSQL-backed state machine
 // Persists agent state and transition history to the database
 
-import type { Database, Sql, Logger } from "@agentkernel/kernel";
+import type { Database, Logger, Sql } from "@agentkernel/kernel";
 import { createLogger } from "@agentkernel/kernel";
 import {
-  AgentStateMachine,
-  type AgentState,
   type AgentEvent,
+  type AgentState,
+  AgentStateMachine,
   type StateTransition,
 } from "./state-machine.js";
 
@@ -73,8 +73,8 @@ export class PersistentStateMachine {
 
     if (this.db) {
       try {
-        const row = await this.db.queryOne<AgentStateRow>((sql) =>
-          sql`SELECT id, state FROM agents WHERE id = ${this.agentId}`
+        const row = await this.db.queryOne<AgentStateRow>(
+          (sql) => sql`SELECT id, state FROM agents WHERE id = ${this.agentId}`,
         );
 
         if (row) {
@@ -216,24 +216,27 @@ export class PersistentStateMachine {
       const limit = options?.limit ?? 100;
       const since = options?.since ?? new Date(0);
 
-      const rows = await this.db.query<StateHistoryRow>((sql) =>
-        sql`
+      const rows = await this.db.query<StateHistoryRow>(
+        (sql) =>
+          sql`
           SELECT id, agent_id, from_state, to_state, event, reason, created_at
           FROM agent_state_history
           WHERE agent_id = ${this.agentId}
             AND created_at >= ${since}
           ORDER BY created_at DESC
           LIMIT ${limit}
-        `
+        `,
       );
 
-      return rows.map((row) => ({
-        fromState: (row.from_state ?? "created") as AgentState,
-        toState: row.to_state as AgentState,
-        event: row.event as AgentEvent,
-        timestamp: row.created_at,
-        reason: row.reason ?? undefined,
-      })).reverse();
+      return rows
+        .map((row) => ({
+          fromState: (row.from_state ?? "created") as AgentState,
+          toState: row.to_state as AgentState,
+          event: row.event as AgentEvent,
+          timestamp: row.created_at,
+          reason: row.reason ?? undefined,
+        }))
+        .reverse();
     } catch (error) {
       this.log.warn("Failed to load history from database", {
         agentId: this.agentId,
@@ -263,7 +266,7 @@ export class PersistentStateMachine {
  * Create and initialize a persistent state machine.
  */
 export async function createPersistentStateMachine(
-  config: PersistentStateMachineConfig
+  config: PersistentStateMachineConfig,
 ): Promise<PersistentStateMachine> {
   return PersistentStateMachine.create(config);
 }

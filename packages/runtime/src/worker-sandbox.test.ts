@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { WorkerSandbox, SandboxPool, DEFAULT_SANDBOX_LIMITS } from "./worker-sandbox.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SANDBOX_LIMITS, SandboxPool, WorkerSandbox } from "./worker-sandbox.js";
 
 // Worker thread tests are skipped in CI because worker_threads don't work well
 // with vitest's module resolution. The WorkerSandbox works correctly at runtime.

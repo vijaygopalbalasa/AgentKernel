@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AgentStateMachine, type AgentState, type AgentEvent } from "../state-machine.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { type AgentEvent, type AgentState, AgentStateMachine } from "../state-machine.js";
 
 describe("AgentStateMachine", () => {
   let machine: AgentStateMachine;
@@ -154,7 +154,7 @@ describe("AgentStateMachine", () => {
           fromState: "created",
           toState: "initializing",
           event: "INITIALIZE",
-        })
+        }),
       );
     });
 

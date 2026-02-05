@@ -1,10 +1,10 @@
 // Capability-based Security — OWASP 2026 compliant
 // Implements least privilege and least agency principles
 
-import { z } from "zod";
-import { randomUUID, createHmac, timingSafeEqual } from "crypto";
-import { type Result, ok, err } from "@agentkernel/shared";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { type Logger, createLogger } from "@agentkernel/kernel";
+import { type Result, err, ok } from "@agentkernel/shared";
+import { z } from "zod";
 
 // ─── ZOD SCHEMAS ────────────────────────────────────────────
 
@@ -14,18 +14,18 @@ export type PermissionScope = z.infer<typeof PermissionScopeSchema>;
 
 /** Standard permission categories */
 export const PermissionCategorySchema = z.enum([
-  "memory",      // Read/write agent memory
-  "tools",       // Use MCP tools
-  "network",     // Make network requests
-  "filesystem",  // Access files
-  "agents",      // Communicate with other agents
-  "llm",         // Make LLM API calls
-  "secrets",     // Access secrets/credentials
-  "admin",       // Administrative operations
-  "system",      // System-level operations
-  "shell",       // Shell command execution
-  "skill",       // Skill management
-  "social",      // Social/community operations
+  "memory", // Read/write agent memory
+  "tools", // Use MCP tools
+  "network", // Make network requests
+  "filesystem", // Access files
+  "agents", // Communicate with other agents
+  "llm", // Make LLM API calls
+  "secrets", // Access secrets/credentials
+  "admin", // Administrative operations
+  "system", // System-level operations
+  "shell", // Shell command execution
+  "skill", // Skill management
+  "social", // Social/community operations
 ]);
 export type PermissionCategory = z.infer<typeof PermissionCategorySchema>;
 
@@ -120,7 +120,7 @@ export class PermissionError extends Error {
   constructor(
     message: string,
     public readonly code: PermissionErrorCode,
-    public readonly tokenId?: string
+    public readonly tokenId?: string,
   ) {
     super(message);
     this.name = "PermissionError";
@@ -170,7 +170,7 @@ export class CapabilityManager {
     if (!options.secret || options.secret.length < 32) {
       throw new Error(
         "PERMISSION_SECRET is required and must be at least 32 characters. " +
-        "Set the PERMISSION_SECRET environment variable to a secure random string."
+          "Set the PERMISSION_SECRET environment variable to a secure random string.",
       );
     }
     this.secret = options.secret;
@@ -182,15 +182,12 @@ export class CapabilityManager {
   /**
    * Grant a capability to an agent.
    */
-  grant(request: CapabilityRequest, issuedBy: string = "system"): Result<CapabilityToken, PermissionError> {
+  grant(request: CapabilityRequest, issuedBy = "system"): Result<CapabilityToken, PermissionError> {
     // Validate request
     const reqResult = CapabilityRequestSchema.safeParse(request);
     if (!reqResult.success) {
       return err(
-        new PermissionError(
-          `Invalid request: ${reqResult.error.message}`,
-          "VALIDATION_ERROR"
-        )
+        new PermissionError(`Invalid request: ${reqResult.error.message}`, "VALIDATION_ERROR"),
       );
     }
 
@@ -220,7 +217,7 @@ export class CapabilityManager {
     if (!this.agentTokens.has(request.agentId)) {
       this.agentTokens.set(request.agentId, new Set());
     }
-    this.agentTokens.get(request.agentId)!.add(token.id);
+    this.agentTokens.get(request.agentId)?.add(token.id);
 
     // Audit log
     this.logAudit({
@@ -249,7 +246,7 @@ export class CapabilityManager {
     tokenId: string,
     toAgentId: string,
     permissions?: Permission[],
-    durationMs?: number
+    durationMs?: number,
   ): Result<CapabilityToken, PermissionError> {
     const parentToken = this.tokens.get(tokenId);
 
@@ -270,8 +267,8 @@ export class CapabilityManager {
         new PermissionError(
           "Delegated permissions exceed parent scope",
           "INSUFFICIENT_PERMISSIONS",
-          tokenId
-        )
+          tokenId,
+        ),
       );
     }
 
@@ -312,7 +309,7 @@ export class CapabilityManager {
     agentId: string,
     category: PermissionCategory,
     action: PermissionAction,
-    resource?: string
+    resource?: string,
   ): PermissionCheckResult {
     const agentTokenIds = this.agentTokens.get(agentId);
 
@@ -524,9 +521,7 @@ export class CapabilityManager {
   private isSubset(subset: Permission[], superset: Permission[]): boolean {
     for (const perm of subset) {
       const match = superset.find(
-        (p) =>
-          p.category === perm.category &&
-          perm.actions.every((a) => p.actions.includes(a))
+        (p) => p.category === perm.category && perm.actions.every((a) => p.actions.includes(a)),
       );
       if (!match) return false;
     }
@@ -536,10 +531,7 @@ export class CapabilityManager {
   /** Match resource against pattern (simple glob) */
   private matchesPattern(resource: string, pattern: string): boolean {
     // Simple glob matching: * matches any segment, ** matches any path
-    const regex = pattern
-      .replace(/\*\*/g, ".*")
-      .replace(/\*/g, "[^/]*")
-      .replace(/\//g, "\\/");
+    const regex = pattern.replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*").replace(/\//g, "\\/");
     return new RegExp(`^${regex}$`).test(resource);
   }
 

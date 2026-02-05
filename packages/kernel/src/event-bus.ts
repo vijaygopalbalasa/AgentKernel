@@ -1,7 +1,12 @@
 // Redis-based event bus for pub/sub messaging
 // Supports channels, patterns, and message persistence
 
-import { Redis as IORedis, Cluster as IORedisCluster, type Redis as RedisInstance, type Cluster as ClusterInstance } from "ioredis";
+import {
+  type Cluster as ClusterInstance,
+  Redis as IORedis,
+  Cluster as IORedisCluster,
+  type Redis as RedisInstance,
+} from "ioredis";
 import type { RedisConfig } from "./config.js";
 import type { Logger } from "./logger.js";
 
@@ -40,7 +45,10 @@ export interface Subscription {
 /** Event bus interface */
 export interface EventBus {
   /** Publish an event to a channel */
-  publish<T = unknown>(channel: string, event: Omit<EventMessage<T>, "id" | "timestamp">): Promise<string>;
+  publish<T = unknown>(
+    channel: string,
+    event: Omit<EventMessage<T>, "id" | "timestamp">,
+  ): Promise<string>;
 
   /** Subscribe to a channel */
   subscribe<T = unknown>(channel: string, handler: EventHandler<T>): Promise<Subscription>;
@@ -85,7 +93,10 @@ function generateId(): string {
 /**
  * Create a Redis client based on the configured mode (standalone, sentinel, or cluster).
  */
-export function createRedisClient(config: RedisConfig, options?: { keyPrefix?: string }): RedisClient {
+export function createRedisClient(
+  config: RedisConfig,
+  options?: { keyPrefix?: string },
+): RedisClient {
   const retryStrategy = (times: number) => {
     if (times > 10) return null;
     return Math.min(times * 100, 3000);
@@ -226,7 +237,7 @@ export function createEventBus(config: RedisConfig, logger?: Logger): EventBus {
   const bus: EventBus = {
     async publish<T = unknown>(
       channel: string,
-      event: Omit<EventMessage<T>, "id" | "timestamp">
+      event: Omit<EventMessage<T>, "id" | "timestamp">,
     ): Promise<string> {
       const id = generateId();
       const fullEvent: EventMessage<T> = {
@@ -265,7 +276,7 @@ export function createEventBus(config: RedisConfig, logger?: Logger): EventBus {
         }
       }
 
-      channelHandlers.get(fullChannel)!.add(handler as EventHandler);
+      channelHandlers.get(fullChannel)?.add(handler as EventHandler);
       subscriptionCount++;
 
       log.debug("Subscribed to channel", { channel });
@@ -289,7 +300,10 @@ export function createEventBus(config: RedisConfig, logger?: Logger): EventBus {
       };
     },
 
-    async subscribePattern<T = unknown>(pattern: string, handler: EventHandler<T>): Promise<Subscription> {
+    async subscribePattern<T = unknown>(
+      pattern: string,
+      handler: EventHandler<T>,
+    ): Promise<Subscription> {
       const fullPattern = keyPrefix + pattern;
 
       if (!patternHandlers.has(fullPattern)) {
@@ -297,7 +311,7 @@ export function createEventBus(config: RedisConfig, logger?: Logger): EventBus {
         await subClient.psubscribe(fullPattern);
       }
 
-      patternHandlers.get(fullPattern)!.add(handler as EventHandler);
+      patternHandlers.get(fullPattern)?.add(handler as EventHandler);
       subscriptionCount++;
 
       log.debug("Subscribed to pattern", { pattern });
@@ -323,7 +337,7 @@ export function createEventBus(config: RedisConfig, logger?: Logger): EventBus {
 
     async getHistory(
       channel: string,
-      options: { limit?: number; since?: Date } = {}
+      options: { limit?: number; since?: Date } = {},
     ): Promise<EventMessage[]> {
       const { limit = 100, since } = options;
       const historyKey = `${keyPrefix}history:${channel}`;
@@ -424,7 +438,7 @@ export async function waitForEventBus(
     maxRetries?: number;
     retryDelayMs?: number;
     logger?: Logger;
-  } = {}
+  } = {},
 ): Promise<boolean> {
   const { maxRetries = 30, retryDelayMs = 1000, logger } = options;
 

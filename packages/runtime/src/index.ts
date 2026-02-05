@@ -54,7 +54,12 @@ export {
   DEFAULT_CAPABILITIES,
   DANGEROUS_CAPABILITIES,
   DEFAULT_SANDBOX_CONFIG,
+  getSandboxHardeningIssues,
+  assertSandboxHardening,
 } from "./sandbox.js";
+
+// Production Hardening
+export { isProductionHardeningEnabled } from "./hardening.js";
 
 // Persistence (State Checkpointing)
 export {
@@ -150,3 +155,102 @@ export {
   type SandboxResult,
   DEFAULT_SANDBOX_LIMITS,
 } from "./worker-sandbox.js";
+
+// Policy Engine (Allow / Block / Approve Rules)
+export {
+  PolicyEngine,
+  createPolicyEngine,
+  createPermissivePolicyEngine,
+  createStrictPolicyEngine,
+  matchPattern,
+  matchAnyPattern,
+  DEFAULT_BLOCKED_FILE_PATHS,
+  DEFAULT_BLOCKED_NETWORK_HOSTS,
+  DEFAULT_BLOCKED_SHELL_COMMANDS,
+  DEFAULT_BLOCKED_SECRET_PATTERNS,
+  PolicySetSchema,
+  getPolicyHardeningIssues,
+  assertPolicyHardening,
+  type PolicyDecision,
+  type PolicyRule,
+  type FilePolicyRule,
+  type NetworkPolicyRule,
+  type ShellPolicyRule,
+  type SecretPolicyRule,
+  type AnyPolicyRule,
+  type PolicyEvaluation,
+  type PolicySet,
+  type FileEvalRequest,
+  type NetworkEvalRequest,
+  type ShellEvalRequest,
+  type SecretEvalRequest,
+  type PolicyEvalRequest,
+  type PolicyAuditEntry,
+} from "./policy-engine.js";
+
+// Database Audit Writer (PostgreSQL Integration)
+export {
+  createDatabaseAuditWriter,
+  createDatabaseAuditWriterWithResult,
+  createAuditLoggerWithDatabase,
+  queryAuditLogs,
+  getAuditStats,
+  type DatabaseAuditWriterOptions,
+  type AuditLoggerWithDatabaseOptions,
+  type AuditWriteResult,
+  type AuditQueryOptions,
+  type AuditLogRecord,
+  type AuditStats,
+} from "./db-audit-writer.js";
+
+// Policy Configuration (YAML/JSON loading, env var expansion, merging)
+export {
+  loadPolicySetFromFile,
+  loadPolicySetFromFiles,
+  expandEnvVars,
+  expandEnvVarsInObject,
+  mergePolicySets,
+  validatePolicySet,
+  createFileRule,
+  createNetworkRule,
+  createShellRule,
+  createSecretRule,
+  PolicyConfigError,
+  type PolicyConfigOptions,
+  type PolicyValidationIssue,
+} from "./policy-config.js";
+
+// Process Sandbox (Real OS-level isolation)
+export {
+  ProcessSandbox,
+  ProcessSandboxRegistry,
+  type ProcessSandboxConfig,
+  type SandboxExecutionResult,
+  type SandboxState,
+} from "./process-sandbox.js";
+
+// State Persistence (PostgreSQL-backed)
+export {
+  PostgresStatePersistence,
+  PostgresCapabilityStore,
+  PostgresRateLimitStore,
+  createPersistenceStores,
+  type StatePersistence,
+  type CapabilityStore,
+  type RateLimitStore,
+  type PersistedAgentState,
+  type CapabilityToken,
+  type RateLimitBucket,
+} from "./state-persistence.js";
+
+// Per-Agent Rate Limiter
+export {
+  AgentRateLimiter,
+  TokenBucket,
+  createAgentRateLimiter,
+  DEFAULT_RATE_LIMIT_CONFIG,
+  type RateLimitConfig,
+  type RateLimitResult,
+  type TokenBucketState,
+  type BucketType,
+} from "./rate-limiter.js";

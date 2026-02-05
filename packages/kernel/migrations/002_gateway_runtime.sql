@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action VARCHAR(255) NOT NULL,
     resource_type VARCHAR(100),
     resource_id VARCHAR(255),
-    actor_id UUID REFERENCES agents(id) ON DELETE SET NULL,
+    actor_id TEXT,
     details JSONB NOT NULL DEFAULT '{}',
     outcome VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -1,7 +1,7 @@
 // Health — agent health monitoring
 // Periodic health checks and anomaly detection
 
-import type { AgentId, ResourceUsage, ResourceLimits } from "./agent-context.js";
+import type { AgentId, ResourceLimits, ResourceUsage } from "./agent-context.js";
 import type { AgentState } from "./state-machine.js";
 
 /** Health check result */
@@ -191,9 +191,10 @@ export class HealthMonitor {
     }
 
     // Check token usage
-    const tokenRatio = metrics.limits.tokensPerMinute > 0
-      ? metrics.usage.tokensThisMinute / metrics.limits.tokensPerMinute
-      : 0;
+    const tokenRatio =
+      metrics.limits.tokensPerMinute > 0
+        ? metrics.usage.tokensThisMinute / metrics.limits.tokensPerMinute
+        : 0;
 
     if (tokenRatio >= thresholds.tokenUsageCritical) {
       checks.push({
@@ -224,9 +225,10 @@ export class HealthMonitor {
     }
 
     // Check memory usage
-    const memoryRatio = metrics.limits.maxMemoryMB > 0
-      ? metrics.usage.currentMemoryMB / metrics.limits.maxMemoryMB
-      : 0;
+    const memoryRatio =
+      metrics.limits.maxMemoryMB > 0
+        ? metrics.usage.currentMemoryMB / metrics.limits.maxMemoryMB
+        : 0;
 
     if (memoryRatio >= thresholds.memoryUsageCritical) {
       checks.push({
@@ -589,13 +591,15 @@ export class HealthMonitor {
 
     // Calculate mean and standard deviation
     const mean = recentTokenUsage.reduce((a, b) => a + b, 0) / recentTokenUsage.length;
-    const variance = recentTokenUsage.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentTokenUsage.length;
+    const variance =
+      recentTokenUsage.reduce((a, b) => a + (b - mean) ** 2, 0) / recentTokenUsage.length;
     const stdDev = Math.sqrt(variance);
 
     // Current value
-    const currentRatio = metrics.limits.tokensPerMinute > 0
-      ? metrics.usage.tokensThisMinute / metrics.limits.tokensPerMinute
-      : 0;
+    const currentRatio =
+      metrics.limits.tokensPerMinute > 0
+        ? metrics.usage.tokensThisMinute / metrics.limits.tokensPerMinute
+        : 0;
 
     // Check for spike (> 2 standard deviations from mean)
     if (stdDev > 0 && Math.abs(currentRatio - mean) > 2 * stdDev) {
@@ -623,18 +627,16 @@ export class HealthMonitor {
 function formatDuration(seconds: number): string {
   if (seconds < 60) {
     return `${Math.round(seconds)}s`;
-  } else if (seconds < 3600) {
-    return `${Math.round(seconds / 60)}m`;
-  } else {
-    return `${(seconds / 3600).toFixed(1)}h`;
   }
+  if (seconds < 3600) {
+    return `${Math.round(seconds / 60)}m`;
+  }
+  return `${(seconds / 3600).toFixed(1)}h`;
 }
 
 /**
  * Create a health monitor with default configuration.
  */
-export function createHealthMonitor(
-  config?: Partial<HealthMonitorConfig>
-): HealthMonitor {
+export function createHealthMonitor(config?: Partial<HealthMonitorConfig>): HealthMonitor {
   return new HealthMonitor(config);
 }

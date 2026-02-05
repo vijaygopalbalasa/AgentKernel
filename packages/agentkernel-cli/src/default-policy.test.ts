@@ -1,18 +1,18 @@
 // Default Policy Tests
 // Tests for the default OpenClaw security policy
 
-import { describe, it, expect, beforeEach } from "vitest";
+import type { FilePolicyRule, PolicySet } from "@agentkernel/runtime";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
+  APPROVAL_REQUIRED_COMMANDS,
+  CLOUD_METADATA_HOSTS,
+  DANGEROUS_SHELL_PATTERNS,
   DEFAULT_OPENCLAW_POLICY,
-  getDefaultOpenClawPolicy,
-  mergeWithDefaultPolicy,
   MALICIOUS_EXFIL_DOMAINS,
   SENSITIVE_FILE_PATTERNS,
-  DANGEROUS_SHELL_PATTERNS,
-  CLOUD_METADATA_HOSTS,
-  APPROVAL_REQUIRED_COMMANDS,
+  getDefaultOpenClawPolicy,
+  mergeWithDefaultPolicy,
 } from "./default-policy.js";
-import type { PolicySet, FilePolicyRule } from "@agentkernel/runtime";
 
 describe("Default OpenClaw Policy", () => {
   describe("MALICIOUS_EXFIL_DOMAINS", () => {
@@ -85,12 +85,18 @@ describe("Default OpenClaw Policy", () => {
 
   describe("DANGEROUS_SHELL_PATTERNS", () => {
     it("should block curl pipe to shell", () => {
-      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("curl") && p.includes("sh"))).toBe(true);
-      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("curl") && p.includes("bash"))).toBe(true);
+      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("curl") && p.includes("sh"))).toBe(
+        true,
+      );
+      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("curl") && p.includes("bash"))).toBe(
+        true,
+      );
     });
 
     it("should block wget pipe to shell", () => {
-      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("wget") && p.includes("sh"))).toBe(true);
+      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("wget") && p.includes("sh"))).toBe(
+        true,
+      );
     });
 
     it("should block reverse shells", () => {
@@ -100,7 +106,9 @@ describe("Default OpenClaw Policy", () => {
     });
 
     it("should block privilege escalation", () => {
-      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("chmod") && p.includes("+s"))).toBe(true);
+      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("chmod") && p.includes("+s"))).toBe(
+        true,
+      );
     });
 
     it("should block anti-forensics", () => {
@@ -109,7 +117,9 @@ describe("Default OpenClaw Policy", () => {
     });
 
     it("should block base64 obfuscated execution", () => {
-      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("base64") && p.includes("sh"))).toBe(true);
+      expect(DANGEROUS_SHELL_PATTERNS.some((p) => p.includes("base64") && p.includes("sh"))).toBe(
+        true,
+      );
     });
 
     it("should block clipboard theft", () => {
@@ -267,28 +277,28 @@ describe("Policy Rule Coverage", () => {
   describe("File Policy Rules", () => {
     it("should block SSH private keys", () => {
       const sshRules = policy.fileRules.filter(
-        (r) => r.pathPatterns.some((p) => p.includes(".ssh")) && r.decision === "block"
+        (r) => r.pathPatterns.some((p) => p.includes(".ssh")) && r.decision === "block",
       );
       expect(sshRules.length).toBeGreaterThan(0);
     });
 
     it("should block AWS credentials", () => {
       const awsRules = policy.fileRules.filter(
-        (r) => r.pathPatterns.some((p) => p.includes(".aws")) && r.decision === "block"
+        (r) => r.pathPatterns.some((p) => p.includes(".aws")) && r.decision === "block",
       );
       expect(awsRules.length).toBeGreaterThan(0);
     });
 
     it("should allow /tmp directory", () => {
       const tmpRule = policy.fileRules.find(
-        (r) => r.pathPatterns.includes("/tmp/**") && r.decision === "allow"
+        (r) => r.pathPatterns.includes("/tmp/**") && r.decision === "allow",
       );
       expect(tmpRule).toBeDefined();
     });
 
     it("should block .env files", () => {
       const envRule = policy.fileRules.find(
-        (r) => r.pathPatterns.includes("**/.env") && r.decision === "block"
+        (r) => r.pathPatterns.includes("**/.env") && r.decision === "block",
       );
       expect(envRule).toBeDefined();
     });
@@ -297,7 +307,7 @@ describe("Policy Rule Coverage", () => {
   describe("Network Policy Rules", () => {
     it("should block cloud metadata", () => {
       const metadataRules = policy.networkRules.filter(
-        (r) => r.hostPatterns.includes("169.254.169.254") && r.decision === "block"
+        (r) => r.hostPatterns.includes("169.254.169.254") && r.decision === "block",
       );
       expect(metadataRules.length).toBeGreaterThan(0);
     });
@@ -306,14 +316,14 @@ describe("Policy Rule Coverage", () => {
       const internalRules = policy.networkRules.filter(
         (r) =>
           r.hostPatterns.some((h) => h.startsWith("10.") || h.startsWith("192.168")) &&
-          r.decision === "block"
+          r.decision === "block",
       );
       expect(internalRules.length).toBeGreaterThan(0);
     });
 
     it("should block Telegram", () => {
       const telegramRule = policy.networkRules.find(
-        (r) => r.hostPatterns.includes("api.telegram.org") && r.decision === "block"
+        (r) => r.hostPatterns.includes("api.telegram.org") && r.decision === "block",
       );
       expect(telegramRule).toBeDefined();
     });
@@ -322,14 +332,14 @@ describe("Policy Rule Coverage", () => {
   describe("Shell Policy Rules", () => {
     it("should allow git commands", () => {
       const gitRule = policy.shellRules.find(
-        (r) => r.commandPatterns.includes("git") && r.decision === "allow"
+        (r) => r.commandPatterns.includes("git") && r.decision === "allow",
       );
       expect(gitRule).toBeDefined();
     });
 
     it("should allow npm commands", () => {
       const npmRule = policy.shellRules.find(
-        (r) => r.commandPatterns.includes("npm") && r.decision === "allow"
+        (r) => r.commandPatterns.includes("npm") && r.decision === "allow",
       );
       expect(npmRule).toBeDefined();
     });
@@ -337,14 +347,14 @@ describe("Policy Rule Coverage", () => {
     it("should block sensitive commands (rm -rf, sudo, etc.)", () => {
       // In non-interactive daemon mode, sensitive commands are blocked instead of requiring approval
       const sensitiveBlockRules = policy.shellRules.filter(
-        (r) => r.decision === "block" && r.id.includes("shell-block-sensitive")
+        (r) => r.decision === "block" && r.id.includes("shell-block-sensitive"),
       );
       expect(sensitiveBlockRules.length).toBeGreaterThan(0);
     });
 
     it("should block reverse shells", () => {
       const reverseShellRule = policy.shellRules.find(
-        (r) => r.commandPatterns.includes("bash -i") && r.decision === "block"
+        (r) => r.commandPatterns.includes("bash -i") && r.decision === "block",
       );
       expect(reverseShellRule).toBeDefined();
     });
@@ -353,27 +363,27 @@ describe("Policy Rule Coverage", () => {
   describe("Secret Policy Rules", () => {
     it("should allow PATH", () => {
       const pathRule = policy.secretRules.find(
-        (r) => r.namePatterns.includes("PATH") && r.decision === "allow"
+        (r) => r.namePatterns.includes("PATH") && r.decision === "allow",
       );
       expect(pathRule).toBeDefined();
     });
 
     it("should block API keys", () => {
       const apiKeyRule = policy.secretRules.find(
-        (r) => r.namePatterns.includes("*_API_KEY") && r.decision === "block"
+        (r) => r.namePatterns.includes("*_API_KEY") && r.decision === "block",
       );
       expect(apiKeyRule).toBeDefined();
     });
 
     it("should block provider-specific credentials", () => {
       const anthropicRule = policy.secretRules.find(
-        (r) => r.namePatterns.includes("ANTHROPIC_*") && r.decision === "block"
+        (r) => r.namePatterns.includes("ANTHROPIC_*") && r.decision === "block",
       );
       const openaiRule = policy.secretRules.find(
-        (r) => r.namePatterns.includes("OPENAI_*") && r.decision === "block"
+        (r) => r.namePatterns.includes("OPENAI_*") && r.decision === "block",
       );
       const awsRule = policy.secretRules.find(
-        (r) => r.namePatterns.includes("AWS_*") && r.decision === "block"
+        (r) => r.namePatterns.includes("AWS_*") && r.decision === "block",
       );
 
       expect(anthropicRule).toBeDefined();

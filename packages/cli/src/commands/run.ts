@@ -1,29 +1,29 @@
 // Run Command — Start the AgentKernel security proxy
 // Usage: agentkernel run [-c config.yaml] [--audit-db] [--port 3456]
 
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { CAC } from "cac";
 import pc from "picocolors";
-import { resolve } from "node:path";
-import { existsSync } from "node:fs";
 
 import {
-  createDatabase,
-  createLogger,
-  onShutdown,
   type Database,
   type DatabaseConfig,
   type Logger,
+  createDatabase,
+  createLogger,
+  onShutdown,
 } from "@agentkernel/kernel";
 import {
-  loadPolicySetFromFile,
-  createAuditLoggerWithDatabase,
   type AuditLogger,
+  createAuditLoggerWithDatabase,
+  loadPolicySetFromFile,
 } from "@agentkernel/runtime";
 import {
-  createOpenClawProxy,
-  OpenClawSecurityProxy,
-  type OpenClawProxyConfig,
   type OpenClawAuditEvent,
+  type OpenClawProxyConfig,
+  type OpenClawSecurityProxy,
+  createOpenClawProxy,
 } from "agentkernel";
 
 /** Parse a PostgreSQL connection string into DatabaseConfig */
@@ -35,7 +35,8 @@ function parseDatabaseUrl(url: string): DatabaseConfig {
     database: parsed.pathname.replace(/^\//, "") || "agentkernel",
     user: decodeURIComponent(parsed.username || "agentkernel"),
     password: decodeURIComponent(parsed.password || ""),
-    ssl: parsed.searchParams.get("sslmode") === "require" || parsed.searchParams.get("ssl") === "true",
+    ssl:
+      parsed.searchParams.get("sslmode") === "require" || parsed.searchParams.get("ssl") === "true",
     maxConnections: 10,
     idleTimeout: 30000,
   };
@@ -99,12 +100,8 @@ export async function runProxy(options: RunOptions): Promise<RunContext> {
     logger.info(`Starting proxy on port ${proxyConfig.listenPort ?? 18788}...`);
     context.proxy = await createOpenClawProxy(proxyConfig);
 
-    logger.info(
-      pc.green(`AgentKernel proxy running on port ${proxyConfig.listenPort ?? 18788}`)
-    );
-    logger.info(
-      pc.dim(`Gateway: ${proxyConfig.gatewayUrl ?? "ws://127.0.0.1:18789"}`)
-    );
+    logger.info(pc.green(`AgentKernel proxy running on port ${proxyConfig.listenPort ?? 18788}`));
+    logger.info(pc.dim(`Gateway: ${proxyConfig.gatewayUrl ?? "ws://127.0.0.1:18789"}`));
 
     if (options.auditDb) {
       logger.info(pc.dim("Audit logging: PostgreSQL"));
@@ -143,7 +140,7 @@ export async function runProxy(options: RunOptions): Promise<RunContext> {
 function buildProxyConfig(
   options: RunOptions,
   logger: Logger,
-  auditLogger: AuditLogger | null
+  auditLogger: AuditLogger | null,
 ): OpenClawProxyConfig {
   const gatewayUrl = options.gateway ?? process.env.OPENCLAW_GATEWAY_URL ?? "ws://127.0.0.1:18789";
 
@@ -158,8 +155,8 @@ function buildProxyConfig(
   if (!skipSsrfValidation && isLocalhost) {
     logger.info(
       pc.dim(
-        "[SECURITY] SSRF validation enabled. Set AGENTKERNEL_SKIP_SSRF_VALIDATION=true to disable for local dev."
-      )
+        "[SECURITY] SSRF validation enabled. Set AGENTKERNEL_SKIP_SSRF_VALIDATION=true to disable for local dev.",
+      ),
     );
   }
 
@@ -199,8 +196,8 @@ function buildProxyConfig(
       pc.dim(
         `Policy loaded: ${config.policySet?.name ?? "unnamed"} (${
           config.policySet?.defaultDecision ?? "block"
-        } by default)`
-      )
+        } by default)`,
+      ),
     );
   }
 

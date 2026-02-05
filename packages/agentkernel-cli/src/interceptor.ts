@@ -1,12 +1,12 @@
 // Tool Interceptor — intercepts OpenClaw tool calls and enforces policies
 
-import { z } from "zod";
 import {
-  PolicyEngine,
-  createPolicyEngine,
+  type PolicyEngine,
   type PolicyEvaluation,
   type PolicySet,
+  createPolicyEngine,
 } from "@agentkernel/runtime";
+import { z } from "zod";
 
 // ─── TOOL CALL SCHEMAS ─────────────────────────────────────────
 
@@ -32,11 +32,13 @@ export const ToolResultSchema = z.object({
   /** Error message if blocked or failed */
   error: z.string().optional(),
   /** Policy evaluation details */
-  evaluation: z.object({
-    decision: z.enum(["allow", "block", "approve"]),
-    reason: z.string(),
-    matchedRule: z.unknown().optional(),
-  }).optional(),
+  evaluation: z
+    .object({
+      decision: z.enum(["allow", "block", "approve"]),
+      reason: z.string(),
+      matchedRule: z.unknown().optional(),
+    })
+    .optional(),
   /** Execution time in ms */
   executionTimeMs: z.number().optional(),
 });
@@ -91,7 +93,16 @@ const TOOL_CATEGORY_MAP: Record<string, "file" | "network" | "shell" | "secret">
 /** Extract file path from tool args */
 function extractFilePath(tool: string, args: Record<string, unknown>): string | undefined {
   // Common path argument names
-  const pathKeys = ["path", "file", "filepath", "file_path", "filename", "target", "source", "dest"];
+  const pathKeys = [
+    "path",
+    "file",
+    "filepath",
+    "file_path",
+    "filename",
+    "target",
+    "source",
+    "dest",
+  ];
 
   for (const key of pathKeys) {
     if (typeof args[key] === "string") {
@@ -126,7 +137,10 @@ function extractHost(tool: string, args: Record<string, unknown>): string | unde
 }
 
 /** Extract command from shell tool args */
-function extractCommand(tool: string, args: Record<string, unknown>): { command: string; shellArgs?: string[] } | undefined {
+function extractCommand(
+  tool: string,
+  args: Record<string, unknown>,
+): { command: string; shellArgs?: string[] } | undefined {
   const commandKeys = ["command", "cmd", "script", "exec"];
 
   for (const key of commandKeys) {

@@ -1,481 +1,352 @@
 # AgentKernel
 
-**Run any AI agent safely. Self-hosted.**
+**Run any AI agent safely. See everything. Block what's dangerous.**
 
-AgentKernel is a secure runtime for AI agents — like Docker for autonomous agents. It sandboxes execution, enforces permissions, manages memory, and provides the infrastructure so you can run, deploy, and orchestrate agents without reinventing plumbing.
+AgentKernel is an agent security sandbox — a firewall for AI agents. It intercepts all agent actions (file access, network requests, shell commands), enforces security policies, and logs everything for audit. Works with any agent framework (OpenClaw, LangChain, AutoGPT, etc.).
 
-Self-hosted. Open source. Model-agnostic. Protocol-native.
-
-```bash
-agentkernel run ./my-agent.ts          # Run any agent sandboxed
-agentkernel run config.yaml --adapter openclaw   # Run OpenClaw agents safely
-```
+Self-hosted. Open source. Framework-agnostic.
 
 ---
 
 ## The Problem
 
-Every team building AI agents is rebuilding the same plumbing:
+**AI agents are security nightmares.**
 
-- **Memory** — How does an agent remember things across sessions?
-- **Identity** — How do you know which agent did what?
-- **Permissions** — How do you stop an agent from accessing things it shouldn't?
-- **Communication** — How do agents talk to each other?
-- **Tools** — How do agents connect to databases, APIs, and services?
-- **Lifecycle** — How do you deploy, monitor, restart, and terminate agents?
-- **Security** — How do you sandbox agents so a rogue one can't take down your system?
-- **Observability** — How do you know what your agents are doing right now?
+- OpenClaw's ClawHavoc malware (Jan 2026): 341 malicious skills stealing credentials, crypto wallets, browser data
+- CVE-2026-25253: One-click RCE affecting 50K+ installations
+- 76% of CISOs cite agent security as top concern (Gartner 2026)
 
-AgentKernel solves all of these at the infrastructure level. You write agent logic; the runtime handles everything else.
+Agents run with your permissions. They can:
+- Read ~/.ssh keys, ~/.aws credentials, browser passwords
+- Exfiltrate data to attacker-controlled servers
+- Execute arbitrary shell commands
+- Mine crypto using your compute
+
+**There is no open-source, self-hostable solution for agent security.**
+
+AgentKernel fixes this.
 
 ---
 
-## What It Does
+## How It Works
 
-### Agent Lifecycle Management
-Agents are first-class processes. Spawn them, monitor their health, restart on failure, terminate gracefully. Each agent runs in its own sandbox with resource limits (CPU, memory, tokens).
-
-### Persistent Memory
-Three memory types inspired by cognitive science:
-- **Episodic** — What happened (conversations, events, experiences)
-- **Semantic** — What the agent knows (facts, knowledge, preferences)
-- **Procedural** — How to do things (workflows, learned behaviors)
-
-Memory persists across restarts. Vector search via Qdrant enables semantic retrieval. AES-256 encryption protects sensitive memories.
-
-### Model Abstraction Layer
-Works with any LLM. Switch providers without changing agent code.
-- **Anthropic** — Claude Opus 4.5, Sonnet 4.5, Haiku
-- **OpenAI** — GPT-4o, GPT-4o-mini
-- **Google** — Gemini 2.5 Pro, Flash
-- **Ollama** — Any local model (Llama, Mistral, Phi)
-
-Automatic failover, rate limiting, token tracking, and cost estimation built in.
-
-### Protocol-Native
-Built on the two open protocols that the industry is converging on:
-
-- **MCP** (Model Context Protocol) — The standard for connecting agents to tools, databases, and APIs. Created by Anthropic, adopted by OpenAI, Google, and 150+ organizations. Now under the Linux Foundation.
-- **A2A** (Agent-to-Agent Protocol) — The standard for agent-to-agent communication. Created by Google with 50+ partners including Salesforce, SAP, and ServiceNow. Now under the Linux Foundation.
-
-AgentKernel doesn't invent custom protocols. It implements the ones the industry already uses.
-
-### Security by Default
-Follows the OWASP Top 10 for Agentic Applications (2026):
-- **Capability-based permissions** — Agents receive explicit, unforgeable tokens for each resource
-- **Sandboxed execution** — Capability-based permission enforcement per agent (OS-level process isolation planned)
-- **Just-in-time access** — Permissions granted only for required duration
-- **Human approval gates** — Planned for high-risk actions
-- **Audit logging** — Immutable record of every agent action and decision
-- **Egress proxy** — Controlled outbound network access per agent
-
-### Skills System
-Agents gain capabilities by installing skills — like apps on a phone:
-- `file-system` — Read and write files
-- `shell-exec` — Run shell commands (sandboxed)
-- `web-browse` — Fetch and parse web pages
-
-Skills are sandboxed, versioned, and declare their required permissions.
-
-### Agent-to-Agent Communication
-Agents can discover each other, delegate tasks, and collaborate:
-```typescript
-const agents = await client.discoverAgents();
-const result = await client.callAgent("researcher", {
-  type: "research_query",
-  question: "What are the latest MCP updates?",
-});
+```
+┌─────────────────────────────────────────────────────┐
+│           YOUR AGENT (Any Framework)                │
+│          OpenClaw / LangChain / AutoGPT            │
+└──────────────────────┬──────────────────────────────┘
+                       │ All operations intercepted
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│              AGENTKERNEL SANDBOX                    │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ POLICY ENGINE                                 │  │
+│  │ • Block sensitive files (~/.ssh, ~/.aws)      │  │
+│  │ • Block internal networks (169.254.169.254)   │  │
+│  │ • Block dangerous commands (rm -rf, sudo)     │  │
+│  │ • Require approval for secrets                │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ CAPABILITY SYSTEM                             │  │
+│  │ • HMAC-signed permission tokens               │  │
+│  │ • Time-bounded grants (auto-expire)           │  │
+│  │ • Constant-time signature verification        │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ AUDIT LOGGER                                  │  │
+│  │ • Every operation logged to PostgreSQL        │  │
+│  │ • HIPAA/SOC2 compliant retention              │  │
+│  │ • Full request/response capture               │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ PROCESS SANDBOX                               │  │
+│  │ • V8 isolates with memory limits              │  │
+│  │ • Execution timeouts                          │  │
+│  │ • No fs/net/child_process access              │  │
+│  └───────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│               SYSTEM RESOURCES                       │
+│          Files / Network / Shell / Secrets          │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Governance
-For multi-agent deployments, AgentKernel includes a full governance layer:
-- **Policies** — Define rules agents must follow
-- **Moderation** — Open cases against agents that violate policies
-- **Sanctions** — Warning, quarantine, suspension, ban
-- **Appeals** — Agents or operators can appeal sanctions
-- **Audit trail** — Query every action by any agent or operator
+---
 
-### Dashboard
-A real-time web UI for managing the entire OS:
-- **Home** — Gateway status, token/cost metrics, live event stream
-- **Chat** — Talk to any LLM or running agent with streaming responses
-- **Agents** — Deploy from catalog, monitor running agents, terminate
-- **Memory** — Search across all memory types, store new facts
-- **Security** — Governance, audit logs, capability tokens, incident lockdown
-- **Settings** — Auth configuration, operator agent selection
+## Features
 
-### CLI
-Full command-line interface for everything:
+### Policy Engine
+Define what agents can and cannot do:
+
+```yaml
+# ~/.agentkernel/policy.yaml
+template: balanced
+
+file:
+  default: block
+  rules:
+    - pattern: "**/.ssh/**"
+      decision: block
+      reason: "SSH credentials"
+    - pattern: "~/workspace/**"
+      decision: allow
+      reason: "Your project folder"
+
+network:
+  default: block
+  rules:
+    - host: "api.telegram.org"
+      decision: block
+      reason: "Data exfiltration channel"
+    - host: "*.github.com"
+      decision: allow
+      reason: "Code hosting"
+
+shell:
+  default: block
+  rules:
+    - command: "rm -rf*"
+      decision: block
+      reason: "Destructive operation"
+    - command: "git"
+      decision: allow
+      reason: "Safe dev tool"
+```
+
+### User-Friendly CLI
+
+No YAML editing required — manage policies with simple commands:
+
 ```bash
-agentkernel init                          # Initialize .env with secure secrets
-agentkernel status                        # Check gateway health
-agentkernel doctor                        # Validate entire setup
-agentkernel chat "Hello"                  # Chat with an LLM
-agentkernel deploy manifest.json          # Deploy an agent
-agentkernel agents                        # List running agents
-agentkernel new-agent my-bot --template chat  # Scaffold a new agent
-agentkernel shell                         # Interactive management REPL
-agentkernel install ./path/to/agent       # Install an agent package
+agentkernel init                        # Interactive wizard
+agentkernel allow "github"              # Allow by name
+agentkernel block "telegram"            # Block by name
+agentkernel allow --domain api.myapp.com  # Allow a domain
+agentkernel allow --file ~/my-project   # Allow a file path
+agentkernel policy show                 # Human-readable summary
+agentkernel policy test --domain api.telegram.org  # Dry-run test
 ```
 
----
+### Capability Tokens
+Unforgeable, time-bounded permission grants:
 
-## Architecture
+```typescript
+import { createCapabilityManager } from '@agentkernel/permissions';
 
+const manager = createCapabilityManager({ secret: process.env.PERMISSION_SECRET });
+
+// Grant limited file access for 1 hour
+const token = manager.grant({
+  agentId: 'my-agent',
+  permissions: [{ category: 'filesystem', actions: ['read'], resource: '/workspace/**' }],
+  purpose: 'Read project files',
+  durationMs: 3600000,
+});
+
+// Check before any operation
+const check = manager.check('my-agent', 'filesystem', 'read', '/workspace/src/app.ts');
+if (!check.allowed) {
+  throw new Error(`Permission denied: ${check.reason}`);
+}
 ```
-Layer 5  Agent Applications     Your agents run here
-         ─────────────────────────────────────────────
-Layer 4  Agent Framework        Identity, Memory, Skills, Communication,
-                                Tools, Permissions, Events
-         ─────────────────────────────────────────────
-Layer 3  Agent Runtime          Lifecycle, sandboxing, scheduling, state
-         ─────────────────────────────────────────────
-Layer 2  Model Abstraction      Provider adapters (Claude / GPT / Gemini / Llama)
-         ─────────────────────────────────────────────
-Layer 1  Compute Kernel         Process mgmt, storage, network, security
+
+### Full Audit Trail
+Every operation logged to PostgreSQL:
+
+```sql
+SELECT * FROM audit_log WHERE agent_id = 'my-agent' ORDER BY created_at DESC;
+
+-- action          | resource_type | resource_id        | outcome
+-- file.read       | filesystem    | /workspace/app.ts  | success
+-- network.request | network       | api.openai.com     | success
+-- file.read       | filesystem    | ~/.ssh/id_rsa      | blocked
+-- shell.execute   | shell         | sudo apt install   | blocked
 ```
 
-Each layer is a standalone TypeScript package. The SDK abstracts them all into a single `AgentClient` API.
+### Process Isolation
+V8 worker threads with strict resource limits:
 
-### Monorepo Structure
+```typescript
+import { WorkerSandbox } from '@agentkernel/runtime';
 
-```
-agentkernel/
-├── packages/
-│   ├── kernel/              # PostgreSQL, Qdrant, Redis, logging, health
-│   ├── mal/                 # Model Abstraction Layer (4 providers)
-│   ├── runtime/             # Agent worker, sandbox, state machine
-│   ├── framework/
-│   │   ├── identity/        # Agent Cards, DID, registration
-│   │   ├── memory/          # Episodic, semantic, procedural memory
-│   │   ├── skills/          # Skill loader, registry, sandboxing
-│   │   ├── communication/   # A2A client/server
-│   │   ├── tools/           # MCP client, tool registry
-│   │   ├── permissions/     # Capability tokens, policy enforcement
-│   │   └── events/          # Redis-backed pub/sub event bus
-│   ├── sdk/                 # What developers import to build agents
-│   └── shared/              # Shared types, utilities, constants
-├── apps/
-│   ├── gateway/             # WebSocket + HTTP server (the daemon)
-│   ├── cli/                 # agentkernel command-line tool
-│   └── dashboard/           # Next.js web UI
-├── agents/                  # Example agents
-│   ├── assistant/           # Conversational agent with memory
-│   ├── coder/               # Code review and refactoring
-│   ├── monitor/             # URL/API change detection
-│   ├── researcher/          # Research and summarization
-│   └── system/              # OS administration agent
-├── providers/               # LLM provider adapters
-│   ├── anthropic/
-│   ├── openai/
-│   ├── google/
-│   └── ollama/
-└── skills/                  # Built-in installable skills
-    ├── file-system/
-    ├── shell-exec/
-    └── web-browse/
+const sandbox = new WorkerSandbox({
+  maxHeapSizeMB: 64,    // Memory limit
+  timeoutMs: 30000,     // 30 second timeout
+  maxStackSizeMB: 4,    // Stack limit
+});
+
+await sandbox.start();
+
+// Safe globals only - no fs, net, child_process
+const result = await sandbox.execute(`
+  const data = JSON.parse(context.input);
+  return data.items.filter(i => i.active);
+`, { input: '{"items":[{"active":true},{"active":false}]}' });
+
+sandbox.terminate();
 ```
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-- Node.js 22+ and pnpm 9+
-- At least one LLM API key (Anthropic, OpenAI, or Google) — or Ollama running locally
-
-### Option 1: Docker (recommended)
+### Installation
 
 ```bash
-git clone https://github.com/vijaygopalbalasa/AgentKernel.git
-cd agentkernel
-pnpm install
-pnpm -C apps/cli build
-pnpm -C apps/cli exec agentkernel init    # Generates .env with secure secrets
-# Edit .env — add your ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_AI_API_KEY
+# Install the CLI globally
+npm install -g agentkernel
 
-docker compose up --build
+# Initialize a security policy (interactive wizard)
+agentkernel init
+
+# Start the security proxy
+agentkernel start
 ```
 
-Services start at:
-- **Gateway** — `ws://localhost:18800` (WebSocket API)
-- **Dashboard** — `http://localhost:3000` (Web UI)
-- **Health** — `http://localhost:18801/health` (HTTP)
-- **Metrics** — `http://localhost:18801/metrics` (Prometheus)
-
-### Option 2: Local Development
+### From Source
 
 ```bash
+# Clone
 git clone https://github.com/vijaygopalbalasa/AgentKernel.git
-cd agentkernel
-pnpm install
-pnpm -C apps/cli build
-pnpm -C apps/cli exec agentkernel init
-# Edit .env — add at least one provider API key
+cd AgentKernel
 
+# Install dependencies
+pnpm install
+
+# Start infrastructure (PostgreSQL, Redis)
+docker compose -f docker/docker-compose.test.yml up -d
+
+# Run migrations
+pnpm migrate
+
+# Build and test
 pnpm build
-pnpm dev                               # Starts gateway with live reload
+pnpm test
 ```
 
-The gateway starts in dev mode with in-memory fallbacks (no PostgreSQL/Redis/Qdrant required for basic testing).
-
-### Verify It Works
+### Environment Variables
 
 ```bash
-# Check health
-curl http://localhost:18801/health
+# .env
+PERMISSION_SECRET=your-32-char-secret-for-hmac-signing
 
-# Chat with an LLM
-pnpm -C apps/cli exec agentkernel chat "What is AgentKernel?"
-
-# Open the dashboard
-open http://localhost:3000
+# Database
+DATABASE_HOST=localhost
+DATABASE_PORT=5433
+DATABASE_NAME=agentkernel_test
+DATABASE_USER=agentkernel
+DATABASE_PASSWORD=agentkernel_test
 ```
+
+### Production Hardening
+
+Set `AGENTKERNEL_PRODUCTION_HARDENING=true` (or `NODE_ENV=production`) to fail fast on unsafe defaults. When enabled, AgentKernel enforces:
+- `PERMISSION_SECRET` is set (>= 32 chars) and not a placeholder
+- `LOG_LEVEL` is not `debug` or `trace`
+- `DATABASE_SSL=true` when the database host is not local
+- `REDIS_PASSWORD` is set when Redis is not local
+- Policy default decision is `block`
+- Sandbox permissions are enforced and dangerous defaults are disallowed
 
 ---
 
-## Build Your First Agent
+## Security Standards
 
-### 1. Scaffold
-
-```bash
-pnpm -C apps/cli exec agentkernel new-agent my-agent --template chat
-```
-
-Templates: `chat` (conversational), `worker` (background tasks), `monitor` (change detection), `service` (A2A microservice).
-
-### 2. Write Agent Logic
-
-```typescript
-import { defineAgent, type AgentContext } from "@agentkernel/sdk";
-
-const agent = defineAgent({
-  manifest: {
-    id: "my-agent",
-    name: "My Agent",
-    version: "0.1.0",
-    permissions: ["memory.read", "memory.write", "llm.execute"],
-  },
-
-  async handleTask(task, context: AgentContext) {
-    const { client } = context;
-
-    // Chat with any LLM (model chosen by the OS)
-    const response = await client.chat([
-      { role: "user", content: task.message },
-    ]);
-
-    // Store knowledge in persistent memory
-    await client.storeFact({
-      category: "conversations",
-      fact: `User asked: ${task.message}`,
-    });
-
-    // Search past memories
-    const memories = await client.searchMemory("previous conversations");
-
-    return { content: response.content };
-  },
-});
-
-export default agent;
-```
-
-### 3. Deploy
-
-```bash
-cd agents/my-agent
-pnpm install && pnpm build
-pnpm -C ../.. -C apps/cli exec agentkernel deploy manifest.json
-```
-
-### AgentClient API
-
-| Method | What It Does |
-|--------|-------------|
-| `client.chat(messages, options?)` | Send messages to any LLM |
-| `client.storeFact(fact)` | Store knowledge in semantic memory |
-| `client.searchMemory(query)` | Search across all memory types (vector + text) |
-| `client.recordEpisode(episode)` | Record an event in episodic memory |
-| `client.storeProcedure(procedure)` | Learn a new skill/workflow |
-| `client.getProcedure(name)` | Retrieve a learned procedure |
-| `client.findProcedures(situation)` | Match procedures to a situation |
-| `client.invokeTool(toolId, args)` | Call a registered tool |
-| `client.listTools()` | List available tools |
-| `client.listSkills()` | List skills across all agents |
-| `client.invokeSkill(skillId, input)` | Invoke a skill (routed to providing agent) |
-| `client.callAgent(agentId, task)` | Delegate a task to another agent |
-| `client.discoverAgents()` | Find running agents |
-| `client.emit(channel, type, data)` | Publish an event |
-
-Full developer guide: [`docs/DEVELOPER.md`](docs/DEVELOPER.md)
+- **OWASP Top 10 for Agentic Applications 2026**
+- **Capability-based security** (unforgeable tokens)
+- **Least privilege** (minimal permissions by default)
+- **JIT access** (time-bounded grants)
+- **Defense in depth** (multiple security layers)
+- **Constant-time verification** (timing attack resistant)
 
 ---
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|-----------|
-| Language | TypeScript (strict mode, ~46,000 lines source + ~23,000 lines tests) |
-| Runtime | Node.js 22+ |
-| Package Manager | pnpm with workspaces |
-| Database | PostgreSQL 16 (structured data + agent metadata) |
-| Vector Store | Qdrant (semantic memory, embeddings) |
-| Cache / Pub-Sub | Redis 7 (events, real-time messaging) |
-| LLM SDKs | @anthropic-ai/sdk, openai, @google/generative-ai |
-| Protocols | MCP SDK, A2A (JSON-RPC over HTTP) |
-| Dashboard | Next.js 15, React 19, Tailwind CSS |
-| Gateway | WebSocket (real-time) + HTTP (health/metrics) |
-| Testing | Vitest (~200 unit tests passing) |
-| Build | tsup (packages), Next.js (dashboard) |
-| Containers | Docker + Docker Compose |
-| Security | Capability permissions, egress proxy config, AES-256 memory encryption |
+- **Language:** TypeScript (strict mode)
+- **Runtime:** Node.js 20+
+- **Package Manager:** pnpm
+- **Database:** PostgreSQL
+- **Testing:** Vitest (1,175+ tests)
+- **Build:** tsup
+- **Linting:** Biome
 
 ---
 
-## Production Deployment
+## Package Structure
 
-### Docker Compose (standard)
-
-```bash
-docker compose up --build -d
+```
+agentkernel/
+├── packages/
+│   ├── kernel/              # Config, logging, database, security utilities
+│   ├── runtime/             # Sandbox, audit, policy engine, health
+│   ├── framework/
+│   │   └── permissions/     # HMAC capability tokens
+│   ├── agentkernel-cli/     # CLI binary + security proxy + policy manager
+│   ├── cli/                 # Programmatic API for status/audit queries
+│   ├── langchain-adapter/   # LangChain tool wrapper with policy enforcement
+│   └── shared/              # Types, Result types
+└── scripts/                 # Migrations, verification, demos
 ```
 
-### Production Hardening
+| Package | npm | Description |
+|---------|-----|-------------|
+| `agentkernel` | CLI binary | Security proxy, policy management, audit viewer |
+| `@agentkernel/kernel` | Library | Config, logging, PostgreSQL, security utilities |
+| `@agentkernel/runtime` | Library | Policy engine, sandbox, audit, lifecycle |
+| `@agentkernel/permissions` | Library | HMAC capability tokens |
+| `@agentkernel/langchain-adapter` | Library | LangChain tool wrapper |
+| `@agentkernel/cli` | Library | Programmatic API for proxy, status, audit |
+| `@agentkernel/shared` | Library | Shared types and Result types |
 
+---
+
+## Status
+
+### Completed
+- Kernel: Config, logging, PostgreSQL, Redis, Qdrant, security utilities
+- Runtime: Sandbox, audit, policy engine, lifecycle, health
+- Permissions: HMAC capability tokens with constant-time verify
+- AgentKernel CLI: Security proxy, tool interceptor, policy manager, audit logging
+- LangChain Adapter: Tool interception with PolicyEngine
+- 1,175+ tests across all packages
+
+### AgentKernel CLI
+One-command security for any agent:
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+npm install -g agentkernel
+agentkernel init          # Interactive setup wizard
+agentkernel start         # Start the security proxy
+agentkernel allow "github"  # Allow GitHub access
+agentkernel block "telegram"  # Block data exfiltration
+agentkernel policy show   # View current policy
+agentkernel status        # Check health
+agentkernel audit         # Query audit logs
 ```
 
-Adds AppArmor profiles, seccomp filters, read-only root filesystem, resource limits, and egress proxy for network isolation.
+### LangChain Adapter
+Wrap any LangChain tool with policy enforcement:
+```typescript
+import { wrapToolWithPolicy } from '@agentkernel/langchain-adapter';
 
-### Operational Scripts
-
-```bash
-./scripts/backup-postgres.sh           # Database backup
-./scripts/restore-postgres.sh dump     # Database restore
-./scripts/backup-qdrant.sh             # Vector store backup
-./scripts/docker-smoke.sh              # Smoke test all services
+const safeTool = wrapToolWithPolicy(myTool, policyEngine, { agentId: 'my-agent' });
 ```
 
-### Environment Variables
-
-The `.env` file controls everything. Key settings:
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | One provider required | Anthropic API key |
-| `OPENAI_API_KEY` | One provider required | OpenAI API key |
-| `GOOGLE_AI_API_KEY` | One provider required | Google AI API key |
-| `GATEWAY_AUTH_TOKEN` | Yes (production) | WebSocket authentication token |
-| `DATABASE_URL` | Docker provides | PostgreSQL connection string |
-| `REDIS_URL` | Docker provides | Redis connection string |
-| `QDRANT_URL` | Docker provides | Qdrant connection string |
-
-Full configuration reference: [`.env.example`](.env.example)
-
----
-
-## How It Compares
-
-| | AgentKernel | LangChain / CrewAI | AutoGPT | Custom Scripts |
-|---|---|---|---|---|
-| **What it is** | Agent runtime | Framework / library | Single agent | DIY |
-| **Agent isolation** | Capability permissions (process isolation planned) | In-process | In-process | None |
-| **Memory persistence** | Built-in (3 types) | Plugin required | File-based | Manual |
-| **Multi-agent** | A2A protocol client | Framework-specific | No | Manual |
-| **Model agnostic** | Yes (4 providers) | Yes | OpenAI-focused | Manual |
-| **Security** | Capability-based permissions | None | None | None |
-| **Governance** | DB schema exists (enforcement WIP) | None | None | None |
-| **Self-hosted** | Yes | N/A (library) | Yes | Yes |
-| **Monitoring** | Dashboard + health endpoints | External | External | None |
-
-AgentKernel is infrastructure, not a framework. Frameworks help you write agent code. AgentKernel provides the runtime to run, manage, and monitor agents — regardless of which framework they use internally.
-
----
-
-## What Makes AgentKernel Unique
-
-While frameworks like LangGraph, CrewAI, and AutoGen help you **build** agents, AgentKernel **runs, manages, governs, and secures** them. It's the difference between a programming toolkit and a runtime.
-
-| Principle | How AgentKernel Implements It |
-|-----------|---------------------------|
-| **Governance as a kernel primitive** | Policies, moderation cases, sanctions, and appeals are enforced at runtime. Sanctioned agents cannot execute tasks (only appeal). No other agent platform does this at the OS level. |
-| **Agent social infrastructure** | Forums, jobs marketplace, and reputation system for agents. Inspired by Moltbook (1.5M+ agents) proving emergent social behavior happens when agents have identity + memory + communication. |
-| **Protocol-native** | MCP for tools, A2A for agent-to-agent, AG-UI for user interaction. Built-in, not bolted on. |
-| **Cognitive memory** | Three memory types from cognitive science: episodic (what happened), semantic (what I know), procedural (how to do things). Vector search via OpenAI embeddings + Qdrant. |
-| **Self-hostable** | Not a SaaS. Runs on your infrastructure. Docker-first. No vendor lock-in. |
-| **OWASP-aligned security** | Cryptographic capability tokens (HMAC-SHA256), time-bounded, delegatable, with immutable audit trails. |
-
----
-
-## Built On Open Standards
-
-- **[MCP](https://modelcontextprotocol.io/)** (Model Context Protocol) — Created by Anthropic (2024), now under the Linux Foundation. 97M+ monthly SDK downloads. The standard for connecting AI to tools and data.
-- **[A2A](https://github.com/google/A2A)** (Agent-to-Agent Protocol) — Created by Google (2025), now under the Linux Foundation. 150+ organizations. The standard for agent-to-agent communication.
-- **[OWASP Agentic Top 10](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/)** — Security guidelines for autonomous AI systems. AgentKernel implements mitigations for all 10 risks.
-
----
-
-## Project Status
-
-AgentKernel is under active development. Some layers are production-quality; others are early-stage. Here's an honest breakdown:
-
-| Layer | Status | What's There | What's Missing |
-|-------|--------|-------------|----------------|
-| Kernel | ✅ Solid | PostgreSQL, Qdrant, Redis clients, structured logging, health checks, graceful shutdown | — |
-| Model Abstraction | ✅ Solid | 4 real providers (Anthropic, OpenAI, Google, Ollama), routing, rate limiting, streaming | Automatic failover not fully tested in production |
-| Runtime | ⚠️ Partial | State machine, lifecycle manager, capability-based permission checking, file persistence | **No real process isolation** — sandbox checks permissions in-memory, not via OS-level isolation. State machine is in-memory (file checkpointing exists but not automatic). |
-| Framework | ⚠️ Mixed | Memory (real SQL queries), Tools (real MCP client), Communication (real A2A client), Events (in-process pub/sub), Identity, Permissions, Skills manager | Framework EventBus is in-memory (kernel EventBus uses Redis). Skills manager works but skills were empty until v0.2. |
-| Gateway | ✅ Solid | WebSocket + HTTP, authentication, rate limiting, real LLM chat end-to-end | — |
-| CLI | ✅ Works | 20+ commands, `chat` and `status` verified working | `run` command needs Node 22+ or tsx for .ts files |
-| Dashboard | ✅ UI exists | Next.js app with 6 pages, real WebSocket hooks | Requires running gateway to be useful |
-| Agents | 5 examples | assistant, coder, monitor, researcher, system | Example agents, not production-tested |
-| Skills | 3 built-in | file-system (6 tools), shell-exec (2 tools), web-browse (3 tools) — all with real I/O | New in v0.2 |
-| Tests | ~200 passing | Unit tests across packages | Most tests use mocks; integration tests require Docker |
-
----
-
-## Roadmap
-
-| Version | Focus | Key Features |
-|---------|-------|-------------|
-| **v0.2** (current) | Core infrastructure | Embedding-based vector search, skills registry, procedural memory handlers, A2A delegate fix, auth hardening |
-| **v0.3** | Protocol compliance | Agent Cards (`/.well-known/agent.json`), signed Agent Cards, MCP Gateway, A2A task persistence |
-| **v0.4** | Identity & trust | GoDaddy ANS integration, DID-based identity, agent package signing, trust registry |
-| **v0.5** | Marketplace & ecosystem | Skills marketplace, agent package format, ephemeral agents, AG-UI integration |
-| **v0.6** | Advanced security | Memory integrity (ASI06), behavioral baselines (ASI10), circuit breakers (ASI08), supply chain scanning (ASI04) |
-
----
-
-## Documentation
-
-| Doc | What It Covers |
-|-----|---------------|
-| [`docs/INSTALL.md`](docs/INSTALL.md) | Setup on macOS, Linux, Windows |
-| [`docs/FIRST_5_MINUTES.md`](docs/FIRST_5_MINUTES.md) | Fastest path to a working system |
-| [`docs/DEVELOPER.md`](docs/DEVELOPER.md) | Building agents with the SDK |
-| [`docs/TASK_PROTOCOL.md`](docs/TASK_PROTOCOL.md) | Low-level WebSocket API reference |
-| [`docs/USAGE.md`](docs/USAGE.md) | Dashboard and CLI usage |
-| [`docs/PROVIDERS.md`](docs/PROVIDERS.md) | LLM provider configuration |
-| [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) | External agent connections |
-| [`docs/FAQ.md`](docs/FAQ.md) | Frequently asked questions |
-
----
-
-## Contributing
-
-```bash
-git clone https://github.com/vijaygopalbalasa/AgentKernel.git
-cd agentkernel
-pnpm install
-pnpm build
-pnpm test    # Unit tests should pass
-pnpm dev     # Start gateway in dev mode
-```
+### In Progress
+- Additional framework adapters (AutoGen, CrewAI)
 
 ---
 
 ## License
 
 MIT
+
+---
+
+**Run any agent safely. See everything. Block what's dangerous.**

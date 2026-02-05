@@ -2,7 +2,7 @@
 // Provides interval-based recurring jobs with error handling and graceful shutdown
 
 import { z } from "zod";
-import { createLogger, type Logger } from "./logger.js";
+import { type Logger, createLogger } from "./logger.js";
 
 /** Job status enumeration */
 export type JobStatus = "pending" | "running" | "paused" | "stopped" | "error";
@@ -112,7 +112,11 @@ export class Scheduler {
     };
 
     this.jobs.set(fullConfig.id, job);
-    this.log.info("Job registered", { jobId: fullConfig.id, name: fullConfig.name, intervalMs: fullConfig.intervalMs });
+    this.log.info("Job registered", {
+      jobId: fullConfig.id,
+      name: fullConfig.name,
+      intervalMs: fullConfig.intervalMs,
+    });
 
     // Auto-start if scheduler is running and job is enabled
     if (this.running && fullConfig.enabled) {
@@ -266,19 +270,21 @@ export class Scheduler {
     };
 
     if (config.runImmediately) {
-      this.executeJob(job).then(() => {
-        if (this.running && job.status !== "paused" && job.status !== "stopped") {
-          scheduleExecution();
-        }
-      }).catch((error) => {
-        this.log.error("Initial job execution failed", {
-          jobId: job.config.id,
-          error: error instanceof Error ? error.message : String(error),
+      this.executeJob(job)
+        .then(() => {
+          if (this.running && job.status !== "paused" && job.status !== "stopped") {
+            scheduleExecution();
+          }
+        })
+        .catch((error) => {
+          this.log.error("Initial job execution failed", {
+            jobId: job.config.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          if (this.running && job.status !== "paused" && job.status !== "stopped") {
+            scheduleExecution();
+          }
         });
-        if (this.running && job.status !== "paused" && job.status !== "stopped") {
-          scheduleExecution();
-        }
-      });
     } else if (config.initialDelayMs > 0) {
       job.timer = setTimeout(() => {
         if (this.running && job.status !== "paused" && job.status !== "stopped") {

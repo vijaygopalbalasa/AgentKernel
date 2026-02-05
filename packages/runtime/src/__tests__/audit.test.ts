@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { rm, readFile } from "fs/promises";
+import { readFile, rm } from "node:fs/promises";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  AuditLogger,
-  MemoryAuditSink,
-  FileAuditSink,
-  ConsoleAuditSink,
-  DatabaseAuditSink,
-  createAuditLogger,
   type AuditEvent,
+  AuditLogger,
+  ConsoleAuditSink,
   type DatabaseAuditRecord,
+  DatabaseAuditSink,
+  FileAuditSink,
+  MemoryAuditSink,
+  createAuditLogger,
 } from "../audit.js";
 
 function getFirst<T>(items: T[]): T {
@@ -180,7 +180,7 @@ describe("MemoryAuditSink", () => {
 
       const rangeEvents = sink.getInTimeRange(
         new Date(now.getTime() - 5000),
-        new Date(now.getTime() + 5000)
+        new Date(now.getTime() + 5000),
       );
       expect(rangeEvents).toHaveLength(1);
       expect(getFirst(rangeEvents).id).toBe("test-2");
@@ -632,7 +632,7 @@ describe("DatabaseAuditSink", () => {
     it("should auto-flush when buffer exceeds max size", async () => {
       const smallSink = new DatabaseAuditSink(mockWriter, {
         flushIntervalMs: 0,
-        maxBufferSize: 3
+        maxBufferSize: 3,
       });
 
       smallSink.write({

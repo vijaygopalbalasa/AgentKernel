@@ -1,8 +1,0 @@
-# AgentKernel Kubernetes Namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: agentkernel
-  labels:
-    app.kubernetes.io/name: agentkernel
-    app.kubernetes.io/part-of: agentkernel

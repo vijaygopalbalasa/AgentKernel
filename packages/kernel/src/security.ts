@@ -1,8 +1,8 @@
 // Security Utilities
 // Input validation, secrets management, rate limiting, audit logging
 
+import { type Result, err, ok } from "@agentkernel/shared";
 import { z } from "zod";
-import { type Result, ok, err } from "@agentkernel/shared";
 import { createLogger } from "./logger.js";
 
 const log = createLogger({ name: "security" });
@@ -15,7 +15,7 @@ const log = createLogger({ name: "security" });
 export function validateInput<T>(
   schema: z.ZodSchema<T>,
   input: unknown,
-  context?: string
+  context?: string,
 ): Result<T, z.ZodError> {
   const result = schema.safeParse(input);
   if (result.success) {
@@ -94,7 +94,7 @@ export function sanitizeObject<T extends Record<string, unknown>>(obj: T): T {
           ? sanitizeString(item)
           : typeof item === "object" && item !== null
             ? sanitizeObject(item as Record<string, unknown>)
-            : item
+            : item,
       );
     } else if (typeof value === "object" && value !== null) {
       result[key] = sanitizeObject(value as Record<string, unknown>);
@@ -142,7 +142,7 @@ export class EnvVaultProvider implements VaultProvider {
   readonly name: string;
   private readonly prefix: string;
 
-  constructor(name: string = "env-vault", prefix: string = "VAULT_SECRET_") {
+  constructor(name = "env-vault", prefix = "VAULT_SECRET_") {
     this.name = name;
     this.prefix = prefix;
   }
@@ -255,18 +255,16 @@ export async function resolveSecret(ref: SecretReference): Promise<Result<string
       }
 
       case "vault": {
-        const provider = ref.vault
-          ? getVaultProvider(ref.vault)
-          : getDefaultVaultProvider();
+        const provider = ref.vault ? getVaultProvider(ref.vault) : getDefaultVaultProvider();
 
         if (!provider) {
           return err(
             new Error(
-              `No vault provider registered. ` +
-                `Register a provider using registerVaultProvider() before resolving vault secrets. ` +
-                `You can use EnvVaultProvider for environment-based secrets, or implement VaultProvider ` +
-                `for HashiCorp Vault, AWS Secrets Manager, or other secret stores.`
-            )
+              "No vault provider registered. " +
+                "Register a provider using registerVaultProvider() before resolving vault secrets. " +
+                "You can use EnvVaultProvider for environment-based secrets, or implement VaultProvider " +
+                "for HashiCorp Vault, AWS Secrets Manager, or other secret stores.",
+            ),
           );
         }
 
@@ -316,7 +314,7 @@ export function redactSecrets<T extends Record<string, unknown>>(obj: T): T {
       result[key] = value.map((item) =>
         typeof item === "object" && item !== null
           ? redactSecrets(item as Record<string, unknown>)
-          : item
+          : item,
       );
     } else if (typeof value === "object" && value !== null) {
       result[key] = redactSecrets(value as Record<string, unknown>);
@@ -539,7 +537,7 @@ export class RedisRateLimiter {
     const windowKey = `${this.config.keyPrefix}:${key}:${Math.floor(now / windowMs)}`;
 
     const raw = await this.redis.get(windowKey);
-    const count = raw ? parseInt(raw, 10) : 0;
+    const count = raw ? Number.parseInt(raw, 10) : 0;
 
     const allowed = count < this.config.maxRequests;
     const remaining = Math.max(0, this.config.maxRequests - count);
@@ -561,7 +559,9 @@ export class RedisRateLimiter {
   /**
    * Get current stats for a key.
    */
-  async getStats(key: string): Promise<{ count: number; remaining: number; resetAt: number } | null> {
+  async getStats(
+    key: string,
+  ): Promise<{ count: number; remaining: number; resetAt: number } | null> {
     const windowMs = this.config.windowMs;
     const now = Date.now();
     const windowKey = `${this.config.keyPrefix}:${key}:${Math.floor(now / windowMs)}`;
@@ -569,7 +569,7 @@ export class RedisRateLimiter {
     const raw = await this.redis.get(windowKey);
     if (!raw) return null;
 
-    const count = parseInt(raw, 10);
+    const count = Number.parseInt(raw, 10);
     return {
       count,
       remaining: Math.max(0, this.config.maxRequests - count),
@@ -587,7 +587,7 @@ export class RedisRateLimiter {
  */
 export function createRateLimiter(
   config: Partial<RateLimitConfig> = {},
-  redis?: RedisLike
+  redis?: RedisLike,
 ): RateLimiter | RedisRateLimiter {
   if (redis) {
     return new RedisRateLimiter(redis, config);
@@ -763,7 +763,7 @@ export class AuditLogger {
       details?: Record<string, unknown>;
       ip?: string;
       userAgent?: string;
-    }
+    },
   ): Promise<void> {
     const entry: AuditEntry = {
       timestamp: new Date(),
@@ -841,7 +841,8 @@ export const SecurityHeaders = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
 
   // Content Security Policy
-  "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
+  "Content-Security-Policy":
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
 
   // Strict Transport Security (HTTPS only)
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
@@ -863,9 +864,15 @@ export interface CorsConfig {
 }
 
 export const CorsConfigSchema = z.object({
-  origins: z.union([z.array(z.string()), z.literal("*")]).optional().default(["http://localhost:3000"]),
+  origins: z
+    .union([z.array(z.string()), z.literal("*")])
+    .optional()
+    .default(["http://localhost:3000"]),
   methods: z.array(z.string()).optional().default(["GET", "POST", "PUT", "DELETE", "OPTIONS"]),
-  allowedHeaders: z.array(z.string()).optional().default(["Content-Type", "Authorization", "X-Request-ID"]),
+  allowedHeaders: z
+    .array(z.string())
+    .optional()
+    .default(["Content-Type", "Authorization", "X-Request-ID"]),
   exposedHeaders: z.array(z.string()).optional().default(["X-Request-ID", "X-RateLimit-Remaining"]),
   credentials: z.boolean().optional().default(false),
   maxAge: z.number().optional().default(86400), // 24 hours
@@ -882,7 +889,7 @@ export function getCorsHeaders(config: CorsConfig, origin?: string): Record<stri
     headers["Access-Control-Allow-Origin"] = "*";
   } else if (origin && config.origins.includes(origin)) {
     headers["Access-Control-Allow-Origin"] = origin;
-    headers["Vary"] = "Origin";
+    headers.Vary = "Origin";
   }
 
   // Access-Control-Allow-Methods
@@ -914,7 +921,7 @@ export function getCorsHeaders(config: CorsConfig, origin?: string): Record<stri
  */
 export function validateRequestHeaders(
   headers: Record<string, string | undefined>,
-  required: string[]
+  required: string[],
 ): Result<void, Error> {
   const missing = required.filter((h) => !headers[h.toLowerCase()]);
   if (missing.length > 0) {
@@ -928,7 +935,7 @@ export function validateRequestHeaders(
  */
 export function validateContentType(
   contentType: string | undefined,
-  allowed: string[]
+  allowed: string[],
 ): Result<void, Error> {
   if (!contentType) {
     return err(new Error("Missing Content-Type header"));

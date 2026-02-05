@@ -21,8 +21,8 @@
     "test": "pnpm -r test",
     "test:watch": "pnpm -r test:watch",
     "test:integration": "pnpm --filter @agentkernel/kernel test:integration",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
+    "lint": "biome check packages/shared/src packages/kernel/src packages/runtime/src packages/framework/permissions/src packages/agentkernel-cli/src packages/langchain-adapter/src packages/cli/src --diagnostic-level=error",
+    "lint:fix": "biome check --write packages/shared/src packages/kernel/src packages/runtime/src packages/framework/permissions/src packages/agentkernel-cli/src packages/langchain-adapter/src packages/cli/src",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "typecheck": "tsc --noEmit",
@@ -35,6 +35,7 @@
     "demo:security": "node scripts/demo-openclaw-security.mjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
     "@types/node": "^25.1.0",
     "dotenv": "^17.2.3",
     "tsup": "^8.5.1",

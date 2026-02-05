@@ -22,9 +22,18 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/vijaygopalbalasa/AgentKernel"
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel",
+    "directory": "packages/agentkernel-cli"
+  },
+  "homepage": "https://github.com/vijaygopalbalasa/AgentKernel#readme",
+  "bugs": {
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel/issues"
   },
   "engines": { "node": ">=20.0.0" },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "dependencies": {
     "@agentkernel/shared": "workspace:*",
     "@agentkernel/runtime": "workspace:*",
@@ -32,7 +41,11 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.10"
+    "@types/node": "^22.19.7",
+    "@types/ws": "^8.5.10",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   },
   "scripts": {
     "build": "tsup src/index.ts src/cli.ts --format esm --dts",

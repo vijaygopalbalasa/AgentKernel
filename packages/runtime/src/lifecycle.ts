@@ -1,40 +1,31 @@
 // Agent Lifecycle Manager — spawns, manages, and terminates agents
 // Like Android's ActivityManager + ProcessManager
 
-import { randomUUID } from "crypto";
-import { resolve, isAbsolute } from "path";
-import { pathToFileURL } from "url";
-import { AgentStateMachine, type AgentState, type StateTransition } from "./state-machine.js";
+import { randomUUID } from "node:crypto";
+import { isAbsolute, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   type AgentContext,
   type AgentId,
   type AgentMetadata,
+  DEFAULT_LIMITS,
   type ResourceLimits,
   type ResourceUsage,
-  DEFAULT_LIMITS,
-  createInitialUsage,
   checkLimits,
+  createInitialUsage,
   estimateCost,
 } from "./agent-context.js";
+import type { AuditLogger } from "./audit.js";
+import type { HealthCheckResult, HealthMetrics, HealthMonitor } from "./health.js";
+import type { AgentCheckpoint, PersistenceManager } from "./persistence.js";
 import {
-  AgentSandbox,
-  SandboxRegistry,
+  type AgentSandbox,
   type Capability,
-  type SandboxConfig,
   DEFAULT_CAPABILITIES,
+  type SandboxConfig,
+  SandboxRegistry,
 } from "./sandbox.js";
-import {
-  type PersistenceManager,
-  type AgentCheckpoint,
-} from "./persistence.js";
-import {
-  type AuditLogger,
-} from "./audit.js";
-import {
-  HealthMonitor,
-  type HealthMetrics,
-  type HealthCheckResult,
-} from "./health.js";
+import { type AgentState, AgentStateMachine, type StateTransition } from "./state-machine.js";
 
 /** Agent manifest — the "AndroidManifest.xml" equivalent */
 export interface AgentManifest {
@@ -80,7 +71,14 @@ interface AgentInstance {
 
 /** Event emitted by lifecycle manager */
 export interface LifecycleEvent {
-  type: "spawn" | "state_change" | "terminate" | "error" | "resource_warning" | "checkpoint" | "recover";
+  type:
+    | "spawn"
+    | "state_change"
+    | "terminate"
+    | "error"
+    | "resource_warning"
+    | "checkpoint"
+    | "recover";
   agentId: AgentId;
   timestamp: Date;
   data?: unknown;
@@ -108,6 +106,11 @@ export interface LifecycleManagerOptions {
   shutdownTimeoutMs?: number;
   /** Optional agent initializer hook */
   agentInitializer?: AgentInitializer;
+  /**
+   * Allow loading manifest.entryPoint directly in the host process.
+   * Disabled by default because entry points execute with host privileges.
+   */
+  allowHostEntryPointExecution?: boolean;
 }
 
 /** Required options with defaults applied */
@@ -122,6 +125,7 @@ interface ResolvedOptions {
   autoCheckpointIntervalMs: number;
   shutdownTimeoutMs: number;
   agentInitializer: AgentInitializer | null;
+  allowHostEntryPointExecution: boolean;
 }
 
 function resolveEntryPoint(entryPoint: string): string {
@@ -152,7 +156,10 @@ function resolveInitializer(module: Record<string, unknown>): AgentInitializer |
     return candidate as AgentInitializer;
   }
 
-  if (module.default && typeof (module.default as { initialize?: unknown }).initialize === "function") {
+  if (
+    module.default &&
+    typeof (module.default as { initialize?: unknown }).initialize === "function"
+  ) {
     return (context) => (module.default as { initialize: AgentInitializer }).initialize(context);
   }
 
@@ -166,7 +173,7 @@ async function loadEntryPoint(entryPoint: string, context: AgentInitializerConte
 
   if (!initializer) {
     throw new Error(
-      `Entry point ${entryPoint} does not export an initializer (expected default/initialize/init/start)`
+      `Entry point ${entryPoint} does not export an initializer (expected default/initialize/init/start)`,
     );
   }
 
@@ -198,6 +205,7 @@ export class AgentLifecycleManager {
       autoCheckpointIntervalMs: options.autoCheckpointIntervalMs ?? 0,
       shutdownTimeoutMs: options.shutdownTimeoutMs ?? 30000,
       agentInitializer: options.agentInitializer ?? null,
+      allowHostEntryPointExecution: options.allowHostEntryPointExecution ?? false,
     };
 
     this.sandboxRegistry = new SandboxRegistry(this.options.sandboxConfig);
@@ -353,7 +361,18 @@ export class AgentLifecycleManager {
       throw new Error(`Agent limit reached (${this.options.maxAgents})`);
     }
 
-    const { agentId: id, manifest, state, stateHistory, usage, env, parentId, createdAt, capabilities, customData } = checkpoint;
+    const {
+      agentId: id,
+      manifest,
+      state,
+      stateHistory,
+      usage,
+      env,
+      parentId,
+      createdAt,
+      capabilities,
+      customData,
+    } = checkpoint;
     const now = new Date();
 
     // Check if agent already exists
@@ -485,7 +504,7 @@ export class AgentLifecycleManager {
       this.options.auditLogger?.error(
         `Agent initialization failed: ${agentId}`,
         error instanceof Error ? error : new Error(String(error)),
-        { agentId }
+        { agentId },
       );
 
       return false;
@@ -506,6 +525,14 @@ export class AgentLifecycleManager {
     }
 
     if (instance.manifest.entryPoint) {
+      if (!this.options.allowHostEntryPointExecution) {
+        throw new Error(
+          [
+            `Agent ${agentId} specifies manifest.entryPoint, but host entry-point execution is disabled.`,
+            "Set allowHostEntryPointExecution=true or provide agentInitializer.",
+          ].join(" "),
+        );
+      }
       await loadEntryPoint(instance.manifest.entryPoint, initContext);
     }
   }
@@ -617,11 +644,7 @@ export class AgentLifecycleManager {
       }
 
       // Audit log
-      this.options.auditLogger?.error(
-        `Agent failed: ${reason}`,
-        new Error(reason),
-        { agentId }
-      );
+      this.options.auditLogger?.error(`Agent failed: ${reason}`, new Error(reason), { agentId });
     }
 
     return result;
@@ -630,7 +653,7 @@ export class AgentLifecycleManager {
   /**
    * Attempt recovery from error state.
    */
-  recover2(agentId: AgentId): boolean {
+  recoverFromError(agentId: AgentId): boolean {
     const instance = this.agents.get(agentId);
     if (!instance) {
       throw new Error(`Agent not found: ${agentId}`);
@@ -648,6 +671,11 @@ export class AgentLifecycleManager {
     }
 
     return result;
+  }
+
+  /** @deprecated Use recoverFromError instead. */
+  recover2(agentId: AgentId): boolean {
+    return this.recoverFromError(agentId);
   }
 
   /**
@@ -732,7 +760,11 @@ export class AgentLifecycleManager {
   /**
    * Check capability and record usage.
    */
-  checkCapability(agentId: AgentId, capability: Capability, context?: Record<string, unknown>): boolean {
+  checkCapability(
+    agentId: AgentId,
+    capability: Capability,
+    context?: Record<string, unknown>,
+  ): boolean {
     const sandbox = this.sandboxRegistry.get(agentId);
     if (!sandbox) return false;
 
@@ -752,12 +784,7 @@ export class AgentLifecycleManager {
   /**
    * Record token usage for an agent.
    */
-  recordUsage(
-    agentId: AgentId,
-    model: string,
-    inputTokens: number,
-    outputTokens: number
-  ): void {
+  recordUsage(agentId: AgentId, model: string, inputTokens: number, outputTokens: number): void {
     const instance = this.agents.get(agentId);
     if (!instance) return;
 
@@ -825,7 +852,7 @@ export class AgentLifecycleManager {
         capability: grant.capability,
         grant,
       })),
-      instance.customData
+      instance.customData,
     );
 
     await this.options.persistence.checkpoint(agentId, checkpointData);
@@ -936,7 +963,7 @@ export class AgentLifecycleManager {
         checkpointPromises.push(
           this.checkpoint(agentId).catch(() => {
             // Ignore checkpoint errors during shutdown
-          })
+          }),
         );
       }
       await Promise.all(checkpointPromises);
@@ -959,11 +986,11 @@ export class AgentLifecycleManager {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    // Close audit logger
-    await this.options.auditLogger?.close();
-
     // Audit log
     this.options.auditLogger?.system("System shutdown complete");
+
+    // Close audit logger after final shutdown event is recorded
+    await this.options.auditLogger?.close();
   }
 
   /** Start auto-checkpoint for an agent */

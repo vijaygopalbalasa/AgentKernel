@@ -1,15 +1,15 @@
 // Tracing Tests
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   Span,
-  Tracer,
-  parseTraceParent,
-  generateTraceParent,
-  extractTraceContext,
-  injectTraceContext,
-  getTracer,
-  resetTracer,
   type SpanContext,
+  Tracer,
+  extractTraceContext,
+  generateTraceParent,
+  getTracer,
+  injectTraceContext,
+  parseTraceParent,
+  resetTracer,
 } from "./tracing.js";
 
 function getFirst<T>(items: T[]): T {
@@ -43,9 +43,9 @@ describe("Span", () => {
     span.setAttribute("active", true);
 
     const data = span.getData();
-    expect(data.attributes["key"]).toBe("value");
-    expect(data.attributes["count"]).toBe(42);
-    expect(data.attributes["active"]).toBe(true);
+    expect(data.attributes.key).toBe("value");
+    expect(data.attributes.count).toBe(42);
+    expect(data.attributes.active).toBe(true);
   });
 
   it("should set multiple attributes", () => {
@@ -56,9 +56,9 @@ describe("Span", () => {
     });
 
     const data = span.getData();
-    expect(data.attributes["a"]).toBe("1");
-    expect(data.attributes["b"]).toBe(2);
-    expect(data.attributes["c"]).toBe(true);
+    expect(data.attributes.a).toBe("1");
+    expect(data.attributes.b).toBe(2);
+    expect(data.attributes.c).toBe(true);
   });
 
   it("should add events", () => {
@@ -115,7 +115,7 @@ describe("Span", () => {
     span.setAttribute("key", "value");
 
     const data = span.getData();
-    expect(data.attributes["key"]).toBeUndefined();
+    expect(data.attributes.key).toBeUndefined();
   });
 
   it("should be chainable", () => {
@@ -209,7 +209,7 @@ describe("Tracer", () => {
       await expect(
         tracer.trace("failing-op", async () => {
           throw error;
-        })
+        }),
       ).rejects.toThrow("Async error");
 
       const completed = tracer.getCompletedSpans();
@@ -356,8 +356,8 @@ describe("Context Propagation", () => {
       const headers: Record<string, string> = {};
       injectTraceContext(context, headers);
 
-      expect(headers["traceparent"]).toBeDefined();
-      expect(headers["traceparent"]).toContain(context.traceId);
+      expect(headers.traceparent).toBeDefined();
+      expect(headers.traceparent).toContain(context.traceId);
     });
   });
 });

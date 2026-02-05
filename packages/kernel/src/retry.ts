@@ -1,8 +1,8 @@
 // Retry Utility with Exponential Backoff and Jitter
 // Provides resilient retry logic for transient failures
 
+import { type Result, err, ok } from "@agentkernel/shared";
 import { z } from "zod";
-import { type Result, ok, err } from "@agentkernel/shared";
 import { createLogger } from "./logger.js";
 
 const log = createLogger({ name: "retry" });
@@ -112,12 +112,9 @@ export function isRetryableError(error: Error): boolean {
 /**
  * Calculate delay with exponential backoff and jitter.
  */
-export function calculateDelay(
-  attempt: number,
-  config: RetryConfig
-): number {
+export function calculateDelay(attempt: number, config: RetryConfig): number {
   // Exponential backoff: base * (exponentialBase ^ attempt)
-  const exponentialDelay = config.baseDelay * Math.pow(config.exponentialBase, attempt);
+  const exponentialDelay = config.baseDelay * config.exponentialBase ** attempt;
 
   // Cap at maxDelay
   const cappedDelay = Math.min(exponentialDelay, config.maxDelay);
@@ -138,7 +135,7 @@ export function calculateDelay(
 export async function retry<T>(
   operation: (context: RetryContext) => Promise<T>,
   config: Partial<RetryConfig> = {},
-  isRetryable: RetryableErrorFilter = isRetryableError
+  isRetryable: RetryableErrorFilter = isRetryableError,
 ): Promise<Result<T, Error>> {
   const cfg = RetryConfigSchema.parse(config);
   const maxAttempts = cfg.maxRetries + 1; // +1 for initial attempt
@@ -198,7 +195,7 @@ export async function retry<T>(
 export async function retryAsync<T>(
   operation: () => Promise<T>,
   config: Partial<RetryConfig> = {},
-  isRetryable: RetryableErrorFilter = isRetryableError
+  isRetryable: RetryableErrorFilter = isRetryableError,
 ): Promise<Result<T, Error>> {
   return retry(() => operation(), config, isRetryable);
 }
@@ -211,7 +208,7 @@ export async function retryAsync<T>(
 export function withRetry<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T,
   config: Partial<RetryConfig> = {},
-  isRetryable: RetryableErrorFilter = isRetryableError
+  isRetryable: RetryableErrorFilter = isRetryableError,
 ): T {
   return (async (...args: Parameters<T>) => {
     const result = await retry(() => fn(...args), config, isRetryable);

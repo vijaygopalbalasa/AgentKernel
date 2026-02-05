@@ -1,9 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  ToolInterceptor,
-  createToolInterceptor,
-  type ToolCall,
-} from "./interceptor.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { type ToolCall, type ToolInterceptor, createToolInterceptor } from "./interceptor.js";
 
 describe("ToolInterceptor", () => {
   let interceptor: ToolInterceptor;

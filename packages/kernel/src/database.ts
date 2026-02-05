@@ -1,22 +1,36 @@
 // PostgreSQL connection pool with migrations support
 // Uses postgres.js for high-performance connection pooling
 
-import postgres from "postgres";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import postgres from "postgres";
 import type { DatabaseConfig } from "./config.js";
 import type { Logger } from "./logger.js";
+import {
+  type CircuitBreakerConfig,
+  CircuitOpenError,
+  QueryCircuitBreaker,
+} from "./query-circuit-breaker.js";
+
+// Re-export circuit breaker for consumers
+export { QueryCircuitBreaker, CircuitOpenError, type CircuitBreakerConfig };
 
 /** Re-export postgres types for consumers */
 export type Sql = ReturnType<typeof postgres>;
 
 /** Database connection pool */
 export interface Database {
-  /** Execute a raw SQL query */
-  query<T extends object>(queryFn: (sql: Sql) => Promise<T[]>): Promise<T[]>;
+  /** Execute a raw SQL query with optional timeout and circuit breaker control */
+  query<T extends object>(
+    queryFn: (sql: Sql) => Promise<T[]>,
+    options?: QueryOptions,
+  ): Promise<T[]>;
 
   /** Execute a query and return first row */
-  queryOne<T extends object>(queryFn: (sql: Sql) => Promise<T[]>): Promise<T | null>;
+  queryOne<T extends object>(
+    queryFn: (sql: Sql) => Promise<T[]>,
+    options?: QueryOptions,
+  ): Promise<T | null>;
 
   /** Execute multiple statements in a transaction */
   transaction<T>(fn: (sql: Sql) => Promise<T>): Promise<T>;
@@ -40,6 +54,14 @@ export interface Database {
   sql: Sql;
 }
 
+/** Query options */
+export interface QueryOptions {
+  /** Query timeout in milliseconds (default: 30000) */
+  timeoutMs?: number;
+  /** Skip circuit breaker for this query */
+  skipCircuitBreaker?: boolean;
+}
+
 /** Connection pool statistics */
 export interface PoolStats {
   /** Total connections in pool */
@@ -50,6 +72,22 @@ export interface PoolStats {
   active: number;
   /** Pending connection requests */
   pending: number;
+  /** Slow queries logged since startup */
+  slowQueries: number;
+  /** Circuit breaker state */
+  circuitBreakerState?: "closed" | "open" | "half-open";
+}
+
+/** Database configuration with query protection */
+export interface DatabaseQueryProtectionConfig {
+  /** Default query timeout in milliseconds (default: 30000) */
+  queryTimeoutMs?: number;
+  /** Slow query threshold in milliseconds (default: 1000) */
+  slowQueryThresholdMs?: number;
+  /** Enable circuit breaker (default: true) */
+  enableCircuitBreaker?: boolean;
+  /** Circuit breaker configuration */
+  circuitBreakerConfig?: Partial<CircuitBreakerConfig>;
 }
 
 /** Result of running migrations */
@@ -81,14 +119,18 @@ function calculateChecksum(content: string): string {
   let hash = 0;
   for (let i = 0; i < content.length; i++) {
     const char = content.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
   return Math.abs(hash).toString(16).padStart(8, "0");
 }
 
 /** Create a database connection pool */
-export function createDatabase(config: DatabaseConfig, logger?: Logger): Database {
+export function createDatabase(
+  config: DatabaseConfig,
+  logger?: Logger,
+  queryProtection?: DatabaseQueryProtectionConfig,
+): Database {
   const log = logger ?? {
     debug: () => {},
     info: () => {},
@@ -96,9 +138,21 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
     error: () => {},
   };
 
+  // Query protection configuration
+  const queryTimeoutMs = queryProtection?.queryTimeoutMs ?? 30000;
+  const slowQueryThresholdMs = queryProtection?.slowQueryThresholdMs ?? 1000;
+  const enableCircuitBreaker = queryProtection?.enableCircuitBreaker ?? true;
+
+  // Circuit breaker for query protection
+  const circuitBreaker = enableCircuitBreaker
+    ? new QueryCircuitBreaker(queryProtection?.circuitBreakerConfig)
+    : null;
+
+  const encodedUser = encodeURIComponent(config.user);
+  const encodedDatabase = encodeURIComponent(config.database);
   const connectionString = config.password
-    ? `postgres://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`
-    : `postgres://${config.user}@${config.host}:${config.port}/${config.database}`;
+    ? `postgres://${encodedUser}:${encodeURIComponent(config.password)}@${config.host}:${config.port}/${encodedDatabase}`
+    : `postgres://${encodedUser}@${config.host}:${config.port}/${encodedDatabase}`;
 
   const sql = postgres(connectionString, {
     max: config.maxConnections,
@@ -116,20 +170,72 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
   // Track connection stats
   let activeConnections = 0;
   let totalConnections = 0;
+  let slowQueryCount = 0;
+
+  /** Execute a query with timeout and slow query logging */
+  async function executeWithProtection<T>(
+    fn: () => Promise<T>,
+    options?: QueryOptions,
+  ): Promise<T> {
+    const timeout = options?.timeoutMs ?? queryTimeoutMs;
+    const skipCircuit = options?.skipCircuitBreaker ?? false;
+    const start = Date.now();
+
+    // Create a timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Query timeout after ${timeout}ms`));
+      }, timeout);
+    });
+
+    // Execute with circuit breaker if enabled
+    const execute = async (): Promise<T> => {
+      const result = await Promise.race([fn(), timeoutPromise]);
+      return result;
+    };
+
+    try {
+      let result: T;
+
+      if (circuitBreaker && !skipCircuit) {
+        result = await circuitBreaker.execute(execute);
+      } else {
+        result = await execute();
+      }
+
+      // Log slow queries
+      const duration = Date.now() - start;
+      if (duration > slowQueryThresholdMs) {
+        slowQueryCount++;
+        log.warn("Slow query detected", { durationMs: duration, threshold: slowQueryThresholdMs });
+      }
+
+      return result;
+    } catch (error) {
+      const duration = Date.now() - start;
+      log.error("Query failed", { durationMs: duration, error: String(error) });
+      throw error;
+    }
+  }
 
   const db: Database = {
-    async query<T extends object>(queryFn: (sql: Sql) => Promise<T[]>): Promise<T[]> {
+    async query<T extends object>(
+      queryFn: (sql: Sql) => Promise<T[]>,
+      options?: QueryOptions,
+    ): Promise<T[]> {
       activeConnections++;
       try {
-        const result = await queryFn(sql);
-        return result;
+        return await executeWithProtection(() => queryFn(sql), options);
       } finally {
         activeConnections--;
       }
     },
 
-    async queryOne<T extends object>(queryFn: (sql: Sql) => Promise<T[]>): Promise<T | null> {
-      const rows = await db.query(queryFn);
+    async queryOne<T extends object>(
+      queryFn: (sql: Sql) => Promise<T[]>,
+      options?: QueryOptions,
+    ): Promise<T | null> {
+      const rows = await db.query(queryFn, options);
       return (rows[0] as T | undefined) ?? null;
     },
 
@@ -162,6 +268,8 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
         idle: Math.max(0, totalConnections - activeConnections),
         active: activeConnections,
         pending: 0, // Not tracked by postgres.js
+        slowQueries: slowQueryCount,
+        circuitBreakerState: circuitBreaker?.getState(),
       };
     },
 
@@ -216,7 +324,7 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
           if (existing && existing.checksum !== checksum) {
             result.errors.push({
               migration: file,
-              error: `Checksum mismatch: migration was modified after being applied`,
+              error: "Checksum mismatch: migration was modified after being applied",
             });
           }
           continue;
@@ -234,10 +342,10 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
             await tx.unsafe(content);
 
             // Record migration using parameterized unsafe query
-            await tx.unsafe(
-              `INSERT INTO _migrations (name, checksum) VALUES ($1, $2)`,
-              [file, checksum]
-            );
+            await tx.unsafe("INSERT INTO _migrations (name, checksum) VALUES ($1, $2)", [
+              file,
+              checksum,
+            ]);
           });
 
           result.applied++;
@@ -262,18 +370,22 @@ export function createDatabase(config: DatabaseConfig, logger?: Logger): Databas
   };
 
   // Verify connection on creation — callers can await db.connectionReady
-  db.connectionReady = sql`SELECT 1`.then(() => {
-    totalConnections = 1;
-    log.info("Database connected", {
-      host: config.host,
-      port: config.port,
-      database: config.database,
+  db.connectionReady = sql`SELECT 1`
+    .then(() => {
+      totalConnections = 1;
+      log.info("Database connected", {
+        host: config.host,
+        port: config.port,
+        database: config.database,
+      });
+    })
+    .catch((error) => {
+      const wrapped = error instanceof Error ? error : new Error(String(error));
+      log.error("Database connection failed", { error: wrapped.message });
+      throw wrapped;
     });
-  }).catch((error) => {
-    log.error("Database connection failed", { error: String(error) });
-    // Swallow the rejection to avoid unhandled rejection crashes
-    // Callers should await connectionReady and handle failures via isConnected()
-  });
+  // Prevent unhandled rejection warnings when callers intentionally don't await.
+  void db.connectionReady.catch(() => {});
 
   return db;
 }
@@ -286,7 +398,14 @@ export async function checkDatabaseHealth(db: Database): Promise<{
 }> {
   const start = Date.now();
   try {
-    await db.isConnected();
+    const connected = await db.isConnected();
+    if (!connected) {
+      return {
+        healthy: false,
+        latencyMs: Date.now() - start,
+        error: "Database connectivity check failed",
+      };
+    }
     return {
       healthy: true,
       latencyMs: Date.now() - start,
@@ -307,7 +426,7 @@ export async function waitForDatabase(
     maxRetries?: number;
     retryDelayMs?: number;
     logger?: Logger;
-  } = {}
+  } = {},
 ): Promise<boolean> {
   const { maxRetries = 30, retryDelayMs = 1000, logger } = options;
 

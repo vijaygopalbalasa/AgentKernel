@@ -1,23 +1,21 @@
 # Test infrastructure for integration tests
 # Usage: docker compose -f docker/docker-compose.test.yml up -d
 
-version: "3.9"
-
 services:
   postgres-test:
     image: postgres:16-alpine
     container_name: agentkernel-postgres-test
     environment:
-      POSTGRES_USER: agentos
-      POSTGRES_PASSWORD: agentos_test
-      POSTGRES_DB: agentos_test
+      POSTGRES_USER: agentkernel
+      POSTGRES_PASSWORD: agentkernel_test
+      POSTGRES_DB: agentkernel_test
     ports:
       - "5433:5432"
     volumes:
       - postgres-test-data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agentos -d agentos_test"]
+      test: ["CMD-SHELL", "pg_isready -U agentkernel -d agentkernel_test"]
       interval: 5s
       timeout: 5s
       retries: 5

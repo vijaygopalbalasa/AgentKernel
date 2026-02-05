@@ -21,7 +21,7 @@ This guide covers how to install and set up AgentKernel for development and prod
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/anthropics/AgentKernel.git
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
 cd AgentKernel
 pnpm install
 ```
@@ -62,11 +62,13 @@ pnpm test
 ### 4. Start Development Server
 
 ```bash
-# Start the security proxy
-pnpm --filter @agentkernel/cli start
+# Use the CLI directly after building
+node packages/agentkernel-cli/dist/cli.js start
 
-# Or use the CLI directly after building
-node packages/cli/dist/bin.js run --config policy.yaml
+# Or install globally
+npm install -g agentkernel
+agentkernel init
+agentkernel start
 ```
 
 ## Docker Quick Start
@@ -77,7 +79,7 @@ The fastest way to get a complete AgentKernel environment:
 
 ```bash
 # Start PostgreSQL and Redis
-docker compose -f docker/docker-compose.dev.yml up -d
+docker compose -f docker/docker-compose.test.yml up -d
 
 # Install dependencies
 pnpm install
@@ -91,7 +93,7 @@ node packages/cli/dist/bin.js run --audit-db
 
 ### Docker Compose Configuration
 
-The `docker/docker-compose.dev.yml` provides:
+The `docker/docker-compose.test.yml` provides:
 
 - PostgreSQL 15 on port 5432
 - Redis 7 on port 6379
@@ -161,7 +163,7 @@ sudo systemctl restart redis
 
 ```bash
 # Clone repository
-git clone https://github.com/anthropics/AgentKernel.git
+git clone https://github.com/vijaygopalbalasa/AgentKernel.git
 cd AgentKernel
 
 # Install production dependencies
@@ -188,7 +190,7 @@ REDIS_URL=redis://:your-redis-password@localhost:6379
 ANTHROPIC_API_KEY=sk-ant-...
 
 # Security
-ENFORCE_PRODUCTION_HARDENING=true
+AGENTKERNEL_PRODUCTION_HARDENING=true
 
 # Logging
 LOG_LEVEL=info
@@ -241,8 +243,8 @@ npm install @agentkernel/runtime
 # LangChain adapter
 npm install @agentkernel/langchain-adapter
 
-# CLI tool
-npm install -g @agentkernel/cli
+# CLI tool (global binary)
+npm install -g agentkernel
 ```
 
 ### Peer Dependencies
@@ -313,11 +315,10 @@ redis-cli -a your-redis-password ping
 
 ### Getting Help
 
-- GitHub Issues: https://github.com/anthropics/AgentKernel/issues
+- GitHub Issues: https://github.com/vijaygopalbalasa/AgentKernel/issues
 - Documentation: See USAGE.md and POLICIES.md
 
 ## Next Steps
 
 1. Read [USAGE.md](./USAGE.md) to learn CLI commands
 2. Read [POLICIES.md](./POLICIES.md) to configure security policies
-3. Check [TESTING.md](./TESTING.md) for test requirements

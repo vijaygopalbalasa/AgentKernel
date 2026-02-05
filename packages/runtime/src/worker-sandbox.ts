@@ -1,9 +1,17 @@
 // WorkerSandbox — Real process isolation using Node.js worker_threads
 // Provides memory limits, CPU timeout, and isolated code execution
 
-import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
+import { isProductionHardeningEnabled } from "./hardening.js";
+
+function isUnsafeWorkerSandboxAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.ALLOW_UNSAFE_WORKER_SANDBOX;
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+}
 
 /** Resource limits for the sandbox */
 export interface SandboxResourceLimits {
@@ -52,7 +60,7 @@ type WorkerState = "idle" | "executing" | "terminated";
 
 /**
  * WorkerSandbox — isolated code execution using worker_threads.
- * 
+ *
  * Features:
  * - Memory limits via V8 resourceLimits
  * - Execution timeout enforcement
@@ -64,11 +72,14 @@ export class WorkerSandbox {
   private worker: Worker | null = null;
   private state: WorkerState = "idle";
   private limits: SandboxResourceLimits;
-  private pendingExecutions: Map<string, {
-    resolve: (result: SandboxResult) => void;
-    timer: NodeJS.Timeout;
-    startTime: number;
-  }> = new Map();
+  private pendingExecutions: Map<
+    string,
+    {
+      resolve: (result: SandboxResult) => void;
+      timer: NodeJS.Timeout;
+      startTime: number;
+    }
+  > = new Map();
 
   constructor(limits: Partial<SandboxResourceLimits> = {}) {
     this.limits = { ...DEFAULT_SANDBOX_LIMITS, ...limits };
@@ -78,6 +89,12 @@ export class WorkerSandbox {
   async start(): Promise<void> {
     if (this.worker) {
       throw new Error("Sandbox already started");
+    }
+    if (isProductionHardeningEnabled() && !isUnsafeWorkerSandboxAllowed()) {
+      throw new Error(
+        "WorkerSandbox is not a hardened security boundary. " +
+          "Set ALLOW_UNSAFE_WORKER_SANDBOX=true to proceed, or use stronger process isolation.",
+      );
     }
 
     // Get the path to this file for the worker
@@ -136,7 +153,7 @@ export class WorkerSandbox {
         }
       };
 
-      this.worker!.on("message", onMessage);
+      this.worker?.on("message", onMessage);
     });
   }
 
@@ -173,7 +190,7 @@ export class WorkerSandbox {
 
       // Send execution request to worker
       const request: ExecutionRequest = { id, code, context };
-      this.worker!.postMessage(request);
+      this.worker?.postMessage(request);
     });
   }
 
@@ -257,7 +274,7 @@ export class SandboxPool {
   private poolSize: number;
   private initialized = false;
 
-  constructor(poolSize: number = 4, limits: Partial<SandboxResourceLimits> = {}) {
+  constructor(poolSize = 4, limits: Partial<SandboxResourceLimits> = {}) {
     this.poolSize = poolSize;
     this.limits = { ...DEFAULT_SANDBOX_LIMITS, ...limits };
   }
@@ -395,10 +412,10 @@ if (!isMainThread && workerData?.isSandboxWorker) {
   };
 
   // Signal ready
-  parentPort!.postMessage("ready");
+  parentPort?.postMessage("ready");
 
   // Handle execution requests
-  parentPort!.on("message", (request: ExecutionRequest) => {
+  parentPort?.on("message", (request: ExecutionRequest) => {
     const startTime = Date.now();
 
     try {
@@ -409,7 +426,7 @@ if (!isMainThread && workerData?.isSandboxWorker) {
       // Using Function constructor to avoid eval (slightly safer)
       const fn = new Function(
         ...Object.keys(context),
-        `"use strict"; return (async () => { ${request.code} })();`
+        `"use strict"; return (async () => { ${request.code} })();`,
       );
 
       // Execute with context values
@@ -424,7 +441,7 @@ if (!isMainThread && workerData?.isSandboxWorker) {
             result,
             executionTimeMs: Date.now() - startTime,
           };
-          parentPort!.postMessage(response);
+          parentPort?.postMessage(response);
         })
         .catch((error) => {
           const response: ExecutionResponse = {
@@ -433,7 +450,7 @@ if (!isMainThread && workerData?.isSandboxWorker) {
             error: error instanceof Error ? error.message : String(error),
             executionTimeMs: Date.now() - startTime,
           };
-          parentPort!.postMessage(response);
+          parentPort?.postMessage(response);
         });
     } catch (error) {
       const response: ExecutionResponse = {
@@ -442,7 +459,7 @@ if (!isMainThread && workerData?.isSandboxWorker) {
         error: error instanceof Error ? error.message : String(error),
         executionTimeMs: Date.now() - startTime,
       };
-      parentPort!.postMessage(response);
+      parentPort?.postMessage(response);
     }
   });
 }

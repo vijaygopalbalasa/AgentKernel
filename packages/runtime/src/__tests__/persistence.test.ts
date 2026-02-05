@@ -1,18 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { rm } from "fs/promises";
-import { join } from "path";
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { ResourceUsage } from "../agent-context.js";
 import {
-  MemoryPersistenceStorage,
-  FilePersistenceStorage,
-  PersistenceManager,
-  createMemoryPersistence,
-  createFilePersistence,
   type AgentCheckpoint,
   CHECKPOINT_VERSION,
+  FilePersistenceStorage,
+  MemoryPersistenceStorage,
+  PersistenceManager,
+  createFilePersistence,
+  createMemoryPersistence,
 } from "../persistence.js";
-import type { ResourceUsage } from "../agent-context.js";
 
-const createTestCheckpoint = (agentId: string): Omit<AgentCheckpoint, "version" | "agentId" | "timestamp"> => ({
+const createTestCheckpoint = (
+  agentId: string,
+): Omit<AgentCheckpoint, "version" | "agentId" | "timestamp"> => ({
   state: "ready",
   stateHistory: [
     {
@@ -93,9 +95,9 @@ describe("MemoryPersistenceStorage", () => {
       const loaded = await storage.load("agent-1");
 
       expect(loaded).not.toBeNull();
-      expect(loaded!.agentId).toBe("agent-1");
-      expect(loaded!.state).toBe("ready");
-      expect(loaded!.timestamp).toBeInstanceOf(Date);
+      expect(loaded?.agentId).toBe("agent-1");
+      expect(loaded?.state).toBe("ready");
+      expect(loaded?.timestamp).toBeInstanceOf(Date);
     });
 
     it("should return null for non-existent checkpoint", async () => {
@@ -182,8 +184,8 @@ describe("FilePersistenceStorage", () => {
       const loaded = await storage.load("agent-1");
 
       expect(loaded).not.toBeNull();
-      expect(loaded!.agentId).toBe("agent-1");
-      expect(loaded!.state).toBe("ready");
+      expect(loaded?.agentId).toBe("agent-1");
+      expect(loaded?.state).toBe("ready");
     });
 
     it("should restore Date objects", async () => {
@@ -197,9 +199,9 @@ describe("FilePersistenceStorage", () => {
       await storage.save("agent-1", checkpoint);
       const loaded = await storage.load("agent-1");
 
-      expect(loaded!.timestamp).toBeInstanceOf(Date);
-      expect(loaded!.createdAt).toBeInstanceOf(Date);
-      const firstHistory = loaded!.stateHistory[0];
+      expect(loaded?.timestamp).toBeInstanceOf(Date);
+      expect(loaded?.createdAt).toBeInstanceOf(Date);
+      const firstHistory = loaded?.stateHistory[0];
       expect(firstHistory).toBeDefined();
       if (!firstHistory) return;
       expect(firstHistory.timestamp).toBeInstanceOf(Date);
@@ -255,8 +257,8 @@ describe("PersistenceManager", () => {
 
       const checkpoint = await manager.recover("agent-1");
       expect(checkpoint).not.toBeNull();
-      expect(checkpoint!.version).toBe(CHECKPOINT_VERSION);
-      expect(checkpoint!.timestamp).toBeInstanceOf(Date);
+      expect(checkpoint?.version).toBe(CHECKPOINT_VERSION);
+      expect(checkpoint?.timestamp).toBeInstanceOf(Date);
     });
   });
 
@@ -266,7 +268,7 @@ describe("PersistenceManager", () => {
       const recovered = await manager.recover("agent-1");
 
       expect(recovered).not.toBeNull();
-      expect(recovered!.state).toBe("ready");
+      expect(recovered?.state).toBe("ready");
     });
 
     it("should return null for non-existent checkpoint", async () => {
@@ -340,7 +342,7 @@ describe("PersistenceManager", () => {
         [],
         { name: "test", version: "1.0.0" },
         [],
-        { custom: "data" }
+        { custom: "data" },
       );
 
       expect(data.state).toBe("ready");

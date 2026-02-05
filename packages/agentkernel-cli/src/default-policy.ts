@@ -3,11 +3,11 @@
 // Blocks AMOS Stealer, reverse shells, credential theft, and data exfiltration
 
 import type {
-  PolicySet,
   FilePolicyRule,
   NetworkPolicyRule,
-  ShellPolicyRule,
+  PolicySet,
   SecretPolicyRule,
+  ShellPolicyRule,
 } from "@agentkernel/runtime";
 
 // ─── KNOWN MALICIOUS PATTERNS ─────────────────────────────────────
@@ -54,10 +54,10 @@ export const MALICIOUS_EXFIL_DOMAINS = [
  * Cloud metadata endpoints (SSRF targets).
  */
 export const CLOUD_METADATA_HOSTS = [
-  "169.254.169.254",           // AWS/GCP/Azure metadata
-  "metadata.google.internal",   // GCP
-  "metadata.goog",             // GCP
-  "169.254.170.2",             // AWS ECS
+  "169.254.169.254", // AWS/GCP/Azure metadata
+  "metadata.google.internal", // GCP
+  "metadata.goog", // GCP
+  "169.254.170.2", // AWS ECS
 ];
 
 /**
@@ -351,7 +351,15 @@ function createDefaultNetworkRules(): NetworkPolicyRule[] {
     decision: "block",
     priority: 100,
     enabled: true,
-    hostPatterns: ["172.16.*", "172.17.*", "172.18.*", "172.19.*", "172.2*.*", "172.30.*", "172.31.*"],
+    hostPatterns: [
+      "172.16.*",
+      "172.17.*",
+      "172.18.*",
+      "172.19.*",
+      "172.2*.*",
+      "172.30.*",
+      "172.31.*",
+    ],
   });
 
   rules.push({
@@ -376,15 +384,22 @@ function createDefaultNetworkRules(): NetworkPolicyRule[] {
 
   // Allow common public APIs (needed since default is now "block")
   const allowedHosts = [
-    "*.npmjs.org", "registry.npmjs.org",  // npm
-    "*.github.com", "api.github.com", "raw.githubusercontent.com",  // GitHub
-    "*.pypi.org", "pypi.org",  // PyPI
-    "*.googleapis.com",  // Google APIs
-    "*.anthropic.com",  // Anthropic API
-    "*.openai.com",  // OpenAI API
-    "*.jsdelivr.net", "*.cdnjs.cloudflare.com",  // CDNs
-    "*.stackexchange.com", "*.stackoverflow.com",  // Stack Overflow
-    "*.docker.io", "*.docker.com",  // Docker
+    "*.npmjs.org",
+    "registry.npmjs.org", // npm
+    "*.github.com",
+    "api.github.com",
+    "raw.githubusercontent.com", // GitHub
+    "*.pypi.org",
+    "pypi.org", // PyPI
+    "*.googleapis.com", // Google APIs
+    "*.anthropic.com", // Anthropic API
+    "*.openai.com", // OpenAI API
+    "*.jsdelivr.net",
+    "*.cdnjs.cloudflare.com", // CDNs
+    "*.stackexchange.com",
+    "*.stackoverflow.com", // Stack Overflow
+    "*.docker.io",
+    "*.docker.com", // Docker
   ];
 
   for (const host of allowedHosts) {
@@ -437,7 +452,19 @@ function createDefaultShellRules(): ShellPolicyRule[] {
   }
 
   // Allow common safe commands
-  const safeCommands = ["git", "npm", "pnpm", "node", "python", "ls", "cat", "grep", "find", "pwd", "echo"];
+  const safeCommands = [
+    "git",
+    "npm",
+    "pnpm",
+    "node",
+    "python",
+    "ls",
+    "cat",
+    "grep",
+    "find",
+    "pwd",
+    "echo",
+  ];
   for (const cmd of safeCommands) {
     rules.push({
       id: nextRuleId("shell-allow"),
@@ -514,7 +541,8 @@ function createDefaultSecretRules(): SecretPolicyRule[] {
  */
 export const DEFAULT_OPENCLAW_POLICY: PolicySet = {
   name: "openclaw-default",
-  description: "Default security policy for OpenClaw based on analysis of 341+ malicious ClawHub skills",
+  description:
+    "Default security policy for OpenClaw based on analysis of 341+ malicious ClawHub skills",
   defaultDecision: "block",
   fileRules: createDefaultFileRules(),
   networkRules: createDefaultNetworkRules(),
@@ -530,7 +558,8 @@ export function getDefaultOpenClawPolicy(): PolicySet {
   ruleCounter = 0;
   return {
     name: "openclaw-default",
-    description: "Default security policy for OpenClaw based on analysis of 341+ malicious ClawHub skills",
+    description:
+      "Default security policy for OpenClaw based on analysis of 341+ malicious ClawHub skills",
     defaultDecision: "block",
     fileRules: createDefaultFileRules(),
     networkRules: createDefaultNetworkRules(),
@@ -543,30 +572,16 @@ export function getDefaultOpenClawPolicy(): PolicySet {
  * Merge custom policy with default policy.
  * Custom rules take precedence over defaults (higher priority).
  */
-export function mergeWithDefaultPolicy(
-  customPolicy: Partial<PolicySet>
-): PolicySet {
+export function mergeWithDefaultPolicy(customPolicy: Partial<PolicySet>): PolicySet {
   const defaultPolicy = getDefaultOpenClawPolicy();
 
   return {
     name: customPolicy.name ?? defaultPolicy.name,
     description: customPolicy.description ?? defaultPolicy.description,
     defaultDecision: customPolicy.defaultDecision ?? defaultPolicy.defaultDecision,
-    fileRules: [
-      ...(customPolicy.fileRules ?? []),
-      ...defaultPolicy.fileRules,
-    ],
-    networkRules: [
-      ...(customPolicy.networkRules ?? []),
-      ...defaultPolicy.networkRules,
-    ],
-    shellRules: [
-      ...(customPolicy.shellRules ?? []),
-      ...defaultPolicy.shellRules,
-    ],
-    secretRules: [
-      ...(customPolicy.secretRules ?? []),
-      ...defaultPolicy.secretRules,
-    ],
+    fileRules: [...(customPolicy.fileRules ?? []), ...defaultPolicy.fileRules],
+    networkRules: [...(customPolicy.networkRules ?? []), ...defaultPolicy.networkRules],
+    shellRules: [...(customPolicy.shellRules ?? []), ...defaultPolicy.shellRules],
+    secretRules: [...(customPolicy.secretRules ?? []), ...defaultPolicy.secretRules],
   };
 }

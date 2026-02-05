@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createShutdownManager,
-  createDrainHandler,
   SHUTDOWN_PRIORITIES,
   type ShutdownManager,
+  createDrainHandler,
+  createShutdownManager,
 } from "../shutdown.js";
 
 describe("ShutdownManager", () => {
@@ -61,15 +61,27 @@ describe("ShutdownManager", () => {
     it("should call handlers in priority order (high to low)", async () => {
       const callOrder: string[] = [];
 
-      manager.register("low", () => {
-        callOrder.push("low");
-      }, SHUTDOWN_PRIORITIES.LOW);
-      manager.register("high", () => {
-        callOrder.push("high");
-      }, SHUTDOWN_PRIORITIES.HIGH);
-      manager.register("normal", () => {
-        callOrder.push("normal");
-      }, SHUTDOWN_PRIORITIES.NORMAL);
+      manager.register(
+        "low",
+        () => {
+          callOrder.push("low");
+        },
+        SHUTDOWN_PRIORITIES.LOW,
+      );
+      manager.register(
+        "high",
+        () => {
+          callOrder.push("high");
+        },
+        SHUTDOWN_PRIORITIES.HIGH,
+      );
+      manager.register(
+        "normal",
+        () => {
+          callOrder.push("normal");
+        },
+        SHUTDOWN_PRIORITIES.NORMAL,
+      );
 
       await manager.shutdown("test");
 
@@ -92,13 +104,21 @@ describe("ShutdownManager", () => {
     it("should continue even if a handler throws", async () => {
       const results: string[] = [];
 
-      manager.register("first", () => {
-        throw new Error("First handler failed");
-      }, SHUTDOWN_PRIORITIES.HIGH);
+      manager.register(
+        "first",
+        () => {
+          throw new Error("First handler failed");
+        },
+        SHUTDOWN_PRIORITIES.HIGH,
+      );
 
-      manager.register("second", () => {
-        results.push("second");
-      }, SHUTDOWN_PRIORITIES.NORMAL);
+      manager.register(
+        "second",
+        () => {
+          results.push("second");
+        },
+        SHUTDOWN_PRIORITIES.NORMAL,
+      );
 
       await manager.shutdown("test");
 
@@ -201,25 +221,41 @@ describe("Integration scenarios", () => {
     });
 
     // Stop accepting new requests
-    manager.register("http-server", async () => {
-      events.push("http-server-close");
-    }, SHUTDOWN_PRIORITIES.IMMEDIATE);
+    manager.register(
+      "http-server",
+      async () => {
+        events.push("http-server-close");
+      },
+      SHUTDOWN_PRIORITIES.IMMEDIATE,
+    );
 
     // Drain pending requests
-    manager.register("request-drain", async () => {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      events.push("requests-drained");
-    }, SHUTDOWN_PRIORITIES.HIGH);
+    manager.register(
+      "request-drain",
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        events.push("requests-drained");
+      },
+      SHUTDOWN_PRIORITIES.HIGH,
+    );
 
     // Close database
-    manager.register("database", async () => {
-      events.push("database-closed");
-    }, SHUTDOWN_PRIORITIES.NORMAL);
+    manager.register(
+      "database",
+      async () => {
+        events.push("database-closed");
+      },
+      SHUTDOWN_PRIORITIES.NORMAL,
+    );
 
     // Flush logs
-    manager.register("logger", () => {
-      events.push("logs-flushed");
-    }, SHUTDOWN_PRIORITIES.FINAL);
+    manager.register(
+      "logger",
+      () => {
+        events.push("logs-flushed");
+      },
+      SHUTDOWN_PRIORITIES.FINAL,
+    );
 
     await manager.shutdown("SIGTERM");
 

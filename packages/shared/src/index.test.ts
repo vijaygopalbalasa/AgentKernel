@@ -1,8 +1,17 @@
 // Unit tests for @agentkernel/shared — Result type and type contracts
 
-import { describe, it, expect } from "vitest";
-import { ok, err } from "./index.js";
-import type { Result, Ok, Err, ChatRequest, ChatResponse, AgentManifest, AgentState, ChatMessage } from "./index.js";
+import { describe, expect, it } from "vitest";
+import { err, ok } from "./index.js";
+import type {
+  AgentManifest,
+  AgentState,
+  ChatMessage,
+  ChatRequest,
+  ChatResponse,
+  Err,
+  Ok,
+  Result,
+} from "./index.js";
 
 describe("Result type utilities", () => {
   it("ok() creates Ok result with value", () => {
@@ -58,7 +67,10 @@ describe("Result type utilities", () => {
 
   it("err() works with custom error types", () => {
     class ValidationError extends Error {
-      constructor(public readonly field: string, message: string) {
+      constructor(
+        public readonly field: string,
+        message: string,
+      ) {
         super(message);
         this.name = "ValidationError";
       }
@@ -122,7 +134,10 @@ describe("Type contracts", () => {
   it("ChatRequest accepts optional fields", () => {
     const request: ChatRequest = {
       model: "gpt-4o",
-      messages: [{ role: "system", content: "you are helpful" }, { role: "user", content: "hi" }],
+      messages: [
+        { role: "system", content: "you are helpful" },
+        { role: "user", content: "hi" },
+      ],
       maxTokens: 1024,
       temperature: 0.7,
       stream: true,
@@ -173,7 +188,14 @@ describe("Type contracts", () => {
   });
 
   it("AgentState covers all lifecycle states", () => {
-    const states: AgentState[] = ["initializing", "ready", "running", "paused", "error", "terminated"];
+    const states: AgentState[] = [
+      "initializing",
+      "ready",
+      "running",
+      "paused",
+      "error",
+      "terminated",
+    ];
     expect(states).toHaveLength(6);
   });
 

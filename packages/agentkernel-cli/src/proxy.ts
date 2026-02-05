@@ -1,10 +1,19 @@
 // OpenClaw Security Proxy — WebSocket proxy that intercepts all gateway traffic
 
-import { WebSocket, WebSocketServer, type RawData } from "ws";
-import { z } from "zod";
-import { ToolInterceptor, createToolInterceptor, type ToolCall, type InterceptorConfig } from "./interceptor.js";
-import { OpenClawAuditLogger, createOpenClawAuditLogger, type OpenClawAuditSink } from "./audit.js";
 import type { PolicySet } from "@agentkernel/runtime";
+import { type RawData, WebSocket, WebSocketServer } from "ws";
+import { z } from "zod";
+import {
+  type OpenClawAuditLogger,
+  type OpenClawAuditSink,
+  createOpenClawAuditLogger,
+} from "./audit.js";
+import {
+  type InterceptorConfig,
+  type ToolCall,
+  type ToolInterceptor,
+  createToolInterceptor,
+} from "./interceptor.js";
 
 // ─── MESSAGE SCHEMAS ───────────────────────────────────────────
 
@@ -42,16 +51,16 @@ const ToolResultMessageSchema = z.object({
 
 /** Blocked IP patterns for SSRF prevention */
 const BLOCKED_IP_PATTERNS = [
-  /^127\./,                           // Loopback
-  /^0\./,                             // Current network
-  /^10\./,                            // Private Class A
-  /^172\.(1[6-9]|2[0-9]|3[0-1])\./,  // Private Class B
-  /^192\.168\./,                      // Private Class C
-  /^169\.254\./,                      // Link-local
-  /^::1$/,                            // IPv6 loopback
-  /^fe80:/i,                          // IPv6 link-local
-  /^fc00:/i,                          // IPv6 unique local
-  /^fd[0-9a-f]{2}:/i,                // IPv6 unique local
+  /^127\./, // Loopback
+  /^0\./, // Current network
+  /^10\./, // Private Class A
+  /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // Private Class B
+  /^192\.168\./, // Private Class C
+  /^169\.254\./, // Link-local
+  /^::1$/, // IPv6 loopback
+  /^fe80:/i, // IPv6 link-local
+  /^fc00:/i, // IPv6 unique local
+  /^fd[0-9a-f]{2}:/i, // IPv6 unique local
 ];
 
 /** Blocked hostnames for SSRF prevention */
@@ -59,8 +68,12 @@ const BLOCKED_HOSTNAMES = [
   "localhost",
   "localhost.localdomain",
   "metadata.google.internal",
-  "169.254.169.254",                  // Cloud metadata endpoint
+  "169.254.169.254", // Cloud metadata endpoint
 ];
+
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+const DEFAULT_GATEWAY_URL = "ws://127.0.0.1:18789";
 
 /**
  * Validate a gateway URL is safe (not internal/metadata).
@@ -76,14 +89,16 @@ function validateGatewayUrl(urlString: string, allowedHosts?: string[]): void {
 
   // Only allow ws:// or wss:// protocols
   if (url.protocol !== "ws:" && url.protocol !== "wss:") {
-    throw new Error(`Invalid gateway URL protocol: ${url.protocol}. Only ws:// and wss:// are allowed.`);
+    throw new Error(
+      `Invalid gateway URL protocol: ${url.protocol}. Only ws:// and wss:// are allowed.`,
+    );
   }
 
   const hostname = url.hostname.toLowerCase();
 
   // Check against allowlist if provided
   if (allowedHosts && allowedHosts.length > 0) {
-    if (!allowedHosts.some(h => h.toLowerCase() === hostname)) {
+    if (!allowedHosts.some((h) => h.toLowerCase() === hostname)) {
       throw new Error(`Gateway hostname '${hostname}' not in allowed hosts list`);
     }
     return; // Allowlist takes precedence
@@ -104,6 +119,14 @@ function validateGatewayUrl(urlString: string, allowedHosts?: string[]): void {
   }
 }
 
+function getHostname(urlString: string): string | null {
+  try {
+    return new URL(urlString).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 // ─── RATE LIMITING ───────────────────────────────────────────────
 
 interface RateLimiter {
@@ -121,7 +144,7 @@ interface RateLimiter {
 function createRateLimiter(
   maxTokens: number,
   refillRate: number,
-  refillIntervalMs: number
+  refillIntervalMs: number,
 ): RateLimiter {
   let tokens = maxTokens;
   let lastRefill = Date.now();
@@ -211,7 +234,11 @@ export interface ProxyError {
   details?: Record<string, unknown>;
 }
 
-function createProxyError(code: string, message: string, details?: Record<string, unknown>): ProxyError {
+function createProxyError(
+  code: string,
+  message: string,
+  details?: Record<string, unknown>,
+): ProxyError {
   return { code, message, details };
 }
 
@@ -238,7 +265,12 @@ function createProxyError(code: string, message: string, details?: Record<string
  * - Full audit logging
  */
 export class OpenClawSecurityProxy {
-  private readonly config: Required<Omit<OpenClawProxyConfig, "auditSinks" | "onApprovalRequest" | "onSecurityEvent" | "allowedGatewayHosts">> & {
+  private readonly config: Required<
+    Omit<
+      OpenClawProxyConfig,
+      "auditSinks" | "onApprovalRequest" | "onSecurityEvent" | "allowedGatewayHosts"
+    >
+  > & {
     auditSinks: OpenClawAuditSink[];
     onApprovalRequest?: (call: ToolCall) => Promise<boolean>;
     onSecurityEvent?: OpenClawProxyConfig["onSecurityEvent"];
@@ -253,17 +285,21 @@ export class OpenClawSecurityProxy {
   private startTime: Date | null = null;
 
   constructor(config: OpenClawProxyConfig = {}) {
-    const gatewayUrl = config.gatewayUrl ?? "ws://127.0.0.1:18789";
+    const gatewayUrl = config.gatewayUrl ?? DEFAULT_GATEWAY_URL;
+    const hostname = getHostname(gatewayUrl);
+    const derivedAllowedHosts =
+      config.allowedGatewayHosts ??
+      (hostname && LOOPBACK_HOSTS.has(hostname) ? [hostname] : undefined);
 
     // SECURITY: Validate gateway URL unless explicitly skipped
     if (!config.skipSsrfValidation) {
-      validateGatewayUrl(gatewayUrl, config.allowedGatewayHosts);
+      validateGatewayUrl(gatewayUrl, derivedAllowedHosts);
     }
 
     this.config = {
       listenPort: config.listenPort ?? 18788,
       gatewayUrl,
-      allowedGatewayHosts: config.allowedGatewayHosts,
+      allowedGatewayHosts: derivedAllowedHosts,
       skipSsrfValidation: config.skipSsrfValidation ?? false,
       policySet: config.policySet ?? {},
       agentId: config.agentId ?? "openclaw-agent",
@@ -370,7 +406,7 @@ export class OpenClawSecurityProxy {
     this.connections.clear();
 
     return new Promise((resolve) => {
-      this.server!.close(() => {
+      this.server?.close(() => {
         this.server = null;
         this.auditLogger.log({
           type: "proxy_stopped",
@@ -414,7 +450,7 @@ export class OpenClawSecurityProxy {
     const rateLimiter = createRateLimiter(
       this.config.maxMessagesPerSecond,
       this.config.maxMessagesPerSecond,
-      1000
+      1000,
     );
 
     // Connect to actual OpenClaw Gateway
@@ -495,14 +531,14 @@ export class OpenClawSecurityProxy {
 
       // SECURITY: Timeout for message processing
       const timeoutPromise = new Promise<void>((_, reject) => {
-        setTimeout(() => reject(new Error("Message processing timeout")), this.config.messageTimeoutMs);
+        setTimeout(
+          () => reject(new Error("Message processing timeout")),
+          this.config.messageTimeoutMs,
+        );
       });
 
       try {
-        await Promise.race([
-          this.handleClientMessage(clientWs, gatewayWs, data),
-          timeoutPromise,
-        ]);
+        await Promise.race([this.handleClientMessage(clientWs, gatewayWs, data), timeoutPromise]);
       } catch (error) {
         this.auditLogger.log({
           type: "message_processing_error",
@@ -562,7 +598,7 @@ export class OpenClawSecurityProxy {
   private async handleClientMessage(
     clientWs: WebSocket,
     gatewayWs: WebSocket,
-    data: RawData
+    data: RawData,
   ): Promise<void> {
     let message: unknown;
 
@@ -632,7 +668,7 @@ export class OpenClawSecurityProxy {
  * Create and start an OpenClaw security proxy.
  */
 export async function createOpenClawProxy(
-  config: OpenClawProxyConfig = {}
+  config: OpenClawProxyConfig = {},
 ): Promise<OpenClawSecurityProxy> {
   const proxy = new OpenClawSecurityProxy(config);
   await proxy.start();

@@ -33,7 +33,7 @@ export interface AgentStateStore {
     id: AgentId,
     inputTokensDelta: number,
     outputTokensDelta: number,
-    costDelta: number
+    costDelta: number,
   ): Promise<void>;
 }
 
@@ -67,7 +67,7 @@ export class InMemoryAgentStateStore implements AgentStateStore {
     id: AgentId,
     inputTokensDelta: number,
     outputTokensDelta: number,
-    costDelta: number
+    costDelta: number,
   ): Promise<void> {
     const entry = this.entries.get(id);
     if (!entry) return;
@@ -112,7 +112,7 @@ export class RedisAgentStateStore implements AgentStateStore {
   private redis: RedisHashClient;
   private keyPrefix: string;
 
-  constructor(redis: RedisHashClient, keyPrefix = "agent_os:agent:") {
+  constructor(redis: RedisHashClient, keyPrefix = "agentkernel:agent:") {
     this.redis = redis;
     this.keyPrefix = keyPrefix;
   }
@@ -161,7 +161,7 @@ export class RedisAgentStateStore implements AgentStateStore {
     id: AgentId,
     inputTokensDelta: number,
     outputTokensDelta: number,
-    costDelta: number
+    costDelta: number,
   ): Promise<void> {
     const k = this.key(id);
     await this.redis.hincrby(k, "inputTokens", inputTokensDelta);
@@ -197,18 +197,18 @@ export class RedisAgentStateStore implements AgentStateStore {
       name: raw.name ?? "",
       state: (raw.state ?? "created") as AgentState,
       nodeId: raw.nodeId ?? "",
-      createdAt: parseInt(raw.createdAt ?? "0", 10),
-      lastActivityAt: parseInt(raw.lastActivityAt ?? "0", 10),
-      errorCount: parseInt(raw.errorCount ?? "0", 10),
+      createdAt: Number.parseInt(raw.createdAt ?? "0", 10),
+      lastActivityAt: Number.parseInt(raw.lastActivityAt ?? "0", 10),
+      errorCount: Number.parseInt(raw.errorCount ?? "0", 10),
       usage: {
-        inputTokens: parseInt(raw.inputTokens ?? "0", 10),
-        outputTokens: parseInt(raw.outputTokens ?? "0", 10),
-        requestCount: parseInt(raw.requestCount ?? "0", 10),
-        estimatedCostUSD: parseFloat(raw.estimatedCostUSD ?? "0"),
-        currentMemoryMB: parseFloat(raw.currentMemoryMB ?? "0"),
-        activeRequests: parseInt(raw.activeRequests ?? "0", 10),
-        tokensThisMinute: parseInt(raw.tokensThisMinute ?? "0", 10),
-        minuteWindowStart: new Date(parseInt(raw.minuteWindowStart ?? "0", 10)),
+        inputTokens: Number.parseInt(raw.inputTokens ?? "0", 10),
+        outputTokens: Number.parseInt(raw.outputTokens ?? "0", 10),
+        requestCount: Number.parseInt(raw.requestCount ?? "0", 10),
+        estimatedCostUSD: Number.parseFloat(raw.estimatedCostUSD ?? "0"),
+        currentMemoryMB: Number.parseFloat(raw.currentMemoryMB ?? "0"),
+        activeRequests: Number.parseInt(raw.activeRequests ?? "0", 10),
+        tokensThisMinute: Number.parseInt(raw.tokensThisMinute ?? "0", 10),
+        minuteWindowStart: new Date(Number.parseInt(raw.minuteWindowStart ?? "0", 10)),
       },
     };
   }

@@ -18,6 +18,9 @@ export {
   loadConfigAsync,
   defineConfig,
   createConfigManager,
+  assertProductionHardening,
+  getProductionHardeningIssues,
+  isProductionHardeningEnabled,
   type Config,
   type DatabaseConfig,
   type QdrantConfig,
@@ -49,12 +52,23 @@ export {
   createDatabase,
   checkDatabaseHealth,
   waitForDatabase,
+  QueryCircuitBreaker,
+  CircuitOpenError as QueryCircuitOpenError,
   type Database,
   type Sql,
   type PoolStats,
   type MigrationResult,
   type MigrationError,
+  type QueryOptions,
+  type DatabaseQueryProtectionConfig,
+  type CircuitBreakerConfig as QueryCircuitBreakerConfig,
 } from "./database.js";
+
+// Query Circuit Breaker (standalone)
+export {
+  createQueryCircuitBreaker,
+  type CircuitBreakerStats as QueryCircuitBreakerStats,
+} from "./query-circuit-breaker.js";
 
 // Vector Store
 export {

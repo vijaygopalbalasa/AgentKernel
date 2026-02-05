@@ -1,16 +1,16 @@
 // Retry Utility Tests
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  type RetryConfig,
+  calculateDelay,
+  isConnectionError,
+  isNonRetryableError,
+  isRateLimitError,
+  isRetryableError,
+  isServerError,
   retry,
   retryAsync,
   withRetry,
-  calculateDelay,
-  isConnectionError,
-  isRateLimitError,
-  isServerError,
-  isNonRetryableError,
-  isRetryableError,
-  type RetryConfig,
 } from "./retry.js";
 
 describe("Retry", () => {
@@ -134,7 +134,9 @@ describe("Retry", () => {
     });
 
     it("should not retry on non-retryable error", async () => {
-      const fn = vi.fn().mockRejectedValue(Object.assign(new Error("Unauthorized"), { status: 401 }));
+      const fn = vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error("Unauthorized"), { status: 401 }));
 
       const result = await retry(() => fn(), { baseDelay: 10, maxRetries: 3 });
 
@@ -160,7 +162,7 @@ describe("Retry", () => {
           if (ctx.attempt < 2) throw new Error("ECONNREFUSED");
           return Promise.resolve("success");
         },
-        { baseDelay: 10, maxRetries: 3 }
+        { baseDelay: 10, maxRetries: 3 },
       );
 
       expect(contexts).toEqual([{ attempt: 0 }, { attempt: 1 }, { attempt: 2 }]);

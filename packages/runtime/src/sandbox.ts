@@ -2,30 +2,31 @@
 // Implements OWASP 2026 agent security recommendations
 
 import type { AgentId } from "./agent-context.js";
+import { isProductionHardeningEnabled } from "./hardening.js";
 
 /**
  * Permission capabilities that agents can request.
  * Based on Android-style capability model.
  */
 export type Capability =
-  | "llm:chat"           // Can send chat requests
-  | "llm:stream"         // Can use streaming responses
-  | "llm:embed"          // Can generate embeddings
-  | "memory:read"        // Can read agent memory
-  | "memory:write"       // Can write to agent memory
-  | "memory:delete"      // Can delete from memory
-  | "file:read"          // Can read files
-  | "file:write"         // Can write files
-  | "file:delete"        // Can delete files
-  | "network:http"       // Can make HTTP requests
-  | "network:websocket"  // Can open WebSocket connections
-  | "shell:execute"      // Can execute shell commands
-  | "agent:spawn"        // Can spawn child agents
-  | "agent:communicate"  // Can communicate with other agents
-  | "tool:mcp"           // Can use MCP tools
-  | "secret:read"        // Can read secrets/credentials
-  | "system:config"      // Can modify system configuration
-  | "system:audit";      // Can access audit logs
+  | "llm:chat" // Can send chat requests
+  | "llm:stream" // Can use streaming responses
+  | "llm:embed" // Can generate embeddings
+  | "memory:read" // Can read agent memory
+  | "memory:write" // Can write to agent memory
+  | "memory:delete" // Can delete from memory
+  | "file:read" // Can read files
+  | "file:write" // Can write files
+  | "file:delete" // Can delete files
+  | "network:http" // Can make HTTP requests
+  | "network:websocket" // Can open WebSocket connections
+  | "shell:execute" // Can execute shell commands
+  | "agent:spawn" // Can spawn child agents
+  | "agent:communicate" // Can communicate with other agents
+  | "tool:mcp" // Can use MCP tools
+  | "secret:read" // Can read secrets/credentials
+  | "system:config" // Can modify system configuration
+  | "system:audit"; // Can access audit logs
 
 /** All available capabilities */
 export const ALL_CAPABILITIES: readonly Capability[] = [
@@ -153,6 +154,44 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   auditPermissionChecks: true,
 };
 
+export function getSandboxHardeningIssues(config: SandboxConfig): string[] {
+  const issues: string[] = [];
+
+  if (!config.enforcePermissions) {
+    issues.push("Sandbox must enforce permissions.");
+  }
+
+  if (!config.requireApprovalForDangerous) {
+    issues.push("Sandbox must require approval for dangerous capabilities.");
+  }
+
+  if (!config.auditPermissionChecks) {
+    issues.push("Sandbox must audit permission checks.");
+  }
+
+  const dangerousDefaults = config.defaultCapabilities.filter((cap) =>
+    DANGEROUS_CAPABILITIES.includes(cap),
+  );
+  if (dangerousDefaults.length > 0) {
+    issues.push(
+      `Default capabilities must not include dangerous capabilities: ${dangerousDefaults.join(", ")}.`,
+    );
+  }
+
+  return issues;
+}
+
+export function assertSandboxHardening(config: SandboxConfig): void {
+  const issues = getSandboxHardeningIssues(config);
+  if (issues.length === 0) return;
+  throw new Error(
+    [
+      "Production hardening checks failed for sandbox:",
+      ...issues.map((issue) => `- ${issue}`),
+    ].join("\n"),
+  );
+}
+
 /** Permission check audit entry */
 export interface PermissionAuditEntry {
   agentId: AgentId;
@@ -178,6 +217,9 @@ export class AgentSandbox {
   constructor(agentId: AgentId, config: Partial<SandboxConfig> = {}) {
     this.agentId = agentId;
     this.config = { ...DEFAULT_SANDBOX_CONFIG, ...config };
+    if (isProductionHardeningEnabled()) {
+      assertSandboxHardening(this.config);
+    }
 
     // Grant default capabilities
     for (const cap of this.config.defaultCapabilities) {
@@ -192,7 +234,7 @@ export class AgentSandbox {
     options: {
       expiresAt?: Date | null;
       constraints?: CapabilityConstraints;
-    } = {}
+    } = {},
   ): void {
     const grant: CapabilityGrant = {
       capability,
@@ -241,10 +283,7 @@ export class AgentSandbox {
    * Check if an operation is permitted and record usage.
    * This is the main permission enforcement point.
    */
-  check(
-    capability: Capability,
-    context?: Record<string, unknown>
-  ): PermissionCheckResult {
+  check(capability: Capability, context?: Record<string, unknown>): PermissionCheckResult {
     const now = new Date();
 
     // Permissive mode - allow everything
@@ -328,10 +367,7 @@ export class AgentSandbox {
   }
 
   /** Check path-based constraints */
-  checkPathConstraint(
-    capability: Capability,
-    path: string
-  ): PermissionCheckResult {
+  checkPathConstraint(capability: Capability, path: string): PermissionCheckResult {
     const grant = this.grants.get(capability);
     if (!grant) {
       return {
@@ -378,10 +414,7 @@ export class AgentSandbox {
   }
 
   /** Check host-based constraints */
-  checkHostConstraint(
-    capability: Capability,
-    host: string
-  ): PermissionCheckResult {
+  checkHostConstraint(capability: Capability, host: string): PermissionCheckResult {
     const grant = this.grants.get(capability);
     if (!grant) {
       return {
@@ -474,7 +507,7 @@ export class AgentSandbox {
   /** Restore sandbox from serialized state */
   static fromJSON(
     data: ReturnType<AgentSandbox["toJSON"]>,
-    config?: Partial<SandboxConfig>
+    config?: Partial<SandboxConfig>,
   ): AgentSandbox {
     const sandbox = new AgentSandbox(data.agentId, {
       ...config,
@@ -496,7 +529,7 @@ export class AgentSandbox {
   private checkConstraints(
     capability: Capability,
     grant: CapabilityGrant,
-    _context?: Record<string, unknown>
+    _context?: Record<string, unknown>,
   ): PermissionCheckResult {
     const constraints = grant.constraints;
     if (!constraints) {
@@ -562,7 +595,7 @@ export class AgentSandbox {
   private recordAudit(
     capability: Capability,
     result: PermissionCheckResult,
-    context?: Record<string, unknown>
+    context?: Record<string, unknown>,
   ): void {
     if (!this.config.auditPermissionChecks) return;
 
@@ -611,9 +644,7 @@ export class SandboxRegistry {
   }
 
   /** Check permission across all agents */
-  checkGlobal(
-    capability: Capability
-  ): Map<AgentId, PermissionCheckResult> {
+  checkGlobal(capability: Capability): Map<AgentId, PermissionCheckResult> {
     const results = new Map<AgentId, PermissionCheckResult>();
     for (const [agentId, sandbox] of this.sandboxes) {
       results.set(agentId, sandbox.check(capability));

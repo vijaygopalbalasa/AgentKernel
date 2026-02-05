@@ -104,11 +104,15 @@ export function checkLimits(usage: ResourceUsage, limits: ResourceLimits): Limit
   const violations: string[] = [];
 
   if (usage.activeRequests >= limits.maxConcurrentRequests) {
-    violations.push(`Max concurrent requests exceeded (${usage.activeRequests}/${limits.maxConcurrentRequests})`);
+    violations.push(
+      `Max concurrent requests exceeded (${usage.activeRequests}/${limits.maxConcurrentRequests})`,
+    );
   }
 
   if (usage.tokensThisMinute >= limits.tokensPerMinute) {
-    violations.push(`Rate limit exceeded (${usage.tokensThisMinute}/${limits.tokensPerMinute} tokens/min)`);
+    violations.push(
+      `Rate limit exceeded (${usage.tokensThisMinute}/${limits.tokensPerMinute} tokens/min)`,
+    );
   }
 
   if (usage.currentMemoryMB >= limits.maxMemoryMB) {
@@ -116,7 +120,9 @@ export function checkLimits(usage: ResourceUsage, limits: ResourceLimits): Limit
   }
 
   if (limits.costBudgetUSD > 0 && usage.estimatedCostUSD >= limits.costBudgetUSD) {
-    violations.push(`Cost budget exceeded ($${usage.estimatedCostUSD.toFixed(4)}/$${limits.costBudgetUSD})`);
+    violations.push(
+      `Cost budget exceeded ($${usage.estimatedCostUSD.toFixed(4)}/$${limits.costBudgetUSD})`,
+    );
   }
 
   return {

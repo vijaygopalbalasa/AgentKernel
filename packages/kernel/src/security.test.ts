@@ -1,35 +1,35 @@
 // Security Utilities Tests
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
-  validateInput,
+  type AuditAction,
+  AuditLogger,
+  EnvVaultProvider,
+  InMemoryAuditStorage,
+  RateLimiter,
+  SecurityHeaders,
   ValidationSchemas,
-  sanitizeString,
-  sanitizeObject,
+  type VaultProvider,
+  clearVaultProviders,
+  destroyAllRateLimiters,
+  getAuditLogger,
+  getCorsHeaders,
+  getDefaultVaultProvider,
+  getRateLimiter,
+  getVaultProvider,
   isSecretKey,
-  resolveSecret,
   maskSecret,
   redactSecrets,
-  EnvVaultProvider,
   registerVaultProvider,
-  unregisterVaultProvider,
-  getVaultProvider,
-  getDefaultVaultProvider,
-  clearVaultProviders,
-  RateLimiter,
-  getRateLimiter,
-  destroyAllRateLimiters,
-  AuditLogger,
-  InMemoryAuditStorage,
-  getAuditLogger,
   resetAuditLogger,
-  SecurityHeaders,
-  getCorsHeaders,
-  validateRequestHeaders,
+  resolveSecret,
+  sanitizeObject,
+  sanitizeString,
+  unregisterVaultProvider,
   validateContentType,
+  validateInput,
+  validateRequestHeaders,
   validateRequestSize,
-  type AuditAction,
-  type VaultProvider,
 } from "./security.js";
 
 function getFirst<T>(items: T[]): T {
@@ -76,7 +76,9 @@ describe("Input Validation", () => {
     });
 
     it("taskId should validate UUIDs", () => {
-      expect(ValidationSchemas.taskId.safeParse("550e8400-e29b-41d4-a716-446655440000").success).toBe(true);
+      expect(
+        ValidationSchemas.taskId.safeParse("550e8400-e29b-41d4-a716-446655440000").success,
+      ).toBe(true);
       expect(ValidationSchemas.taskId.safeParse("not-a-uuid").success).toBe(false);
     });
 
@@ -175,7 +177,7 @@ describe("Secrets Management", () => {
         expect(result.value).toBe("secret-value");
       }
 
-      delete process.env.TEST_SECRET;
+      Reflect.deleteProperty(process.env, "TEST_SECRET");
     });
 
     it("should return error for missing env var", async () => {
@@ -204,7 +206,7 @@ describe("Secrets Management", () => {
         expect(result.value).toBe("my-api-key");
       }
 
-      delete process.env.VAULT_SECRET_API_KEY;
+      Reflect.deleteProperty(process.env, "VAULT_SECRET_API_KEY");
     });
 
     it("should resolve vault secrets from named provider", async () => {
@@ -215,7 +217,11 @@ describe("Secrets Management", () => {
       registerVaultProvider(new EnvVaultProvider("secondary", "SECONDARY_"));
 
       const result1 = await resolveSecret({ type: "vault", key: "db-password", vault: "primary" });
-      const result2 = await resolveSecret({ type: "vault", key: "db-password", vault: "secondary" });
+      const result2 = await resolveSecret({
+        type: "vault",
+        key: "db-password",
+        vault: "secondary",
+      });
 
       expect(result1.ok).toBe(true);
       expect(result2.ok).toBe(true);
@@ -224,8 +230,8 @@ describe("Secrets Management", () => {
         expect(result2.value).toBe("secondary-pass");
       }
 
-      delete process.env.PRIMARY_DB_PASSWORD;
-      delete process.env.SECONDARY_DB_PASSWORD;
+      Reflect.deleteProperty(process.env, "PRIMARY_DB_PASSWORD");
+      Reflect.deleteProperty(process.env, "SECONDARY_DB_PASSWORD");
     });
   });
 
@@ -291,7 +297,7 @@ describe("Secrets Management", () => {
         expect(result.value).toBe("custom-value");
       }
 
-      delete process.env.CUSTOM_MY_SECRET;
+      Reflect.deleteProperty(process.env, "CUSTOM_MY_SECRET");
     });
 
     it("should normalize key names", async () => {
@@ -305,7 +311,7 @@ describe("Secrets Management", () => {
         expect(result.value).toBe("postgres://localhost");
       }
 
-      delete process.env.VAULT_SECRET_DATABASE_URL;
+      Reflect.deleteProperty(process.env, "VAULT_SECRET_DATABASE_URL");
     });
 
     it("should return error for missing secret", async () => {
@@ -603,7 +609,7 @@ describe("CORS", () => {
 
       const headers = getCorsHeaders(config, "http://localhost:3000");
       expect(headers["Access-Control-Allow-Origin"]).toBe("http://localhost:3000");
-      expect(headers["Vary"]).toBe("Origin");
+      expect(headers.Vary).toBe("Origin");
     });
 
     it("should not set origin for disallowed origins", () => {

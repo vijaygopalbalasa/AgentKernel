@@ -2,15 +2,32 @@
   "name": "@agentkernel/permissions",
   "version": "0.1.0",
   "type": "module",
-  "description": "Capability-based permission system for AgentKernel",
+  "description": "Capability-based permission system for AgentKernel — HMAC-signed tokens with constant-time verification",
   "license": "MIT",
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
+  "files": ["dist", "README.md"],
+  "keywords": ["agentkernel", "permissions", "capabilities", "hmac", "security", "tokens"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel",
+    "directory": "packages/framework/permissions"
+  },
+  "homepage": "https://github.com/vijaygopalbalasa/AgentKernel#readme",
+  "bugs": {
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel/issues"
+  },
   "dependencies": {
     "@agentkernel/shared": "workspace:*",
     "@agentkernel/kernel": "workspace:*",
     "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.7",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",

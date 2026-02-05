@@ -1,13 +1,10 @@
 {
   "name": "@agentkernel/cli",
   "version": "0.1.0",
-  "description": "CLI for AgentKernel - run, monitor, and manage security proxies",
+  "description": "Programmatic API for AgentKernel — run proxies, check status, query audit logs via PostgreSQL",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "agentkernel": "./dist/bin.js"
-  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -15,9 +12,8 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/bin.ts --format esm --dts",
-    "test": "vitest run",
-    "dev": "node --import tsx ./src/bin.ts"
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@agentkernel/kernel": "workspace:*",
@@ -31,16 +27,20 @@
     "typescript": "^5.6.0",
     "vitest": "^4.0.0"
   },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
-  },
   "files": [
     "dist",
     "README.md"
   ],
+  "keywords": ["agentkernel", "security", "agent", "cli", "audit"],
   "license": "MIT",
+  "engines": { "node": ">=20.0.0" },
   "repository": {
     "type": "git",
-    "url": "https://github.com/vijaygopalbalasa/AgentKernel"
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/vijaygopalbalasa/AgentKernel#readme",
+  "bugs": {
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel/issues"
   }
 }

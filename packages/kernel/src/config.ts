@@ -1,11 +1,11 @@
 // Configuration — loads from YAML + environment variables
 // Layered config: defaults → YAML file → env vars → CLI args
 
-import { z } from "zod";
-import { readFileSync, existsSync } from "node:fs";
-import { parse as parseYaml } from "yaml";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 
 /** Weak passwords that should never be used in production */
 const WEAK_PASSWORDS = [
@@ -36,8 +36,8 @@ export const DatabaseConfigSchema = z.object({
  * Throws if using weak credentials in production.
  */
 export function validateDatabaseConfigForProduction(config: DatabaseConfig): void {
-  const isProduction = process.env.NODE_ENV === "production" ||
-    process.env.ENFORCE_PRODUCTION_HARDENING === "true";
+  const isProduction =
+    process.env.NODE_ENV === "production" || process.env.ENFORCE_PRODUCTION_HARDENING === "true";
 
   if (!isProduction) {
     return; // Skip validation in development
@@ -46,23 +46,20 @@ export function validateDatabaseConfigForProduction(config: DatabaseConfig): voi
   // Check for weak passwords
   if (WEAK_PASSWORDS.includes(config.password.toLowerCase())) {
     throw new Error(
-      `[SECURITY] Database password '${config.password}' is too weak for production. ` +
-      "Use a strong password (min 16 characters, mixed case, numbers, symbols)."
+      `[SECURITY] Database password '${config.password}' is too weak for production. Use a strong password (min 16 characters, mixed case, numbers, symbols).`,
     );
   }
 
   // Check minimum password length
   if (config.password.length < 16) {
-    throw new Error(
-      "[SECURITY] Database password must be at least 16 characters in production."
-    );
+    throw new Error("[SECURITY] Database password must be at least 16 characters in production.");
   }
 
   // Require SSL in production
   if (!config.ssl) {
     console.warn(
       "[SECURITY WARNING] Database SSL is disabled. " +
-      "Enable SSL for production deployments to encrypt database connections."
+        "Enable SSL for production deployments to encrypt database connections.",
     );
   }
 }
@@ -121,31 +118,39 @@ export const LoggingConfigSchema = z.object({
 
 /** LLM Provider configuration */
 export const ProviderConfigSchema = z.object({
-  anthropic: z.object({
-    apiKey: z.string().optional(),
-    baseUrl: z.string().optional(),
-    defaultModel: z.string().default("claude-sonnet-4-20250514"),
-    maxRetries: z.number().default(3),
-    timeout: z.number().default(60000),
-  }).default({}),
-  openai: z.object({
-    apiKey: z.string().optional(),
-    baseUrl: z.string().optional(),
-    defaultModel: z.string().default("gpt-4o"),
-    maxRetries: z.number().default(3),
-    timeout: z.number().default(60000),
-  }).default({}),
-  google: z.object({
-    apiKey: z.string().optional(),
-    defaultModel: z.string().default("gemini-2.0-flash"),
-    maxRetries: z.number().default(3),
-    timeout: z.number().default(60000),
-  }).default({}),
-  ollama: z.object({
-    baseUrl: z.string().default("http://localhost:11434"),
-    defaultModel: z.string().default("llama3.2"),
-    timeout: z.number().default(120000),
-  }).default({}),
+  anthropic: z
+    .object({
+      apiKey: z.string().optional(),
+      baseUrl: z.string().optional(),
+      defaultModel: z.string().default("claude-sonnet-4-20250514"),
+      maxRetries: z.number().default(3),
+      timeout: z.number().default(60000),
+    })
+    .default({}),
+  openai: z
+    .object({
+      apiKey: z.string().optional(),
+      baseUrl: z.string().optional(),
+      defaultModel: z.string().default("gpt-4o"),
+      maxRetries: z.number().default(3),
+      timeout: z.number().default(60000),
+    })
+    .default({}),
+  google: z
+    .object({
+      apiKey: z.string().optional(),
+      defaultModel: z.string().default("gemini-2.0-flash"),
+      maxRetries: z.number().default(3),
+      timeout: z.number().default(60000),
+    })
+    .default({}),
+  ollama: z
+    .object({
+      baseUrl: z.string().default("http://localhost:11434"),
+      defaultModel: z.string().default("llama3.2"),
+      timeout: z.number().default(120000),
+    })
+    .default({}),
 });
 
 /** Agent runtime configuration */
@@ -284,7 +289,7 @@ function parseEnvValue(value: string): unknown {
   if (value.toLowerCase() === "true") return true;
   if (value.toLowerCase() === "false") return false;
   const num = Number(value);
-  if (!isNaN(num) && value.trim() !== "") return num;
+  if (!Number.isNaN(num) && value.trim() !== "") return num;
   return value;
 }
 
@@ -409,7 +414,11 @@ function loadEnvConfig(): Record<string, unknown> {
         setNestedValue(config, "redis.clusterNodes", parsed);
       }
     } catch {
-      setNestedValue(config, "redis.clusterNodes", clusterNodesRaw.split(",").map((s) => s.trim()));
+      setNestedValue(
+        config,
+        "redis.clusterNodes",
+        clusterNodesRaw.split(",").map((s) => s.trim()),
+      );
     }
   }
 
@@ -417,7 +426,10 @@ function loadEnvConfig(): Record<string, unknown> {
 }
 
 /** Deep merge two objects */
-function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+function deepMerge(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+): Record<string, unknown> {
   const result = { ...target };
 
   for (const [key, value] of Object.entries(source)) {
@@ -425,7 +437,7 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
       if (typeof value === "object" && !Array.isArray(value)) {
         result[key] = deepMerge(
           (result[key] as Record<string, unknown>) ?? {},
-          value as Record<string, unknown>
+          value as Record<string, unknown>,
         );
       } else {
         result[key] = value;
@@ -491,8 +503,7 @@ export class ConfigManager {
   load(overrides: Partial<Config> = {}): Config {
     if (isTsConfig(this.configPath)) {
       throw new Error(
-        `TypeScript config file detected (${this.configPath}). ` +
-        `Use loadConfigAsync() or ConfigManager.loadAsync() instead of the synchronous load().`
+        `TypeScript config file detected (${this.configPath}). Use loadConfigAsync() or ConfigManager.loadAsync() instead of the synchronous load().`,
       );
     }
     const yamlConfig = loadYamlConfig(this.configPath);
@@ -500,7 +511,7 @@ export class ConfigManager {
 
     const merged = deepMerge(
       deepMerge(yamlConfig, envConfig),
-      overrides as Record<string, unknown>
+      overrides as Record<string, unknown>,
     );
 
     const result = ConfigSchema.parse(merged);
@@ -522,7 +533,7 @@ export class ConfigManager {
 
     const merged = deepMerge(
       deepMerge(fileConfig, envConfig),
-      overrides as Record<string, unknown>
+      overrides as Record<string, unknown>,
     );
 
     const result = ConfigSchema.parse(merged);
@@ -606,13 +617,13 @@ export function isProductionHardeningEnabled(env: NodeJS.ProcessEnv = process.en
 
 export function getProductionHardeningIssues(
   config: Config,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const issues: string[] = [];
 
   const nodeEnv = env.NODE_ENV ?? "development";
   if (nodeEnv !== "production") {
-    issues.push("NODE_ENV must be set to \"production\".");
+    issues.push('NODE_ENV must be set to "production".');
   }
 
   const permissionSecret = env.PERMISSION_SECRET;
@@ -626,7 +637,7 @@ export function getProductionHardeningIssues(
   }
 
   if (config.logging.level === "debug" || config.logging.level === "trace") {
-    issues.push("LOG_LEVEL must not be \"debug\" or \"trace\" in production.");
+    issues.push('LOG_LEVEL must not be "debug" or "trace" in production.');
   }
 
   const weakDbPasswords = new Set([
@@ -658,7 +669,7 @@ export function getProductionHardeningIssues(
 
 export function assertProductionHardening(
   config: Config,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): void {
   const issues = getProductionHardeningIssues(config, env);
   if (issues.length === 0) return;

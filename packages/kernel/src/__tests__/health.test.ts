@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type ComponentHealth,
+  type HealthChecker,
+  type HealthManager,
   createHealthManager,
   createSimpleHealthChecker,
-  type HealthManager,
-  type HealthChecker,
-  type ComponentHealth,
 } from "../health.js";
 
 describe("HealthManager", () => {
@@ -65,8 +65,8 @@ describe("HealthManager", () => {
       const result = await manager.checkComponent("test");
 
       expect(result).not.toBeNull();
-      expect(result!.name).toBe("test");
-      expect(result!.healthy).toBe(true);
+      expect(result?.name).toBe("test");
+      expect(result?.healthy).toBe(true);
     });
 
     it("should handle checker timeout", async () => {
@@ -84,8 +84,8 @@ describe("HealthManager", () => {
       const result = await manager.checkComponent("slow", { timeoutMs: 50 });
 
       expect(result).not.toBeNull();
-      expect(result!.healthy).toBe(false);
-      expect(result!.error).toContain("timed out");
+      expect(result?.healthy).toBe(false);
+      expect(result?.error).toContain("timed out");
     });
 
     it("should handle checker errors", async () => {
@@ -97,8 +97,8 @@ describe("HealthManager", () => {
       const result = await manager.checkComponent("failing");
 
       expect(result).not.toBeNull();
-      expect(result!.healthy).toBe(false);
-      expect(result!.error).toBe("Checker failed");
+      expect(result?.healthy).toBe(false);
+      expect(result?.error).toBe("Checker failed");
     });
   });
 
@@ -233,7 +233,7 @@ describe("HealthManager", () => {
       const lastCheck = manager.getLastCheck();
 
       expect(lastCheck).not.toBeNull();
-      expect(lastCheck!.status).toBe("healthy");
+      expect(lastCheck?.status).toBe("healthy");
     });
   });
 
@@ -357,13 +357,10 @@ describe("createSimpleHealthChecker", () => {
   });
 
   it("should create a checker from an async function", async () => {
-    const checker = createSimpleHealthChecker(
-      "async",
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        return true;
-      }
-    );
+    const checker = createSimpleHealthChecker("async", async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return true;
+    });
 
     const result = await checker();
     expect(result.healthy).toBe(true);
@@ -374,7 +371,7 @@ describe("createSimpleHealthChecker", () => {
     const checker = createSimpleHealthChecker(
       "detailed",
       () => true,
-      () => ({ connections: 5, uptime: 1000 })
+      () => ({ connections: 5, uptime: 1000 }),
     );
 
     const result = await checker();

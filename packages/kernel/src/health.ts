@@ -2,9 +2,9 @@
 // Provides unified health status for monitoring and readiness probes
 
 import type { Database } from "./database.js";
-import type { VectorStore } from "./vector-store.js";
 import type { EventBus } from "./event-bus.js";
 import type { Logger } from "./logger.js";
+import type { VectorStore } from "./vector-store.js";
 
 /** Health status for a component */
 export interface ComponentHealth {
@@ -102,9 +102,9 @@ export function createHealthManager(logger?: Logger): HealthManager {
   function getMemoryStats() {
     const mem = process.memoryUsage();
     return {
-      heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024 * 100) / 100,
-      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024 * 100) / 100,
-      rssMB: Math.round(mem.rss / 1024 / 1024 * 100) / 100,
+      heapUsedMB: Math.round((mem.heapUsed / 1024 / 1024) * 100) / 100,
+      heapTotalMB: Math.round((mem.heapTotal / 1024 / 1024) * 100) / 100,
+      rssMB: Math.round((mem.rss / 1024 / 1024) * 100) / 100,
       percentUsed: Math.round((mem.heapUsed / mem.heapTotal) * 100),
     };
   }
@@ -113,7 +113,7 @@ export function createHealthManager(logger?: Logger): HealthManager {
   async function runWithTimeout(
     name: string,
     checker: HealthChecker,
-    timeoutMs: number
+    timeoutMs: number,
   ): Promise<ComponentHealth> {
     const start = Date.now();
 
@@ -121,7 +121,7 @@ export function createHealthManager(logger?: Logger): HealthManager {
       const result = await Promise.race([
         checker(),
         new Promise<ComponentHealth>((_, reject) =>
-          setTimeout(() => reject(new Error("Health check timed out")), timeoutMs)
+          setTimeout(() => reject(new Error("Health check timed out")), timeoutMs),
         ),
       ]);
       return result;
@@ -170,7 +170,7 @@ export function createHealthManager(logger?: Logger): HealthManager {
 
     async checkComponent(
       name: string,
-      options: HealthCheckOptions = {}
+      options: HealthCheckOptions = {},
     ): Promise<ComponentHealth | null> {
       const { timeoutMs = 5000 } = options;
       const checker = checkers.get(name);
@@ -361,7 +361,7 @@ export function createEventBusHealthChecker(bus: EventBus): HealthChecker {
 export function createSimpleHealthChecker(
   name: string,
   check: () => Promise<boolean> | boolean,
-  getDetails?: () => Record<string, unknown>
+  getDetails?: () => Record<string, unknown>,
 ): HealthChecker {
   return async () => {
     const start = Date.now();

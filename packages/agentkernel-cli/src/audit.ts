@@ -66,7 +66,7 @@ export class ConsoleOpenClawAuditSink implements OpenClawAuditSink {
     const reset = "\x1b[0m";
 
     console.log(
-      `${color}[${timestamp}] [OpenClaw] ${event.type}${tool}${decision}${reason}${reset}`
+      `${color}[${timestamp}] [OpenClaw] ${event.type}${tool}${decision}${reason}${reset}`,
     );
 
     if (event.details && Object.keys(event.details).length > 0) {
@@ -93,7 +93,7 @@ export class MemoryOpenClawAuditSink implements OpenClawAuditSink {
   private events: OpenClawAuditEvent[] = [];
   private readonly maxEvents: number;
 
-  constructor(maxEvents: number = 10000) {
+  constructor(maxEvents = 10000) {
     this.maxEvents = maxEvents;
   }
 
@@ -140,7 +140,7 @@ export class FileOpenClawAuditSink implements OpenClawAuditSink {
     options: {
       flushIntervalMs?: number;
       maxBufferSize?: number;
-    } = {}
+    } = {},
   ) {
     this.filePath = filePath;
     this.flushIntervalMs = options.flushIntervalMs ?? 5000;
@@ -167,15 +167,15 @@ export class FileOpenClawAuditSink implements OpenClawAuditSink {
     this.buffer = [];
 
     this.writePromise = this.writePromise.then(async () => {
-      const { appendFile, mkdir } = await import("fs/promises");
-      const { dirname } = await import("path");
+      const { appendFile, mkdir } = await import("node:fs/promises");
+      const { dirname } = await import("node:path");
 
       if (!this.dirEnsured) {
         await mkdir(dirname(this.filePath), { recursive: true });
         this.dirEnsured = true;
       }
 
-      const lines = toWrite.map((e) => JSON.stringify(e)).join("\n") + "\n";
+      const lines = `${toWrite.map((e) => JSON.stringify(e)).join("\n")}\n`;
       await appendFile(this.filePath, lines, "utf-8");
     });
 
@@ -211,9 +211,7 @@ export class OpenClawAuditLogger {
   /**
    * Log an audit event.
    */
-  log(
-    event: Omit<OpenClawAuditEvent, "timestamp">
-  ): void {
+  log(event: Omit<OpenClawAuditEvent, "timestamp">): void {
     const fullEvent: OpenClawAuditEvent = {
       ...event,
       timestamp: new Date(),
@@ -237,7 +235,7 @@ export class OpenClawAuditLogger {
         if (sink.flush) {
           await sink.flush();
         }
-      })
+      }),
     );
   }
 
@@ -250,7 +248,7 @@ export class OpenClawAuditLogger {
         if (sink.close) {
           await sink.close();
         }
-      })
+      }),
     );
   }
 }
@@ -263,7 +261,7 @@ export function createOpenClawAuditLogger(
     sinks?: OpenClawAuditSink[];
     logFile?: string;
     includeConsole?: boolean;
-  } = {}
+  } = {},
 ): OpenClawAuditLogger {
   const sinks: OpenClawAuditSink[] = options.sinks ?? [];
 

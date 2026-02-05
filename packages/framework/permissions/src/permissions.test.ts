@@ -1,5 +1,5 @@
 // Permissions System tests
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { CapabilityManager, PermissionError } from "./capabilities.js";
 
 describe("CapabilityManager", () => {
@@ -110,7 +110,9 @@ describe("CapabilityManager", () => {
       expect(grantResult.ok).toBe(true);
 
       expect(manager.check("agent-001", "filesystem", "read", "/data/file.txt").allowed).toBe(true);
-      expect(manager.check("agent-001", "filesystem", "read", "/other/file.txt").allowed).toBe(false);
+      expect(manager.check("agent-001", "filesystem", "read", "/other/file.txt").allowed).toBe(
+        false,
+      );
     });
 
     it("should match glob patterns", () => {
@@ -122,7 +124,9 @@ describe("CapabilityManager", () => {
       expect(grantResult.ok).toBe(true);
 
       expect(manager.check("agent-001", "filesystem", "read", "/data/file.txt").allowed).toBe(true);
-      expect(manager.check("agent-001", "filesystem", "read", "/data/nested/file.txt").allowed).toBe(false);
+      expect(
+        manager.check("agent-001", "filesystem", "read", "/data/nested/file.txt").allowed,
+      ).toBe(false);
     });
 
     it("should allow without resource constraint when pattern not specified", () => {
@@ -133,8 +137,12 @@ describe("CapabilityManager", () => {
       });
       expect(grantResult.ok).toBe(true);
 
-      expect(manager.check("agent-001", "filesystem", "read", "/any/path/file.txt").allowed).toBe(true);
-      expect(manager.check("agent-001", "filesystem", "read", "/data/nested/deep/file.txt").allowed).toBe(true);
+      expect(manager.check("agent-001", "filesystem", "read", "/any/path/file.txt").allowed).toBe(
+        true,
+      );
+      expect(
+        manager.check("agent-001", "filesystem", "read", "/data/nested/deep/file.txt").allowed,
+      ).toBe(true);
     });
   });
 
@@ -185,11 +193,9 @@ describe("CapabilityManager", () => {
       if (!grantResult.ok) return;
 
       // Try to delegate with more permissions
-      const childResult = manager.delegate(
-        grantResult.value.id,
-        "agent-002",
-        [{ category: "memory", actions: ["read", "write"] }]
-      );
+      const childResult = manager.delegate(grantResult.value.id, "agent-002", [
+        { category: "memory", actions: ["read", "write"] },
+      ]);
 
       expect(childResult.ok).toBe(false);
       if (childResult.ok) return;
@@ -277,8 +283,16 @@ describe("CapabilityManager", () => {
     });
 
     it("should filter audit log by agent", () => {
-      const g1 = manager.grant({ agentId: "agent-001", permissions: [{ category: "memory", actions: ["read"] }], purpose: "A" });
-      const g2 = manager.grant({ agentId: "agent-002", permissions: [{ category: "memory", actions: ["read"] }], purpose: "B" });
+      const g1 = manager.grant({
+        agentId: "agent-001",
+        permissions: [{ category: "memory", actions: ["read"] }],
+        purpose: "A",
+      });
+      const g2 = manager.grant({
+        agentId: "agent-002",
+        permissions: [{ category: "memory", actions: ["read"] }],
+        purpose: "B",
+      });
 
       expect(g1.ok).toBe(true);
       expect(g2.ok).toBe(true);

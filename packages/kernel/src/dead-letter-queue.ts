@@ -1,8 +1,8 @@
 // Dead Letter Queue (DLQ) Implementation
 // Captures failed events/tasks for later retry or analysis
 
+import { type Result, err, ok } from "@agentkernel/shared";
 import { z } from "zod";
-import { type Result, ok, err } from "@agentkernel/shared";
 import { createLogger } from "./logger.js";
 
 const log = createLogger({ name: "dead-letter-queue" });
@@ -28,7 +28,11 @@ export const DlqConfigSchema = z.object({
   maxRetries: z.number().min(1).optional().default(3),
   retryDelay: z.number().min(1000).optional().default(60000), // 1 minute
   backoffMultiplier: z.number().min(1).optional().default(2),
-  maxAge: z.number().min(60000).optional().default(7 * 24 * 60 * 60 * 1000), // 7 days
+  maxAge: z
+    .number()
+    .min(60000)
+    .optional()
+    .default(7 * 24 * 60 * 60 * 1000), // 7 days
 });
 
 export type DlqConfig = z.infer<typeof DlqConfigSchema>;
@@ -66,7 +70,9 @@ export class InMemoryDlqStorage implements DlqStorage {
     }
   }
 
-  async list(filter?: { status?: DlqStatus; limit?: number; offset?: number }): Promise<DeadLetter[]> {
+  async list(filter?: { status?: DlqStatus; limit?: number; offset?: number }): Promise<
+    DeadLetter[]
+  > {
     let results = Array.from(this.letters.values());
 
     if (filter?.status) {
@@ -133,7 +139,7 @@ export class DeadLetterQueue {
   async add(
     originalEvent: unknown,
     errorMessage: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<Result<string, Error>> {
     try {
       const id = crypto.randomUUID();
@@ -190,10 +196,7 @@ export class DeadLetterQueue {
   /**
    * Register a retry handler for a specific event type.
    */
-  registerRetryHandler(
-    eventType: string,
-    handler: (letter: DeadLetter) => Promise<boolean>
-  ): void {
+  registerRetryHandler(eventType: string, handler: (letter: DeadLetter) => Promise<boolean>): void {
     this.retryHandlers.set(eventType, handler);
   }
 
@@ -244,10 +247,9 @@ export class DeadLetterQueue {
           await this.storage.update(id, { status: "resolved" });
           log.info("Dead letter successfully retried", { id });
           return ok(true);
-        } else {
-          await this.storage.update(id, { status: "pending" });
-          return ok(false);
         }
+        await this.storage.update(id, { status: "pending" });
+        return ok(false);
       } catch (retryError) {
         const message = retryError instanceof Error ? retryError.message : String(retryError);
         await this.storage.update(id, {
@@ -357,7 +359,7 @@ export class DeadLetterQueue {
    * Calculate backoff delay for retry.
    */
   private calculateBackoff(retryCount: number): number {
-    return this.config.retryDelay * Math.pow(this.config.backoffMultiplier, retryCount);
+    return this.config.retryDelay * this.config.backoffMultiplier ** retryCount;
   }
 
   /**
@@ -406,7 +408,7 @@ let globalDlq: DeadLetterQueue | undefined;
  */
 export function getDeadLetterQueue(
   storage?: DlqStorage,
-  config?: Partial<DlqConfig>
+  config?: Partial<DlqConfig>,
 ): DeadLetterQueue {
   if (!globalDlq) {
     globalDlq = new DeadLetterQueue(storage ?? new InMemoryDlqStorage(), config);

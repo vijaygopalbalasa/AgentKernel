@@ -3,25 +3,25 @@
 
 /** Valid agent states (like Android app lifecycle) */
 export type AgentState =
-  | "created"      // Agent manifest loaded, not yet initialized
+  | "created" // Agent manifest loaded, not yet initialized
   | "initializing" // Loading resources, connecting to services
-  | "ready"        // Initialized, waiting for tasks
-  | "running"      // Actively processing a task
-  | "paused"       // Suspended (can resume)
-  | "error"        // Recoverable error state
-  | "terminated";  // Final state, cannot recover
+  | "ready" // Initialized, waiting for tasks
+  | "running" // Actively processing a task
+  | "paused" // Suspended (can resume)
+  | "error" // Recoverable error state
+  | "terminated"; // Final state, cannot recover
 
 /** Events that trigger state transitions */
 export type AgentEvent =
-  | "INITIALIZE"   // Start initialization
-  | "READY"        // Initialization complete
-  | "START"        // Begin processing
-  | "PAUSE"        // Suspend execution
-  | "RESUME"       // Resume from pause
-  | "COMPLETE"     // Task completed successfully
-  | "FAIL"         // Error occurred
-  | "RECOVER"      // Attempt recovery from error
-  | "TERMINATE";   // Shutdown agent
+  | "INITIALIZE" // Start initialization
+  | "READY" // Initialization complete
+  | "START" // Begin processing
+  | "PAUSE" // Suspend execution
+  | "RESUME" // Resume from pause
+  | "COMPLETE" // Task completed successfully
+  | "FAIL" // Error occurred
+  | "RECOVER" // Attempt recovery from error
+  | "TERMINATE"; // Shutdown agent
 
 /** State transition record for audit trail */
 export interface StateTransition {

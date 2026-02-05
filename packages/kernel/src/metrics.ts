@@ -29,9 +29,12 @@ export interface MetricDefinition {
 
 export const MetricsConfigSchema = z.object({
   enabled: z.boolean().optional().default(true),
-  prefix: z.string().optional().default("agent_os"),
+  prefix: z.string().optional().default("agentkernel"),
   defaultLabels: z.record(z.string()).optional().default({}),
-  histogramBuckets: z.array(z.number()).optional().default([0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]),
+  histogramBuckets: z
+    .array(z.number())
+    .optional()
+    .default([0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]),
 });
 
 export type MetricsConfig = z.infer<typeof MetricsConfigSchema>;
@@ -47,7 +50,7 @@ export class Counter {
   constructor(
     public readonly name: string,
     public readonly help: string,
-    public readonly labelNames: string[] = []
+    public readonly labelNames: string[] = [],
   ) {}
 
   /**
@@ -107,7 +110,7 @@ export class Gauge {
   constructor(
     public readonly name: string,
     public readonly help: string,
-    public readonly labelNames: string[] = []
+    public readonly labelNames: string[] = [],
   ) {}
 
   /**
@@ -194,10 +197,10 @@ export class Histogram {
     public readonly name: string,
     public readonly help: string,
     public readonly labelNames: string[] = [],
-    buckets: number[] = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+    buckets: number[] = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
   ) {
     this.buckets = [...buckets].sort((a, b) => a - b);
-    this.buckets.push(Infinity); // +Inf bucket
+    this.buckets.push(Number.POSITIVE_INFINITY); // +Inf bucket
   }
 
   /**
@@ -337,7 +340,12 @@ export class MetricsRegistry {
     const fullName = `${this.config.prefix}_${name}`;
     let histogram = this.histograms.get(fullName);
     if (!histogram) {
-      histogram = new Histogram(fullName, help, labelNames, buckets ?? this.config.histogramBuckets);
+      histogram = new Histogram(
+        fullName,
+        help,
+        labelNames,
+        buckets ?? this.config.histogramBuckets,
+      );
       this.histograms.set(fullName, histogram);
     }
     return histogram;
@@ -385,7 +393,7 @@ export class MetricsRegistry {
 
       const data = histogram.get();
       for (const bucket of data.buckets) {
-        const le = bucket.le === Infinity ? "+Inf" : bucket.le.toString();
+        const le = bucket.le === Number.POSITIVE_INFINITY ? "+Inf" : bucket.le.toString();
         lines.push(`${histogram.name}_bucket{le="${le}"} ${bucket.count}`);
       }
       lines.push(`${histogram.name}_sum ${data.sum}`);
@@ -488,11 +496,10 @@ export function createStandardMetrics(registry: MetricsRegistry): StandardMetric
       "path",
       "status",
     ]),
-    requestDuration: registry.histogram(
-      "request_duration_seconds",
-      "Request duration in seconds",
-      ["method", "path"]
-    ),
+    requestDuration: registry.histogram("request_duration_seconds", "Request duration in seconds", [
+      "method",
+      "path",
+    ]),
     requestsInFlight: registry.gauge("requests_in_flight", "Number of requests in flight"),
 
     // Agent metrics
@@ -504,7 +511,7 @@ export function createStandardMetrics(registry: MetricsRegistry): StandardMetric
     agentTaskDuration: registry.histogram(
       "agent_task_duration_seconds",
       "Agent task duration in seconds",
-      ["agent_id"]
+      ["agent_id"],
     ),
 
     // LLM metrics
@@ -521,17 +528,19 @@ export function createStandardMetrics(registry: MetricsRegistry): StandardMetric
     llmRequestDuration: registry.histogram(
       "llm_request_duration_seconds",
       "LLM request duration in seconds",
-      ["provider", "model"]
+      ["provider", "model"],
     ),
 
     // Circuit breaker metrics
-    circuitBreakerState: registry.gauge("circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 2=half-open)", [
-      "circuit",
-    ]),
+    circuitBreakerState: registry.gauge(
+      "circuit_breaker_state",
+      "Circuit breaker state (0=closed, 1=open, 2=half-open)",
+      ["circuit"],
+    ),
     circuitBreakerRejections: registry.counter(
       "circuit_breaker_rejections_total",
       "Circuit breaker rejections",
-      ["circuit"]
+      ["circuit"],
     ),
 
     // Error metrics

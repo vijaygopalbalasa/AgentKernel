@@ -9,7 +9,7 @@ export class TimeoutError extends Error {
   constructor(
     public readonly operation: string,
     public readonly target: string,
-    public readonly durationMs: number
+    public readonly durationMs: number,
   ) {
     super(`Timeout after ${durationMs}ms for ${operation} on ${target}`);
     this.name = "TimeoutError";
@@ -67,7 +67,7 @@ export function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
   operation: string,
-  target: string
+  target: string,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -112,14 +112,9 @@ export function createTimeoutController(timeoutMs: number): {
 export function withDbTimeout<T>(
   promise: Promise<T>,
   target: string,
-  customTimeout?: number
+  customTimeout?: number,
 ): Promise<T> {
-  return withTimeout(
-    promise,
-    customTimeout ?? currentTimeouts.dbQuery,
-    "database query",
-    target
-  );
+  return withTimeout(promise, customTimeout ?? currentTimeouts.dbQuery, "database query", target);
 }
 
 /**
@@ -129,9 +124,10 @@ export function withLlmTimeout<T>(
   promise: Promise<T>,
   target: string,
   streaming = false,
-  customTimeout?: number
+  customTimeout?: number,
 ): Promise<T> {
-  const timeout = customTimeout ?? (streaming ? currentTimeouts.llmStreaming : currentTimeouts.llmApi);
+  const timeout =
+    customTimeout ?? (streaming ? currentTimeouts.llmStreaming : currentTimeouts.llmApi);
   return withTimeout(promise, timeout, "LLM API call", target);
 }
 
@@ -141,14 +137,9 @@ export function withLlmTimeout<T>(
 export function withMcpTimeout<T>(
   promise: Promise<T>,
   toolName: string,
-  customTimeout?: number
+  customTimeout?: number,
 ): Promise<T> {
-  return withTimeout(
-    promise,
-    customTimeout ?? currentTimeouts.mcpTool,
-    "MCP tool",
-    toolName
-  );
+  return withTimeout(promise, customTimeout ?? currentTimeouts.mcpTool, "MCP tool", toolName);
 }
 
 /**
@@ -157,14 +148,9 @@ export function withMcpTimeout<T>(
 export function withA2aTimeout<T>(
   promise: Promise<T>,
   targetAgent: string,
-  customTimeout?: number
+  customTimeout?: number,
 ): Promise<T> {
-  return withTimeout(
-    promise,
-    customTimeout ?? currentTimeouts.a2aTask,
-    "A2A task",
-    targetAgent
-  );
+  return withTimeout(promise, customTimeout ?? currentTimeouts.a2aTask, "A2A task", targetAgent);
 }
 
 /**
@@ -173,14 +159,9 @@ export function withA2aTimeout<T>(
 export function withAgentTaskTimeout<T>(
   promise: Promise<T>,
   agentId: string,
-  customTimeout?: number
+  customTimeout?: number,
 ): Promise<T> {
-  return withTimeout(
-    promise,
-    customTimeout ?? currentTimeouts.agentTask,
-    "agent task",
-    agentId
-  );
+  return withTimeout(promise, customTimeout ?? currentTimeouts.agentTask, "agent task", agentId);
 }
 
 /**
@@ -189,14 +170,9 @@ export function withAgentTaskTimeout<T>(
 export function withHttpTimeout<T>(
   promise: Promise<T>,
   url: string,
-  customTimeout?: number
+  customTimeout?: number,
 ): Promise<T> {
-  return withTimeout(
-    promise,
-    customTimeout ?? currentTimeouts.httpRequest,
-    "HTTP request",
-    url
-  );
+  return withTimeout(promise, customTimeout ?? currentTimeouts.httpRequest, "HTTP request", url);
 }
 
 // ─── DEADLINE UTILITY ───────────────────────────────────────

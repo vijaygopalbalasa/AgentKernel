@@ -1,11 +1,11 @@
 // Graceful Degradation Tests
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DegradationManager,
   getDegradationManager,
   resetDegradationManager,
-  withFallback,
   withCachedFallback,
+  withFallback,
 } from "./degradation.js";
 
 describe("DegradationManager", () => {
@@ -253,7 +253,7 @@ describe("Fallback Utilities", () => {
       const result = await withFallback(
         async () => "primary",
         async () => "fallback",
-        "test-service"
+        "test-service",
       );
 
       expect(result).toBe("primary");
@@ -265,7 +265,7 @@ describe("Fallback Utilities", () => {
           throw new Error("Primary failed");
         },
         async () => "fallback",
-        "test-service"
+        "test-service",
       );
 
       expect(result).toBe("fallback");
@@ -280,8 +280,8 @@ describe("Fallback Utilities", () => {
           async () => {
             throw new Error("Fallback failed");
           },
-          "test-service"
-        )
+          "test-service",
+        ),
       ).rejects.toThrow("Fallback failed");
     });
   });
@@ -291,7 +291,7 @@ describe("Fallback Utilities", () => {
       const result = await withCachedFallback(
         async () => "fresh",
         () => "cached",
-        "test-service"
+        "test-service",
       );
 
       expect(result).toBe("fresh");
@@ -303,7 +303,7 @@ describe("Fallback Utilities", () => {
           throw new Error("Primary failed");
         },
         () => "cached",
-        "test-service"
+        "test-service",
       );
 
       expect(result).toBe("cached");
@@ -316,8 +316,8 @@ describe("Fallback Utilities", () => {
             throw new Error("Primary failed");
           },
           () => undefined,
-          "test-service"
-        )
+          "test-service",
+        ),
       ).rejects.toThrow("Primary failed");
     });
 
@@ -328,7 +328,7 @@ describe("Fallback Utilities", () => {
           throw new Error("Primary failed");
         },
         () => null as unknown as string,
-        "test-service"
+        "test-service",
       );
 
       expect(result).toBe(null);

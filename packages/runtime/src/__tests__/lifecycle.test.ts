@@ -1,12 +1,14 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AgentLifecycleManager, type AgentManifest } from "../lifecycle.js";
-import { AgentStateMachine } from "../state-machine.js";
-import { MemoryAuditSink, AuditLogger } from "../audit.js";
-import { createMemoryPersistence } from "../persistence.js";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AuditLogger, MemoryAuditSink } from "../audit.js";
 import { createHealthMonitor } from "../health.js";
+import { AgentLifecycleManager, type AgentManifest } from "../lifecycle.js";
+import { createMemoryPersistence } from "../persistence.js";
+import { AgentStateMachine } from "../state-machine.js";
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 describe("AgentStateMachine", () => {
   it("should start in created state", () => {
@@ -122,6 +124,46 @@ describe("AgentLifecycleManager", () => {
 
       await expect(manager.initialize("nonexistent")).rejects.toThrow(/not found/);
     });
+
+    it("should block host entryPoint execution by default", async () => {
+      const manager = new AgentLifecycleManager();
+      const dir = mkdtempSync(join(tmpdir(), "agentkernel-entrypoint-"));
+      const entryPoint = join(dir, "init.mjs");
+      writeFileSync(entryPoint, "export default async () => {};\n", "utf-8");
+
+      try {
+        const id = manager.spawn({
+          ...testManifest,
+          entryPoint,
+        });
+
+        const result = await manager.initialize(id);
+        expect(result).toBe(false);
+        expect(manager.getState(id)).toBe("error");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("should allow host entryPoint execution when explicitly enabled", async () => {
+      const manager = new AgentLifecycleManager({ allowHostEntryPointExecution: true });
+      const dir = mkdtempSync(join(tmpdir(), "agentkernel-entrypoint-"));
+      const entryPoint = join(dir, "init.mjs");
+      writeFileSync(entryPoint, "export default async () => {};\n", "utf-8");
+
+      try {
+        const id = manager.spawn({
+          ...testManifest,
+          entryPoint,
+        });
+
+        const result = await manager.initialize(id);
+        expect(result).toBe(true);
+        expect(manager.getState(id)).toBe("ready");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe("start", () => {
@@ -175,7 +217,7 @@ describe("AgentLifecycleManager", () => {
       manager.fail(id, "Test error");
       expect(manager.getState(id)).toBe("error");
 
-      manager.recover2(id);
+      manager.recoverFromError(id);
       expect(manager.getState(id)).toBe("ready");
     });
   });
@@ -393,9 +435,9 @@ describe("AgentLifecycleManager", () => {
       const metrics = manager.getHealthMetrics(id);
 
       expect(metrics).not.toBeNull();
-      expect(metrics!.agentId).toBe(id);
-      expect(metrics!.state).toBe("ready");
-      expect(metrics!.uptimeSeconds).toBeGreaterThanOrEqual(0);
+      expect(metrics?.agentId).toBe(id);
+      expect(metrics?.state).toBe("ready");
+      expect(metrics?.uptimeSeconds).toBeGreaterThanOrEqual(0);
     });
 
     it("should run health checks", async () => {
@@ -408,7 +450,7 @@ describe("AgentLifecycleManager", () => {
       const result = manager.checkHealth(id);
 
       expect(result).not.toBeNull();
-      expect(result!.status).toBe("healthy");
+      expect(result?.status).toBe("healthy");
     });
 
     it("should return null for non-existent agent", () => {

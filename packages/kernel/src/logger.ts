@@ -25,14 +25,16 @@ export interface Logger {
 /** Wrap pino logger to match our interface */
 function wrapPinoLogger(pinoLogger: PinoLogger): Logger {
   return {
-    trace: (msg, ctx) => ctx ? pinoLogger.trace(ctx, msg) : pinoLogger.trace(msg),
-    debug: (msg, ctx) => ctx ? pinoLogger.debug(ctx, msg) : pinoLogger.debug(msg),
-    info: (msg, ctx) => ctx ? pinoLogger.info(ctx, msg) : pinoLogger.info(msg),
-    warn: (msg, ctx) => ctx ? pinoLogger.warn(ctx, msg) : pinoLogger.warn(msg),
-    error: (msg, ctx) => ctx ? pinoLogger.error(ctx, msg) : pinoLogger.error(msg),
-    fatal: (msg, ctx) => ctx ? pinoLogger.fatal(ctx, msg) : pinoLogger.fatal(msg),
+    trace: (msg, ctx) => (ctx ? pinoLogger.trace(ctx, msg) : pinoLogger.trace(msg)),
+    debug: (msg, ctx) => (ctx ? pinoLogger.debug(ctx, msg) : pinoLogger.debug(msg)),
+    info: (msg, ctx) => (ctx ? pinoLogger.info(ctx, msg) : pinoLogger.info(msg)),
+    warn: (msg, ctx) => (ctx ? pinoLogger.warn(ctx, msg) : pinoLogger.warn(msg)),
+    error: (msg, ctx) => (ctx ? pinoLogger.error(ctx, msg) : pinoLogger.error(msg)),
+    fatal: (msg, ctx) => (ctx ? pinoLogger.fatal(ctx, msg) : pinoLogger.fatal(msg)),
     child: (bindings) => wrapPinoLogger(pinoLogger.child(bindings)),
-    get level() { return pinoLogger.level; },
+    get level() {
+      return pinoLogger.level;
+    },
     flush: () => pinoLogger.flush(),
   };
 }
@@ -56,7 +58,6 @@ let rootLogger: PinoLogger | null = null;
 
 /** Initialize the root logger with configuration */
 export function initLogger(config: LoggingConfig): Logger {
-
   // Set up transport for pretty printing or file output
   const transports: pino.TransportTargetOptions[] = [];
 
@@ -172,7 +173,7 @@ export async function shutdownLogger(): Promise<void> {
 
 /** Log levels in order of verbosity */
 export const LOG_LEVELS = ["trace", "debug", "info", "warn", "error", "fatal"] as const;
-export type LogLevel = typeof LOG_LEVELS[number];
+export type LogLevel = (typeof LOG_LEVELS)[number];
 
 /** Check if a level is enabled */
 export function isLevelEnabled(logger: Logger, level: LogLevel): boolean {

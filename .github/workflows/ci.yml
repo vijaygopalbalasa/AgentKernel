@@ -67,13 +67,30 @@ jobs:
         run: docker compose -f docker/docker-compose.test.yml up -d
 
       - name: Wait for services
-        run: sleep 10
+        run: |
+          echo "Waiting for PostgreSQL..."
+          for i in $(seq 1 30); do
+            if docker exec agentkernel-postgres-test pg_isready -U agentkernel -d agentkernel_test > /dev/null 2>&1; then
+              echo "PostgreSQL ready"
+              break
+            fi
+            sleep 1
+          done
+          echo "Waiting for Redis..."
+          for i in $(seq 1 30); do
+            if docker exec agentkernel-redis-test redis-cli ping > /dev/null 2>&1; then
+              echo "Redis ready"
+              break
+            fi
+            sleep 1
+          done
 
       - name: Integration tests
-        run: pnpm -C apps/gateway test:integration
+        run: pnpm --filter @agentkernel/kernel test:integration
         env:
-          TEST_GATEWAY_PORT: 18811
-          TEST_HEALTH_PORT: 18812
+          DATABASE_URL: postgresql://agentkernel:agentkernel_test@localhost:5433/agentkernel_test
+          REDIS_URL: redis://localhost:6380
+          QDRANT_URL: http://localhost:6335
 
       - name: Cleanup
         if: always()

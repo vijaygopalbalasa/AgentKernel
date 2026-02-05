@@ -48,7 +48,9 @@ const DEFAULT_OPTIONS: Required<ShutdownOptions> = {
     error: () => {},
     trace: () => {},
     fatal: () => {},
-    child: function() { return this; },
+    child: function () {
+      return this;
+    },
     level: "info",
     flush: () => {},
   },
@@ -78,8 +80,9 @@ export function createShutdownManager(options: ShutdownOptions = {}): ShutdownMa
     log.info("Starting graceful shutdown", { reason });
 
     // Sort handlers by priority (descending)
-    const sortedHandlers = Array.from(handlers.entries())
-      .sort((a, b) => b[1].priority - a[1].priority);
+    const sortedHandlers = Array.from(handlers.entries()).sort(
+      (a, b) => b[1].priority - a[1].priority,
+    );
 
     const startTime = Date.now();
 
@@ -89,7 +92,9 @@ export function createShutdownManager(options: ShutdownOptions = {}): ShutdownMa
 
       if (remaining <= 0) {
         log.warn("Shutdown timeout reached, skipping remaining handlers", {
-          skipped: sortedHandlers.slice(sortedHandlers.indexOf([name, { handler, priority: 0 }])).map(([n]) => n),
+          skipped: sortedHandlers
+            .slice(sortedHandlers.indexOf([name, { handler, priority: 0 }]))
+            .map(([n]) => n),
         });
         break;
       }
@@ -101,7 +106,7 @@ export function createShutdownManager(options: ShutdownOptions = {}): ShutdownMa
         await Promise.race([
           Promise.resolve(handler()),
           new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error(`Handler ${name} timed out`)), remaining)
+            setTimeout(() => reject(new Error(`Handler ${name} timed out`)), remaining),
           ),
         ]);
 
@@ -139,15 +144,13 @@ export function createShutdownManager(options: ShutdownOptions = {}): ShutdownMa
     // Handle uncaught exceptions
     process.on("uncaughtException", (error) => {
       log.fatal("Uncaught exception", { error: String(error), stack: error.stack });
-      runHandlers("uncaughtException")
-        .finally(() => process.exit(opts.errorExitCode));
+      runHandlers("uncaughtException").finally(() => process.exit(opts.errorExitCode));
     });
 
     // Handle unhandled promise rejections
     process.on("unhandledRejection", (reason) => {
       log.fatal("Unhandled rejection", { reason: String(reason) });
-      runHandlers("unhandledRejection")
-        .finally(() => process.exit(opts.errorExitCode));
+      runHandlers("unhandledRejection").finally(() => process.exit(opts.errorExitCode));
     });
 
     signalHandlersRegistered = true;
@@ -155,7 +158,7 @@ export function createShutdownManager(options: ShutdownOptions = {}): ShutdownMa
   }
 
   const manager: ShutdownManager = {
-    register(name: string, handler: ShutdownHandler, priority: number = 0): void {
+    register(name: string, handler: ShutdownHandler, priority = 0): void {
       handlers.set(name, { handler, priority });
       log.debug("Shutdown handler registered", { name, priority });
 
@@ -170,7 +173,7 @@ export function createShutdownManager(options: ShutdownOptions = {}): ShutdownMa
       log.debug("Shutdown handler unregistered", { name });
     },
 
-    async shutdown(reason: string = "manual"): Promise<void> {
+    async shutdown(reason = "manual"): Promise<void> {
       await runHandlers(reason);
     },
 
@@ -208,7 +211,7 @@ export function createDrainHandler(
     checkIntervalMs?: number;
     maxWaitMs?: number;
     logger?: Logger;
-  } = {}
+  } = {},
 ): ShutdownHandler {
   const { checkIntervalMs = 100, maxWaitMs = 10000, logger } = options;
 
@@ -245,12 +248,12 @@ export function getShutdownManager(options?: ShutdownOptions): ShutdownManager {
 export function onShutdown(
   name: string,
   handler: ShutdownHandler,
-  priority: number = SHUTDOWN_PRIORITIES.NORMAL
+  priority: number = SHUTDOWN_PRIORITIES.NORMAL,
 ): void {
   getShutdownManager().register(name, handler, priority);
 }
 
 /** Trigger shutdown programmatically */
-export async function shutdown(reason: string = "manual"): Promise<void> {
+export async function shutdown(reason = "manual"): Promise<void> {
   await getShutdownManager().shutdown(reason);
 }

@@ -1,13 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
-import {
-  createDatabase,
-  checkDatabaseHealth,
-  waitForDatabase,
-  type Database,
-  type PoolStats,
-  type MigrationResult,
-} from "../database.js";
+import { describe, expect, it, vi } from "vitest";
 import type { DatabaseConfig } from "../config.js";
+import {
+  type Database,
+  type MigrationResult,
+  type PoolStats,
+  checkDatabaseHealth,
+  createDatabase,
+  waitForDatabase,
+} from "../database.js";
 
 // Note: These tests verify API contracts without requiring a real PostgreSQL connection.
 // Integration tests with real database should be in a separate test suite.
@@ -152,6 +152,16 @@ describe("Database Module API Contracts", () => {
       expect(typeof health.healthy).toBe("boolean");
       expect(typeof health.latencyMs).toBe("number");
     });
+
+    it("should report unhealthy when isConnected returns false", async () => {
+      const db = {
+        isConnected: vi.fn().mockResolvedValue(false),
+      } as unknown as Database;
+
+      const health = await checkDatabaseHealth(db);
+      expect(health.healthy).toBe(false);
+      expect(health.error).toContain("connectivity");
+    });
   });
 
   describe("waitForDatabase", () => {
@@ -208,9 +218,7 @@ describe("MigrationResult type", () => {
     const result: MigrationResult = {
       applied: 0,
       migrations: [],
-      errors: [
-        { migration: "001_test.sql", error: "Syntax error" },
-      ],
+      errors: [{ migration: "001_test.sql", error: "Syntax error" }],
     };
 
     expect(result.errors[0]?.migration).toBe("001_test.sql");

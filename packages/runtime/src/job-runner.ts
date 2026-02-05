@@ -3,8 +3,8 @@
 
 import {
   type JobConfig,
-  type JobExecutionResult,
   type JobEventListener,
+  type JobExecutionResult,
   type SchedulerConfig,
   createScheduler,
 } from "@agentkernel/kernel";

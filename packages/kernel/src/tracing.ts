@@ -60,7 +60,7 @@ export class Span {
   constructor(
     name: string,
     context: SpanContext,
-    private onEnd?: (span: Span) => void
+    private onEnd?: (span: Span) => void,
   ) {
     this.data = {
       name,
@@ -261,7 +261,11 @@ export class Tracer {
   /**
    * Run a function with a span.
    */
-  async trace<T>(name: string, fn: (span: Span) => Promise<T>, parentContext?: SpanContext): Promise<T> {
+  async trace<T>(
+    name: string,
+    fn: (span: Span) => Promise<T>,
+    parentContext?: SpanContext,
+  ): Promise<T> {
     const span = this.startSpan(name, parentContext);
     try {
       const result = await fn(span);
@@ -387,11 +391,12 @@ export class Tracer {
                   status: { code: span.status === "error" ? 2 : 1 },
                   attributes: Object.entries(span.attributes).map(([key, value]) => ({
                     key,
-                    value: typeof value === "string"
-                      ? { stringValue: value }
-                      : typeof value === "number"
-                        ? { intValue: value }
-                        : { boolValue: value },
+                    value:
+                      typeof value === "string"
+                        ? { stringValue: value }
+                        : typeof value === "number"
+                          ? { intValue: value }
+                          : { boolValue: value },
                   })),
                   events: span.events.map((event) => ({
                     name: event.name,
@@ -399,11 +404,12 @@ export class Tracer {
                     attributes: event.attributes
                       ? Object.entries(event.attributes).map(([key, value]) => ({
                           key,
-                          value: typeof value === "string"
-                            ? { stringValue: value }
-                            : typeof value === "number"
-                              ? { intValue: value }
-                              : { boolValue: value },
+                          value:
+                            typeof value === "string"
+                              ? { stringValue: value }
+                              : typeof value === "number"
+                                ? { intValue: value }
+                                : { boolValue: value },
                         }))
                       : [],
                   })),
@@ -471,7 +477,7 @@ class NoopSpan extends Span {
         spanId: "0000000000000000",
         sampled: false,
       },
-      undefined
+      undefined,
     );
   }
 
@@ -526,7 +532,7 @@ export function parseTraceParent(header: string): SpanContext | null {
 
   if (!traceId || !spanId || !flags) return null;
 
-  const sampled = (parseInt(flags, 16) & 0x01) === 1;
+  const sampled = (Number.parseInt(flags, 16) & 0x01) === 1;
 
   return { traceId, spanId, sampled };
 }
@@ -544,9 +550,9 @@ export function generateTraceParent(context: SpanContext): string {
  * Extract trace context from headers.
  */
 export function extractTraceContext(
-  headers: Record<string, string | undefined>
+  headers: Record<string, string | undefined>,
 ): SpanContext | null {
-  const traceParent = headers[TRACE_PARENT_HEADER] ?? headers["traceparent"];
+  const traceParent = headers[TRACE_PARENT_HEADER] ?? headers.traceparent;
   if (!traceParent) return null;
 
   return parseTraceParent(traceParent);
@@ -555,10 +561,7 @@ export function extractTraceContext(
 /**
  * Inject trace context into headers.
  */
-export function injectTraceContext(
-  context: SpanContext,
-  headers: Record<string, string>
-): void {
+export function injectTraceContext(context: SpanContext, headers: Record<string, string>): void {
   headers[TRACE_PARENT_HEADER] = generateTraceParent(context);
 }
 

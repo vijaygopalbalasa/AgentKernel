@@ -1,0 +1,47 @@
+{
+  "name": "@agentkernel/langchain-adapter",
+  "version": "0.1.0",
+  "description": "LangChain adapter for AgentKernel — intercepts tool calls with PolicyEngine",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentkernel/runtime": "workspace:*"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.2.0"
+  },
+  "devDependencies": {
+    "@langchain/core": "^0.3.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.0.0",
+    "zod": "^3.25.76"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": ["agentkernel", "langchain", "adapter", "security", "agent", "policy"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel",
+    "directory": "packages/langchain-adapter"
+  },
+  "homepage": "https://github.com/vijaygopalbalasa/AgentKernel#readme",
+  "bugs": {
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel/issues"
+  }
+}

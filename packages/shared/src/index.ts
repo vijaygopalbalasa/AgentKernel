@@ -1,12 +1,22 @@
 // @agentkernel/shared — Shared types, utils, and constants
 
 // ─── Result Type (no try/catch for business logic) ───
-export interface Ok<T> { readonly ok: true; readonly value: T }
-export interface Err<E> { readonly ok: false; readonly error: E }
+export interface Ok<T> {
+  readonly ok: true;
+  readonly value: T;
+}
+export interface Err<E> {
+  readonly ok: false;
+  readonly error: E;
+}
 export type Result<T, E = Error> = Ok<T> | Err<E>;
 
-export function ok<T>(value: T): Ok<T> { return { ok: true, value }; }
-export function err<E>(error: E): Err<E> { return { ok: false, error }; }
+export function ok<T>(value: T): Ok<T> {
+  return { ok: true, value };
+}
+export function err<E>(error: E): Err<E> {
+  return { ok: false, error };
+}
 
 // ─── Agent Identity ───
 export interface AgentId {
@@ -83,13 +93,7 @@ export interface McpServerConfig {
 }
 
 // ─── Agent Lifecycle States ───
-export type AgentState =
-  | "initializing"
-  | "ready"
-  | "running"
-  | "paused"
-  | "error"
-  | "terminated";
+export type AgentState = "initializing" | "ready" | "running" | "paused" | "error" | "terminated";
 
 // ─── Provider Types ───
 export interface LlmProvider {

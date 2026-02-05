@@ -7,6 +7,17 @@
   "exports": { ".": "./dist/index.js" },
   "types": "./dist/index.d.ts",
   "engines": { "node": ">=20.0.0" },
+  "files": ["dist", "README.md"],
+  "keywords": ["agentkernel", "kernel", "database", "logging", "security", "agent"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel",
+    "directory": "packages/kernel"
+  },
+  "homepage": "https://github.com/vijaygopalbalasa/AgentKernel#readme",
+  "bugs": {
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel/issues"
+  },
   "dependencies": {
     "@agentkernel/shared": "workspace:*",
     "@qdrant/js-client-rest": "^1.13.0",

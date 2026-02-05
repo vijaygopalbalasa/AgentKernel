@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  AdapterRegistry,
-  defaultAdapterRegistry,
-  type AgentAdapter,
   type AdapterConfig,
   type AdapterMessage,
+  AdapterRegistry,
   type AdapterResponse,
   type AdapterState,
+  type AgentAdapter,
+  defaultAdapterRegistry,
 } from "../adapter.js";
 import { AgentSandbox, type Capability } from "../sandbox.js";
 
@@ -49,7 +49,10 @@ class MockAdapter implements AgentAdapter {
 
   async handleMessage(message: AdapterMessage): Promise<AdapterResponse> {
     if (this._state !== "running") {
-      return { type: "error", payload: { message: `Adapter is not running (state: ${this._state})` } };
+      return {
+        type: "error",
+        payload: { message: `Adapter is not running (state: ${this._state})` },
+      };
     }
     return { type: "echo", payload: message.payload };
   }
@@ -330,12 +333,14 @@ describe("AgentAdapter capabilities", () => {
 describe("AgentAdapter error handling", () => {
   it("should transition to error state on load failure", async () => {
     const adapter = new FailingAdapter();
-    await expect(adapter.load({
-      configPath: "/nonexistent",
-      workingDirectory: "/tmp",
-      env: {},
-      options: {},
-    })).rejects.toThrow("Configuration is invalid");
+    await expect(
+      adapter.load({
+        configPath: "/nonexistent",
+        workingDirectory: "/tmp",
+        env: {},
+        options: {},
+      }),
+    ).rejects.toThrow("Configuration is invalid");
     expect(adapter.state).toBe("error");
   });
 });

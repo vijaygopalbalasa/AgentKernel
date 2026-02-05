@@ -2,23 +2,23 @@
 // Implements OWASP 2026 continuous explainability requirement
 
 import type { AgentId, ResourceUsage } from "./agent-context.js";
-import type { AgentState, StateTransition } from "./state-machine.js";
 import type { Capability } from "./sandbox.js";
+import type { AgentState, StateTransition } from "./state-machine.js";
 
 /** Audit event severity levels */
 export type AuditSeverity = "debug" | "info" | "warn" | "error" | "critical";
 
 /** Audit event categories */
 export type AuditCategory =
-  | "lifecycle"      // Agent lifecycle events (spawn, terminate)
-  | "state"          // State transitions
-  | "permission"     // Permission checks and grants
-  | "resource"       // Resource usage and limits
-  | "security"       // Security-related events
-  | "communication"  // Agent-to-agent communication
-  | "tool"           // Tool/MCP invocations
-  | "error"          // Errors and exceptions
-  | "system";        // System-level events
+  | "lifecycle" // Agent lifecycle events (spawn, terminate)
+  | "state" // State transitions
+  | "permission" // Permission checks and grants
+  | "resource" // Resource usage and limits
+  | "security" // Security-related events
+  | "communication" // Agent-to-agent communication
+  | "tool" // Tool/MCP invocations
+  | "error" // Errors and exceptions
+  | "system"; // System-level events
 
 /** Base audit event structure */
 export interface AuditEvent {
@@ -174,7 +174,7 @@ export class MemoryAuditSink implements AuditSink {
   private events: AuditEvent[] = [];
   private readonly maxEvents: number;
 
-  constructor(maxEvents: number = 10000) {
+  constructor(maxEvents = 10000) {
     this.maxEvents = maxEvents;
   }
 
@@ -209,9 +209,7 @@ export class MemoryAuditSink implements AuditSink {
 
   /** Get events in time range */
   getInTimeRange(from: Date, to: Date): AuditEvent[] {
-    return this.events.filter(
-      (e) => e.timestamp >= from && e.timestamp <= to
-    );
+    return this.events.filter((e) => e.timestamp >= from && e.timestamp <= to);
   }
 
   /** Clear all events */
@@ -240,7 +238,7 @@ export class FileAuditSink implements AuditSink {
     options: {
       flushIntervalMs?: number;
       maxBufferSize?: number;
-    } = {}
+    } = {},
   ) {
     this.filePath = filePath;
     this.flushIntervalMs = options.flushIntervalMs ?? 5000;
@@ -271,8 +269,8 @@ export class FileAuditSink implements AuditSink {
 
     // Chain writes to ensure ordering
     this.writePromise = this.writePromise.then(async () => {
-      const { appendFile, mkdir } = await import("fs/promises");
-      const { dirname } = await import("path");
+      const { appendFile, mkdir } = await import("node:fs/promises");
+      const { dirname } = await import("node:path");
 
       // Ensure directory exists
       if (!this.dirEnsured) {
@@ -280,7 +278,7 @@ export class FileAuditSink implements AuditSink {
         this.dirEnsured = true;
       }
 
-      const lines = toWrite.map((e) => JSON.stringify(e)).join("\n") + "\n";
+      const lines = `${toWrite.map((e) => JSON.stringify(e)).join("\n")}\n`;
       await appendFile(this.filePath, lines, "utf-8");
     });
 
@@ -336,7 +334,7 @@ export class DatabaseAuditSink implements AuditSink {
       flushIntervalMs?: number;
       /** Maximum buffer size before auto-flush (default: 100) */
       maxBufferSize?: number;
-    } = {}
+    } = {},
   ) {
     this.writer = writer;
     this.flushIntervalMs = options.flushIntervalMs ?? 5000;
@@ -540,7 +538,7 @@ export class AuditLogger {
   lifecycle(
     agentId: AgentId,
     data: LifecycleAuditData,
-    options: { severity?: AuditSeverity; traceId?: string } = {}
+    options: { severity?: AuditSeverity; traceId?: string } = {},
   ): void {
     this.log({
       severity: options.severity ?? "info",
@@ -556,7 +554,7 @@ export class AuditLogger {
   stateTransition(
     agentId: AgentId,
     transition: StateTransition,
-    options: { traceId?: string } = {}
+    options: { traceId?: string } = {},
   ): void {
     this.log({
       severity: "info",
@@ -577,7 +575,7 @@ export class AuditLogger {
   permission(
     agentId: AgentId,
     data: PermissionAuditData,
-    options: { traceId?: string } = {}
+    options: { traceId?: string } = {},
   ): void {
     const severity = data.allowed === false ? "warn" : "debug";
     this.log({
@@ -591,11 +589,7 @@ export class AuditLogger {
   }
 
   /** Log resource usage/warning */
-  resource(
-    agentId: AgentId,
-    data: ResourceAuditData,
-    options: { traceId?: string } = {}
-  ): void {
+  resource(agentId: AgentId, data: ResourceAuditData, options: { traceId?: string } = {}): void {
     let severity: AuditSeverity = "debug";
     if (data.type === "limit_warning") severity = "warn";
     if (data.type === "limit_exceeded" || data.type === "budget_alert") severity = "error";
@@ -614,7 +608,7 @@ export class AuditLogger {
   security(
     agentId: AgentId | undefined,
     data: SecurityAuditData,
-    options: { traceId?: string } = {}
+    options: { traceId?: string } = {},
   ): void {
     const severityMap: Record<SecurityAuditData["severity"], AuditSeverity> = {
       low: "info",
@@ -635,11 +629,7 @@ export class AuditLogger {
   }
 
   /** Log tool invocation */
-  tool(
-    agentId: AgentId,
-    data: ToolAuditData,
-    options: { traceId?: string } = {}
-  ): void {
+  tool(agentId: AgentId, data: ToolAuditData, options: { traceId?: string } = {}): void {
     const severity = data.action === "error" ? "error" : "info";
     this.log({
       severity,
@@ -655,7 +645,7 @@ export class AuditLogger {
   communication(
     agentId: AgentId,
     data: CommunicationAuditData,
-    options: { traceId?: string } = {}
+    options: { traceId?: string } = {},
   ): void {
     this.log({
       severity: "info",
@@ -675,7 +665,7 @@ export class AuditLogger {
       agentId?: AgentId;
       traceId?: string;
       category?: AuditCategory;
-    } = {}
+    } = {},
   ): void {
     const data: Record<string, unknown> = {
       errorName: error.name,
@@ -700,7 +690,7 @@ export class AuditLogger {
   system(
     message: string,
     data?: Record<string, unknown>,
-    options: { severity?: AuditSeverity; traceId?: string } = {}
+    options: { severity?: AuditSeverity; traceId?: string } = {},
   ): void {
     this.log({
       severity: options.severity ?? "info",
@@ -718,7 +708,7 @@ export class AuditLogger {
         if (sink.flush) {
           await sink.flush();
         }
-      })
+      }),
     );
   }
 
@@ -729,7 +719,7 @@ export class AuditLogger {
         if (sink.close) {
           await sink.close();
         }
-      })
+      }),
     );
   }
 }
@@ -756,9 +746,7 @@ export interface CreateAuditLoggerOptions {
  * Create an audit logger with default sinks.
  * Supports console, file, memory, and database sinks.
  */
-export function createAuditLogger(
-  options: CreateAuditLoggerOptions = {}
-): AuditLogger {
+export function createAuditLogger(options: CreateAuditLoggerOptions = {}): AuditLogger {
   const sinks: AuditSink[] = [];
 
   // Always add memory sink for programmatic access
@@ -780,7 +768,7 @@ export function createAuditLogger(
       new DatabaseAuditSink(options.databaseWriter, {
         flushIntervalMs: options.databaseFlushIntervalMs,
         maxBufferSize: options.databaseBufferSize,
-      })
+      }),
     );
   }
 

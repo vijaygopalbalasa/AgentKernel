@@ -57,11 +57,7 @@ export class DegradationManager {
   /**
    * Register a service with health check and fallback.
    */
-  registerService(
-    name: string,
-    healthCheck: () => Promise<boolean>,
-    fallback?: () => void
-  ): void {
+  registerService(name: string, healthCheck: () => Promise<boolean>, fallback?: () => void): void {
     this.healthChecks.set(name, healthCheck);
     if (fallback) {
       this.fallbacks.set(name, fallback);
@@ -113,17 +109,15 @@ export class DegradationManager {
    * Check all registered services.
    */
   async checkAllServices(): Promise<void> {
-    const checks = Array.from(this.healthChecks.entries()).map(
-      async ([name, check]) => {
-        try {
-          const healthy = await check();
-          this.updateServiceStatus(name, healthy, healthy ? undefined : "Health check failed");
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          this.updateServiceStatus(name, false, message);
-        }
+    const checks = Array.from(this.healthChecks.entries()).map(async ([name, check]) => {
+      try {
+        const healthy = await check();
+        this.updateServiceStatus(name, healthy, healthy ? undefined : "Health check failed");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.updateServiceStatus(name, false, message);
       }
-    );
+    });
 
     await Promise.all(checks);
     this.updateDegradationLevel();
@@ -149,7 +143,11 @@ export class DegradationManager {
 
     // Log status changes
     if (wasAvailable && !available) {
-      log.warn("Service became unavailable", { name, error, fallbackActive: status.fallbackActive });
+      log.warn("Service became unavailable", {
+        name,
+        error,
+        fallbackActive: status.fallbackActive,
+      });
 
       // Activate fallback if available
       const fallback = this.fallbacks.get(name);
@@ -171,7 +169,7 @@ export class DegradationManager {
    */
   private updateDegradationLevel(): void {
     const unavailableCount = Array.from(this.state.services.values()).filter(
-      (s) => !s.available
+      (s) => !s.available,
     ).length;
 
     const previousLevel = this.state.level;
@@ -186,9 +184,8 @@ export class DegradationManager {
     if (newLevel !== previousLevel) {
       this.state.level = newLevel;
       this.state.startedAt = newLevel === "normal" ? undefined : new Date();
-      this.state.reason = unavailableCount > 0
-        ? `${unavailableCount} service(s) unavailable`
-        : undefined;
+      this.state.reason =
+        unavailableCount > 0 ? `${unavailableCount} service(s) unavailable` : undefined;
 
       log.warn("Degradation level changed", {
         from: previousLevel,
@@ -285,7 +282,7 @@ export function resetDegradationManager(): void {
 export async function withFallback<T>(
   primary: () => Promise<T>,
   fallback: () => Promise<T>,
-  serviceName: string
+  serviceName: string,
 ): Promise<T> {
   try {
     return await primary();
@@ -304,7 +301,7 @@ export async function withFallback<T>(
 export async function withCachedFallback<T>(
   primary: () => Promise<T>,
   getCache: () => T | undefined,
-  serviceName: string
+  serviceName: string,
 ): Promise<T> {
   try {
     return await primary();

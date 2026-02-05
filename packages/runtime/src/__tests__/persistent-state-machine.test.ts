@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Database, Logger } from "@agentkernel/kernel";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PersistentStateMachine,
   createPersistentStateMachine,
 } from "../persistent-state-machine.js";
-import type { Database, Logger } from "@agentkernel/kernel";
 
 // Mock logger
 const mockLogger: Logger = {
@@ -19,10 +19,7 @@ const mockLogger: Logger = {
 };
 
 // Mock database factory
-function createMockDatabase(
-  queryOneResult: unknown = null,
-  queryResult: unknown[] = []
-): Database {
+function createMockDatabase(queryOneResult: unknown = null, queryResult: unknown[] = []): Database {
   return {
     query: vi.fn().mockResolvedValue(queryResult),
     queryOne: vi.fn().mockResolvedValue(queryOneResult),
@@ -174,10 +171,7 @@ describe("PersistentStateMachine", () => {
         },
       ];
 
-      const db = createMockDatabase(
-        { id: "test-agent", state: "ready" },
-        historyRows
-      );
+      const db = createMockDatabase({ id: "test-agent", state: "ready" }, historyRows);
 
       const machine = await createPersistentStateMachine({
         agentId: "test-agent",
@@ -196,9 +190,7 @@ describe("PersistentStateMachine", () => {
 
     it("should fall back gracefully on database error during init", async () => {
       const db = createMockDatabase();
-      (db.queryOne as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error("Connection failed")
-      );
+      (db.queryOne as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Connection failed"));
 
       const machine = await createPersistentStateMachine({
         agentId: "test-agent",
@@ -214,7 +206,7 @@ describe("PersistentStateMachine", () => {
     it("should fall back gracefully on database error during transition", async () => {
       const db = createMockDatabase({ id: "test-agent", state: "created" });
       (db.transaction as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error("Transaction failed")
+        new Error("Transaction failed"),
       );
 
       const machine = await createPersistentStateMachine({

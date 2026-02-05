@@ -1,12 +1,12 @@
 // Scheduler tests
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  Scheduler,
+  JobConfigSchema,
+  type JobExecutionResult,
+  type Scheduler,
   createScheduler,
   getScheduler,
   resetScheduler,
-  JobConfigSchema,
-  type JobExecutionResult,
 } from "./scheduler.js";
 
 describe("Scheduler", () => {
@@ -23,10 +23,7 @@ describe("Scheduler", () => {
 
   describe("register", () => {
     it("should register a job", () => {
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 1000 },
-        () => {}
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 1000 }, () => {});
 
       const job = scheduler.getJob("test-job");
       expect(job).toBeDefined();
@@ -39,14 +36,8 @@ describe("Scheduler", () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
 
-      scheduler.register(
-        { id: "test-job", name: "Test Job 1", intervalMs: 1000 },
-        handler1
-      );
-      scheduler.register(
-        { id: "test-job", name: "Test Job 2", intervalMs: 2000 },
-        handler2
-      );
+      scheduler.register({ id: "test-job", name: "Test Job 1", intervalMs: 1000 }, handler1);
+      scheduler.register({ id: "test-job", name: "Test Job 2", intervalMs: 2000 }, handler2);
 
       const job = scheduler.getJob("test-job");
       expect(job?.config.name).toBe("Test Job 2");
@@ -64,10 +55,7 @@ describe("Scheduler", () => {
 
   describe("unregister", () => {
     it("should unregister a job", () => {
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 1000 },
-        () => {}
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 1000 }, () => {});
 
       const result = scheduler.unregister("test-job");
 
@@ -97,7 +85,7 @@ describe("Scheduler", () => {
       const handler = vi.fn();
       scheduler.register(
         { id: "test-job", name: "Test Job", intervalMs: 50, runImmediately: true },
-        handler
+        handler,
       );
 
       scheduler.start();
@@ -110,7 +98,7 @@ describe("Scheduler", () => {
       const handler = vi.fn();
       scheduler.register(
         { id: "test-job", name: "Test Job", intervalMs: 50, enabled: false, runImmediately: true },
-        handler
+        handler,
       );
 
       scheduler.start();
@@ -122,10 +110,7 @@ describe("Scheduler", () => {
 
   describe("pause/resume", () => {
     it("should pause a job", () => {
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 1000 },
-        () => {}
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 1000 }, () => {});
       scheduler.start();
 
       const result = scheduler.pause("test-job");
@@ -135,10 +120,7 @@ describe("Scheduler", () => {
     });
 
     it("should resume a paused job", () => {
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 1000 },
-        () => {}
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 1000 }, () => {});
       scheduler.start();
       scheduler.pause("test-job");
 
@@ -158,10 +140,7 @@ describe("Scheduler", () => {
   describe("trigger", () => {
     it("should trigger immediate job execution", async () => {
       const handler = vi.fn();
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 10000 },
-        handler
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 10000 }, handler);
 
       const result = await scheduler.trigger("test-job");
 
@@ -180,10 +159,7 @@ describe("Scheduler", () => {
       const handler = vi.fn(() => {
         throw new Error("Test error");
       });
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 10000 },
-        handler
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 10000 }, handler);
 
       const result = await scheduler.trigger("test-job");
 
@@ -195,10 +171,7 @@ describe("Scheduler", () => {
   describe("job execution", () => {
     it("should run jobs at specified interval", async () => {
       const handler = vi.fn();
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 50 },
-        handler
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 50 }, handler);
 
       scheduler.start();
       await new Promise((resolve) => setTimeout(resolve, 180));
@@ -207,10 +180,7 @@ describe("Scheduler", () => {
     });
 
     it("should track run count", async () => {
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 50 },
-        () => {}
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 50 }, () => {});
       scheduler.start();
       await new Promise((resolve) => setTimeout(resolve, 180));
 
@@ -221,7 +191,7 @@ describe("Scheduler", () => {
     it("should track last run time", async () => {
       scheduler.register(
         { id: "test-job", name: "Test Job", intervalMs: 50, runImmediately: true },
-        () => {}
+        () => {},
       );
       scheduler.start();
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -237,7 +207,7 @@ describe("Scheduler", () => {
         () => {
           callCount++;
           throw new Error("Intentional failure");
-        }
+        },
       );
 
       await scheduler.trigger("test-job");
@@ -253,7 +223,7 @@ describe("Scheduler", () => {
         { id: "test-job", name: "Test Job", intervalMs: 10000, maxConsecutiveFailures: 2 },
         () => {
           throw new Error("Failure");
-        }
+        },
       );
 
       await scheduler.trigger("test-job");
@@ -269,7 +239,7 @@ describe("Scheduler", () => {
         { id: "test-job", name: "Test Job", intervalMs: 10000, maxConsecutiveFailures: 3 },
         () => {
           if (shouldFail) throw new Error("Failure");
-        }
+        },
       );
 
       await scheduler.trigger("test-job");
@@ -284,10 +254,7 @@ describe("Scheduler", () => {
   describe("event listeners", () => {
     it("should notify listeners on job execution", async () => {
       const results: JobExecutionResult[] = [];
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 10000 },
-        () => {}
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 10000 }, () => {});
       scheduler.onExecution((result) => results.push(result));
 
       await scheduler.trigger("test-job");
@@ -299,10 +266,7 @@ describe("Scheduler", () => {
 
     it("should allow unsubscribing", async () => {
       const results: JobExecutionResult[] = [];
-      scheduler.register(
-        { id: "test-job", name: "Test Job", intervalMs: 10000 },
-        () => {}
-      );
+      scheduler.register({ id: "test-job", name: "Test Job", intervalMs: 10000 }, () => {});
       const unsubscribe = scheduler.onExecution((result) => results.push(result));
 
       unsubscribe();
@@ -330,7 +294,7 @@ describe("Scheduler", () => {
       const handler = vi.fn();
       scheduler.register(
         { id: "test-job", name: "Test Job", intervalMs: 10000, runImmediately: true },
-        handler
+        handler,
       );
 
       scheduler.start();
@@ -345,7 +309,7 @@ describe("Scheduler", () => {
       const handler = vi.fn();
       scheduler.register(
         { id: "test-job", name: "Test Job", intervalMs: 1000, initialDelayMs: 100 },
-        handler
+        handler,
       );
 
       scheduler.start();

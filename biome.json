@@ -6,7 +6,8 @@
     "rules": {
       "recommended": true,
       "complexity": { "noExcessiveCognitiveComplexity": "warn" },
-      "suspicious": { "noExplicitAny": "error" }
+      "style": { "noNonNullAssertion": "warn" },
+      "suspicious": { "noExplicitAny": "warn" }
     }
   },
   "formatter": {

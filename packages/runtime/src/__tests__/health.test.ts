@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ResourceLimits, ResourceUsage } from "../agent-context.js";
 import {
+  DEFAULT_HEALTH_THRESHOLDS,
+  type HealthCheckResult,
+  type HealthMetrics,
   HealthMonitor,
   createHealthMonitor,
-  type HealthMetrics,
-  type HealthCheckResult,
-  DEFAULT_HEALTH_THRESHOLDS,
 } from "../health.js";
-import type { ResourceUsage, ResourceLimits } from "../agent-context.js";
 
 const createTestMetrics = (overrides: Partial<HealthMetrics> = {}): HealthMetrics => ({
   agentId: "agent-1",
@@ -70,65 +70,81 @@ describe("HealthMonitor", () => {
     });
 
     it("should check token usage", () => {
-      const normalResult = monitor.check(createTestMetrics({
-        usage: {
-          ...createTestMetrics().usage,
-          tokensThisMinute: 50000, // 50% of limit
-        },
-      }));
+      const normalResult = monitor.check(
+        createTestMetrics({
+          usage: {
+            ...createTestMetrics().usage,
+            tokensThisMinute: 50000, // 50% of limit
+          },
+        }),
+      );
       expect(normalResult.checks.find((c) => c.name === "token_usage")?.passed).toBe(true);
 
-      const warningResult = monitor.check(createTestMetrics({
-        usage: {
-          ...createTestMetrics().usage,
-          tokensThisMinute: 75000, // 75% of limit (above warning threshold)
-        },
-      }));
+      const warningResult = monitor.check(
+        createTestMetrics({
+          usage: {
+            ...createTestMetrics().usage,
+            tokensThisMinute: 75000, // 75% of limit (above warning threshold)
+          },
+        }),
+      );
       expect(warningResult.checks.find((c) => c.name === "token_usage")?.passed).toBe(false);
       expect(warningResult.checks.find((c) => c.name === "token_usage")?.severity).toBe("warning");
 
-      const criticalResult = monitor.check(createTestMetrics({
-        usage: {
-          ...createTestMetrics().usage,
-          tokensThisMinute: 95000, // 95% of limit (above critical threshold)
-        },
-      }));
-      expect(criticalResult.checks.find((c) => c.name === "token_usage")?.severity).toBe("critical");
+      const criticalResult = monitor.check(
+        createTestMetrics({
+          usage: {
+            ...createTestMetrics().usage,
+            tokensThisMinute: 95000, // 95% of limit (above critical threshold)
+          },
+        }),
+      );
+      expect(criticalResult.checks.find((c) => c.name === "token_usage")?.severity).toBe(
+        "critical",
+      );
     });
 
     it("should check memory usage", () => {
-      const normalResult = monitor.check(createTestMetrics({
-        usage: {
-          ...createTestMetrics().usage,
-          currentMemoryMB: 200, // ~40% of 512MB limit
-        },
-      }));
+      const normalResult = monitor.check(
+        createTestMetrics({
+          usage: {
+            ...createTestMetrics().usage,
+            currentMemoryMB: 200, // ~40% of 512MB limit
+          },
+        }),
+      );
       expect(normalResult.checks.find((c) => c.name === "memory_usage")?.passed).toBe(true);
 
-      const warningResult = monitor.check(createTestMetrics({
-        usage: {
-          ...createTestMetrics().usage,
-          currentMemoryMB: 400, // ~78% of 512MB limit
-        },
-      }));
+      const warningResult = monitor.check(
+        createTestMetrics({
+          usage: {
+            ...createTestMetrics().usage,
+            currentMemoryMB: 400, // ~78% of 512MB limit
+          },
+        }),
+      );
       expect(warningResult.checks.find((c) => c.name === "memory_usage")?.passed).toBe(false);
     });
 
     it("should check cost budget", () => {
-      const normalResult = monitor.check(createTestMetrics({
-        usage: {
-          ...createTestMetrics().usage,
-          estimatedCostUSD: 5, // 50% of $10 limit
-        },
-      }));
+      const normalResult = monitor.check(
+        createTestMetrics({
+          usage: {
+            ...createTestMetrics().usage,
+            estimatedCostUSD: 5, // 50% of $10 limit
+          },
+        }),
+      );
       expect(normalResult.checks.find((c) => c.name === "cost_budget")?.passed).toBe(true);
 
-      const warningResult = monitor.check(createTestMetrics({
-        usage: {
-          ...createTestMetrics().usage,
-          estimatedCostUSD: 8.5, // 85% of $10 limit
-        },
-      }));
+      const warningResult = monitor.check(
+        createTestMetrics({
+          usage: {
+            ...createTestMetrics().usage,
+            estimatedCostUSD: 8.5, // 85% of $10 limit
+          },
+        }),
+      );
       expect(warningResult.checks.find((c) => c.name === "cost_budget")?.passed).toBe(false);
     });
 
@@ -136,39 +152,49 @@ describe("HealthMonitor", () => {
       const activeResult = monitor.check(createTestMetrics({ idleSeconds: 60 }));
       expect(activeResult.checks.find((c) => c.name === "idle_time")?.passed).toBe(true);
 
-      const warningResult = monitor.check(createTestMetrics({
-        idleSeconds: DEFAULT_HEALTH_THRESHOLDS.maxIdleTimeWarning + 60,
-      }));
+      const warningResult = monitor.check(
+        createTestMetrics({
+          idleSeconds: DEFAULT_HEALTH_THRESHOLDS.maxIdleTimeWarning + 60,
+        }),
+      );
       expect(warningResult.checks.find((c) => c.name === "idle_time")?.passed).toBe(false);
     });
 
     it("should check error rate", () => {
-      const normalResult = monitor.check(createTestMetrics({
-        errorCountLastHour: 1,
-        successRateLastHour: 0.95,
-      }));
+      const normalResult = monitor.check(
+        createTestMetrics({
+          errorCountLastHour: 1,
+          successRateLastHour: 0.95,
+        }),
+      );
       expect(normalResult.checks.find((c) => c.name === "error_rate")?.passed).toBe(true);
 
-      const warningResult = monitor.check(createTestMetrics({
-        errorCountLastHour: 5,
-        successRateLastHour: 0.85, // 15% error rate
-      }));
+      const warningResult = monitor.check(
+        createTestMetrics({
+          errorCountLastHour: 5,
+          successRateLastHour: 0.85, // 15% error rate
+        }),
+      );
       expect(warningResult.checks.find((c) => c.name === "error_rate")?.passed).toBe(false);
 
-      const criticalResult = monitor.check(createTestMetrics({
-        errorCountLastHour: 10,
-        successRateLastHour: 0.6, // 40% error rate
-      }));
+      const criticalResult = monitor.check(
+        createTestMetrics({
+          errorCountLastHour: 10,
+          successRateLastHour: 0.6, // 40% error rate
+        }),
+      );
       expect(criticalResult.checks.find((c) => c.name === "error_rate")?.severity).toBe("critical");
     });
 
     it("should include recommendations for failed checks", () => {
-      const result = monitor.check(createTestMetrics({
-        usage: {
-          ...createTestMetrics().usage,
-          tokensThisMinute: 95000,
-        },
-      }));
+      const result = monitor.check(
+        createTestMetrics({
+          usage: {
+            ...createTestMetrics().usage,
+            tokensThisMinute: 95000,
+          },
+        }),
+      );
 
       expect(result.recommendations.length).toBeGreaterThan(0);
     });
@@ -186,9 +212,11 @@ describe("HealthMonitor", () => {
     });
 
     it("should return degraded when there are warnings", () => {
-      const result = monitor.check(createTestMetrics({
-        idleSeconds: DEFAULT_HEALTH_THRESHOLDS.maxIdleTimeWarning + 60,
-      }));
+      const result = monitor.check(
+        createTestMetrics({
+          idleSeconds: DEFAULT_HEALTH_THRESHOLDS.maxIdleTimeWarning + 60,
+        }),
+      );
       expect(result.status).toBe("degraded");
     });
 
@@ -262,7 +290,7 @@ describe("HealthMonitor", () => {
         expect.objectContaining({
           type: "check",
           agentId: "agent-1",
-        })
+        }),
       );
     });
 
@@ -281,7 +309,7 @@ describe("HealthMonitor", () => {
           type: "status_change",
           previousStatus: "healthy",
           newStatus: "unhealthy",
-        })
+        }),
       );
     });
 

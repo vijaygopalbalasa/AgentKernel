@@ -22,6 +22,10 @@
     "url": "https://github.com/vijaygopalbalasa/AgentKernel",
     "directory": "packages/shared"
   },
+  "homepage": "https://github.com/vijaygopalbalasa/AgentKernel#readme",
+  "bugs": {
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel/issues"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "test": "vitest run",

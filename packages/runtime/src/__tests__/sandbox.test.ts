@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AgentSandbox,
-  SandboxRegistry,
   type Capability,
-  DEFAULT_CAPABILITIES,
   DANGEROUS_CAPABILITIES,
+  DEFAULT_CAPABILITIES,
   DEFAULT_SANDBOX_CONFIG,
+  SandboxRegistry,
 } from "../sandbox.js";
 
 describe("AgentSandbox", () => {

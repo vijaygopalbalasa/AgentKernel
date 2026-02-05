@@ -38,3 +38,23 @@ export {
 } from "./default-policy.js";
 
 export { loadOpenClawProxyConfigFromEnv } from "./config.js";
+
+export {
+  resolveTarget,
+  resolveTypedTarget,
+  loadSimplifiedPolicy,
+  saveSimplifiedPolicy,
+  simplifiedToRuntimeFormat,
+  addAllowRule,
+  addBlockRule,
+  removeRules,
+  summarizePolicy,
+  testPolicy,
+  generatePolicyFromTemplate,
+  type PolicyTemplate,
+  type ResolvedTarget,
+  type SimplifiedPolicyYaml,
+  type PolicySummary,
+  type TestResult,
+  type InitOptions,
+} from "./policy-manager.js";

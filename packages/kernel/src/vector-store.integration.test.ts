@@ -2,10 +2,10 @@
 // Requires: docker compose -f docker/docker-compose.test.yml up -d
 // Run with: vitest run src/vector-store.integration.test.ts
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createVectorStore, type VectorStore, type VectorPoint } from "./vector-store.js";
-import { createLogger } from "./logger.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { QdrantConfig } from "./config.js";
+import { createLogger } from "./logger.js";
+import { type VectorPoint, type VectorStore, createVectorStore } from "./vector-store.js";
 
 const VECTOR_SIZE = 128; // Small for fast tests
 const TEST_COLLECTION = `test_integration_${Date.now()}`;
@@ -49,7 +49,7 @@ describe("Vector Store Integration Tests (Real Qdrant)", () => {
     available = await isQdrantAvailable();
     if (!available) {
       console.warn(
-        "⚠ Qdrant not available at 127.0.0.1:6335. Run: docker compose -f docker/docker-compose.test.yml up -d"
+        "⚠ Qdrant not available at 127.0.0.1:6335. Run: docker compose -f docker/docker-compose.test.yml up -d",
       );
       return;
     }
@@ -107,10 +107,10 @@ describe("Vector Store Integration Tests (Real Qdrant)", () => {
 
     const retrieved = await store.get("test-point-1");
     expect(retrieved).not.toBeNull();
-    expect(retrieved!.id).toBe("test-point-1");
-    expect(retrieved!.payload.label).toBe("first-point");
-    expect(retrieved!.payload.score).toBe(42);
-    expect(retrieved!.vector).toHaveLength(VECTOR_SIZE);
+    expect(retrieved?.id).toBe("test-point-1");
+    expect(retrieved?.payload.label).toBe("first-point");
+    expect(retrieved?.payload.score).toBe(42);
+    expect(retrieved?.vector).toHaveLength(VECTOR_SIZE);
   });
 
   it("should upsert batch of points", async () => {
@@ -146,7 +146,7 @@ describe("Vector Store Integration Tests (Real Qdrant)", () => {
     });
 
     const point = await store.get(id);
-    expect(point!.payload.version).toBe(2);
+    expect(point?.payload.version).toBe(2);
   });
 
   it("should return null for non-existent point", async () => {
@@ -184,7 +184,7 @@ describe("Vector Store Integration Tests (Real Qdrant)", () => {
 
     // Results should be sorted by score descending
     for (let i = 1; i < results.length; i++) {
-      expect(results[i]!.score).toBeLessThanOrEqual(results[i - 1]!.score);
+      expect(results[i]?.score).toBeLessThanOrEqual(results[i - 1]?.score);
     }
   });
 
@@ -247,7 +247,7 @@ describe("Vector Store Integration Tests (Real Qdrant)", () => {
     if (!available) return;
     const ids = ["del-batch-1", "del-batch-2", "del-batch-3"];
     await store.upsertBatch(
-      ids.map((id) => ({ id, vector: randomVector(VECTOR_SIZE), payload: {} }))
+      ids.map((id) => ({ id, vector: randomVector(VECTOR_SIZE), payload: {} })),
     );
 
     const count = await store.deleteBatch(ids);

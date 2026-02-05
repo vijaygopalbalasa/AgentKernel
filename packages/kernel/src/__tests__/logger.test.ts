@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  initLogger,
-  createLogger,
-  getLogger,
-  flushLogs,
-  shutdownLogger,
-  isLevelEnabled,
   LOG_LEVELS,
   type Logger,
+  createLogger,
+  flushLogs,
+  getLogger,
+  initLogger,
+  isLevelEnabled,
+  shutdownLogger,
 } from "../logger.js";
 
 describe("Logger", () => {
@@ -15,7 +15,7 @@ describe("Logger", () => {
 
   beforeEach(() => {
     // Clear LOG_LEVEL so tests see real defaults and explicit configs
-    delete process.env.LOG_LEVEL;
+    Reflect.deleteProperty(process.env, "LOG_LEVEL");
   });
 
   afterEach(() => {

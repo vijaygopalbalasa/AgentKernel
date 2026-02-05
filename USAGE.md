@@ -1,54 +1,182 @@
 # Usage Guide
 
-This guide covers how to use AgentKernel CLI and programmatic APIs.
+This guide covers how to use the AgentKernel CLI and programmatic APIs.
 
-## CLI Commands
-
-The AgentKernel CLI (`agentkernel`) provides commands to run the security proxy, check status, and query audit logs.
-
-### Installation
+## CLI Installation
 
 ```bash
 # Global installation
-npm install -g @agentkernel/cli
+npm install -g agentkernel
 
 # Or run from the repository
-node packages/cli/dist/bin.js
+pnpm build
+node packages/agentkernel-cli/dist/cli.js --help
 ```
 
-### Available Commands
+## CLI Commands
 
 ```
 agentkernel <command> [options]
 
 Commands:
-  run       Start the security proxy
-  status    Check proxy health and database connectivity
-  audit     Query audit logs
+  init                    Interactive policy setup wizard
+  start                   Start the security proxy
+  allow <target>          Add an allow rule
+  block <target>          Add a block rule
+  unblock <target>        Remove block rules for a target
+  policy show             Display current policy summary
+  policy test             Test what the policy would do
+  status                  Check proxy health and database connectivity
+  audit                   Query audit logs
 
 Options:
-  -h, --help     Display help
-  -v, --version  Display version
+  -h, --help              Display help
+  -v, --version           Display version
 ```
 
 ---
 
-## `agentkernel run`
+## `agentkernel init`
+
+Interactive wizard to create a security policy. Asks for protection level, project folder, and dev tool preferences.
+
+```bash
+# Interactive mode (TTY)
+agentkernel init
+
+# Non-interactive mode
+agentkernel init --template balanced
+agentkernel init --template strict
+agentkernel init --template permissive
+```
+
+### Templates
+
+| Template | Default | Sensitive Files | Exfil Domains | Dev Tools | Dangerous Commands |
+|----------|---------|-----------------|---------------|-----------|-------------------|
+| **strict** | block | Blocked | Blocked | Opt-in | Blocked |
+| **balanced** | block | Blocked | Blocked | Allowed | Approval required |
+| **permissive** | allow | Blocked | Blocked | Allowed | Blocked |
+
+---
+
+## `agentkernel allow` / `block` / `unblock`
+
+Manage policy rules using natural language names or explicit flags.
+
+### By Name
+
+AgentKernel recognizes ~30 common targets:
+
+```bash
+# Networks
+agentkernel allow "github"          # *.github.com, api.github.com
+agentkernel allow "npm"             # *.npmjs.org, registry.npmjs.org
+agentkernel allow "openai"          # *.openai.com
+agentkernel allow "anthropic"       # *.anthropic.com
+agentkernel block "telegram"        # api.telegram.org, *.telegram.org
+agentkernel block "discord"         # discord.com, discordapp.com
+agentkernel block "pastebin"        # pastebin.com
+agentkernel block "ngrok"           # *.ngrok.io, *.ngrok-free.app
+
+# Files
+agentkernel block "ssh keys"        # **/.ssh/**
+agentkernel block "aws credentials" # **/.aws/**
+agentkernel block "env files"       # **/.env, **/.env.*
+agentkernel block "crypto wallets"  # Exodus, Electrum, Bitcoin
+agentkernel block "browser data"    # Login Data, Cookies
+
+# Commands
+agentkernel block "reverse shells"  # bash -i, nc -e, python pty.spawn
+agentkernel block "download execute"  # curl|bash, wget|sh
+```
+
+### By Explicit Type
+
+```bash
+agentkernel allow --domain api.example.com
+agentkernel allow --file ~/my-project
+agentkernel block --command "rm -rf*"
+agentkernel unblock "telegram"       # Removes block rules (warns if malicious)
+```
+
+### Heuristic Detection
+
+If no flag is given and the target isn't a known name, AgentKernel detects the type:
+- Paths starting with `/`, `~`, or `./` become **file** rules
+- Values with dots and no spaces become **domain** rules
+- Everything else becomes **command** rules
+
+---
+
+## `agentkernel policy show`
+
+Display a human-readable summary of the current policy.
+
+```bash
+agentkernel policy show
+```
+
+Output:
+```
+AgentKernel Policy Summary
+==========================
+Template: balanced
+Default: block
+
+Blocked Files (8):
+  - **/.ssh/**              SSH credentials
+  - **/.aws/**              AWS credentials
+  - **/.env                 Environment secrets
+  ...
+
+Allowed Files (3):
+  - ~/my-project/**         Your project folder
+  - /tmp/**                 Temp files
+  - ./**                    Current directory
+
+Blocked Domains (12):
+  - api.telegram.org        Telegram - exfil channel
+  - discord.com             Discord - exfil channel
+  ...
+
+Allowed Domains (10):
+  - *.npmjs.org             NPM Registry
+  - api.github.com          GitHub API
+  ...
+```
+
+## `agentkernel policy test`
+
+Dry-run a policy check without actually executing anything.
+
+```bash
+agentkernel policy test --domain api.telegram.org
+# Output: BLOCKED — Matched rule: Telegram - exfil channel
+
+agentkernel policy test --file ~/.ssh/id_rsa
+# Output: BLOCKED — Matched rule: SSH credentials
+
+agentkernel policy test --domain api.github.com
+# Output: ALLOWED — Matched rule: GitHub API
+```
+
+---
+
+## `agentkernel start`
 
 Start the security proxy to intercept and enforce policies on agent tool calls.
 
-### Synopsis
-
 ```bash
-agentkernel run [options]
+agentkernel start [options]
 ```
 
 ### Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-c, --config <path>` | Path to policy YAML/JSON config file | None |
 | `-p, --port <number>` | Port to listen on | `18788` |
+| `-g, --gateway <url>` | Gateway URL to connect to | None |
 | `--audit-db` | Enable PostgreSQL audit logging | Disabled |
 | `--db-url <url>` | PostgreSQL connection URL | `$DATABASE_URL` |
 | `--verbose` | Enable verbose logging | Disabled |
@@ -57,16 +185,13 @@ agentkernel run [options]
 
 ```bash
 # Start with default settings
-agentkernel run
+agentkernel start
 
-# Start with custom policy file
-agentkernel run --config ./policy.yaml
+# Start with custom port
+agentkernel start --port 8080
 
 # Start with PostgreSQL audit logging
-agentkernel run --audit-db --db-url postgresql://user:pass@localhost/agentkernel
-
-# Start on custom port with verbose logging
-agentkernel run --port 8080 --verbose
+agentkernel start --audit-db --db-url postgresql://user:pass@localhost/agentkernel
 ```
 
 ### Environment Variables
@@ -75,16 +200,14 @@ agentkernel run --port 8080 --verbose
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection URL |
 | `AGENTKERNEL_PORT` | Default port (overridden by `--port`) |
-| `ENFORCE_PRODUCTION_HARDENING` | Enable production security checks |
-| `AGENTKERNEL_SKIP_SSRF_VALIDATION` | Disable SSRF checks for local dev (localhost only) |
+| `AGENTKERNEL_PRODUCTION_HARDENING` | Enable production security checks |
+| `AGENTKERNEL_SKIP_SSRF_VALIDATION` | Disable SSRF checks for local dev |
 
 ---
 
 ## `agentkernel status`
 
 Check the health of the proxy and database connectivity.
-
-### Synopsis
 
 ```bash
 agentkernel status [options]
@@ -97,37 +220,11 @@ agentkernel status [options]
 | `--db-url <url>` | PostgreSQL connection URL | `$DATABASE_URL` |
 | `--json` | Output as JSON | Disabled |
 
-### Examples
-
-```bash
-# Check status with human-readable output
-agentkernel status
-
-# Check status with custom database
-agentkernel status --db-url postgresql://user:pass@localhost/agentkernel
-
-# Output as JSON for scripting
-agentkernel status --json
-```
-
-### Output
-
-```
-AgentKernel Status
-==================
-Database: connected
-  - Host: localhost:5432
-  - Database: agentkernel
-  - Pool: 3/10 connections
-```
-
 ---
 
 ## `agentkernel audit`
 
 Query audit logs from the database.
-
-### Synopsis
 
 ```bash
 agentkernel audit [options]
@@ -141,7 +238,8 @@ agentkernel audit [options]
 | `--limit <number>` | Maximum number of records | `100` |
 | `--agent-id <id>` | Filter by agent ID | None |
 | `--decision <type>` | Filter by decision (allow/block/approve) | None |
-| `--since <date>` | Filter records after date (ISO 8601) | None |
+| `--since <duration>` | Filter records (e.g., `1h`, `24h`, `7d`) | None |
+| `--blocked-only` | Show only blocked actions | Disabled |
 | `--json` | Output as JSON | Disabled |
 
 ### Examples
@@ -150,26 +248,11 @@ agentkernel audit [options]
 # Get last 100 audit records
 agentkernel audit
 
-# Get last 50 blocked actions
-agentkernel audit --limit 50 --decision block
+# Get blocked actions from the last 24 hours
+agentkernel audit --since 24h --blocked-only
 
-# Get actions for specific agent
-agentkernel audit --agent-id my-agent
-
-# Get today's audit logs as JSON
-agentkernel audit --since 2026-02-05 --json
-```
-
-### Output
-
-```
-Audit Logs (showing 10 of 156)
-===============================
-
-[2026-02-05 14:30:22] agent-1 | ALLOWED | read_file /workspace/test.ts
-[2026-02-05 14:30:21] agent-1 | BLOCKED | shell rm -rf /
-[2026-02-05 14:30:20] agent-2 | ALLOWED | http_request api.example.com
-...
+# Get actions for specific agent as JSON
+agentkernel audit --agent-id my-agent --json
 ```
 
 ---
@@ -181,7 +264,7 @@ Audit Logs (showing 10 of 156)
 Secure LangChain tools with AgentKernel policy enforcement:
 
 ```typescript
-import { secureTools, createAllowlistPolicy } from "@agentkernel/langchain-adapter";
+import { secureTools } from "@agentkernel/langchain-adapter";
 import { loadPolicySetFromFile } from "@agentkernel/runtime";
 
 // Load policy from YAML file
@@ -205,10 +288,11 @@ const agent = createReactAgent({ llm, tools: securedTools });
 ### Using the Policy Engine Directly
 
 ```typescript
-import { PolicyEngine, createPolicyEngine } from "@agentkernel/runtime";
+import { PolicyEngine } from "@agentkernel/runtime";
 
 // Create policy engine
-const engine = createPolicyEngine({
+const engine = new PolicyEngine({
+  name: "my-policy",
   defaultDecision: "block",
   fileRules: [
     {
@@ -234,6 +318,22 @@ const result = engine.evaluate({
 console.log(result.decision); // "allow"
 ```
 
+### Using the Security Proxy Programmatically
+
+```typescript
+import { createOpenClawProxy } from "agentkernel";
+import { loadPolicySetFromFile } from "@agentkernel/runtime";
+
+const policy = loadPolicySetFromFile("./policy.yaml");
+
+const proxy = await createOpenClawProxy({
+  listenPort: 18788,
+  policySet: policy,
+});
+
+// Proxy is now running and intercepting tool calls
+```
+
 ### Using the Audit Logger
 
 ```typescript
@@ -243,7 +343,6 @@ import {
 } from "@agentkernel/runtime";
 import { createDatabase } from "@agentkernel/kernel";
 
-// Connect to database
 const db = await createDatabase({
   host: "localhost",
   database: "agentkernel",
@@ -251,63 +350,68 @@ const db = await createDatabase({
   password: "password",
 });
 
-// Create audit logger
 const auditLogger = await createAuditLoggerWithDatabase(db, {
   sinks: ["database"],
   flushInterval: 1000,
 });
 
-// Log security event
 auditLogger.log({
   category: "security",
   severity: "warning",
   agentId: "my-agent",
   action: "tool_blocked",
-  data: {
-    tool: "shell",
-    reason: "Dangerous command blocked",
-  },
+  data: { tool: "shell", reason: "Dangerous command blocked" },
 });
 
-// Query logs
-const logs = await queryAuditLogs(db, {
-  limit: 100,
-  decision: "block",
-});
-```
-
-### Using the OpenClaw Proxy
-
-```typescript
-import { createOpenClawProxy } from "@agentkernel/openclaw-wrapper";
-import { loadPolicySetFromFile } from "@agentkernel/runtime";
-
-// Load policy
-const policy = loadPolicySetFromFile("./policy.yaml");
-
-// Start proxy
-const proxy = await createOpenClawProxy({
-  port: 18788,
-  policy,
-  onToolCall: (tool, args) => {
-    console.log(`Tool called: ${tool}`);
-  },
-});
-
-// Proxy is now running and intercepting tool calls
+const logs = await queryAuditLogs(db, { limit: 100 });
 ```
 
 ---
 
 ## Configuration Files
 
-### Policy File Structure
+### Simplified Policy Format (CLI)
 
-Policy files can be YAML or JSON. See [POLICIES.md](./POLICIES.md) for full documentation.
+The `agentkernel init` command and CLI commands use a simplified YAML format:
 
 ```yaml
-# policy.yaml
-name: my-policy
+# ~/.agentkernel/policy.yaml
+template: balanced
+
+file:
+  default: block
+  rules:
+    - pattern: "**/.ssh/**"
+      decision: block
+      reason: "SSH credentials"
+    - pattern: "~/my-project/**"
+      decision: allow
+      reason: "Your project folder"
+
+network:
+  default: block
+  rules:
+    - host: "api.telegram.org"
+      decision: block
+      reason: "Data exfiltration"
+    - host: "*.github.com"
+      decision: allow
+      reason: "Code hosting"
+
+shell:
+  default: block
+  rules:
+    - command: "git"
+      decision: allow
+      reason: "Safe dev tool"
+```
+
+### Runtime Policy Format (Programmatic)
+
+For programmatic use, the full `PolicySet` format is available. See [POLICIES.md](./POLICIES.md) for details.
+
+```yaml
+name: my-policy-set
 defaultDecision: block
 
 fileRules:
@@ -321,42 +425,17 @@ fileRules:
     operations:
       - read
       - write
-
-shellRules:
-  - id: allow-git
-    type: shell
-    decision: allow
-    priority: 100
-    enabled: true
-    commandPatterns:
-      - "git *"
 ```
 
 ### Environment Variables in Config
 
 ```yaml
-# Use environment variables
 name: ${APP_NAME:-my-app}
 fileRules:
   - id: allow-home
     pathPatterns:
       - "${HOME}/workspace/**"
 ```
-
----
-
-## Signals and Shutdown
-
-AgentKernel handles graceful shutdown on:
-
-- `SIGINT` (Ctrl+C)
-- `SIGTERM`
-
-During shutdown:
-1. Stop accepting new connections
-2. Complete in-flight requests
-3. Flush audit logs
-4. Close database connections
 
 ---
 
@@ -374,20 +453,5 @@ Set via `LOG_LEVEL` environment variable:
 | `warn` | Warnings |
 | `error` | Errors only |
 | `fatal` | Fatal errors only |
-
-### Log Format
-
-Logs are JSON-structured for production:
-
-```json
-{
-  "level": "info",
-  "time": 1707147600000,
-  "msg": "Policy evaluation",
-  "agentId": "my-agent",
-  "tool": "read_file",
-  "decision": "allow"
-}
-```
 
 Use `--verbose` for human-readable output during development.

@@ -1,13 +1,13 @@
 // Metrics Tests
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   Counter,
   Gauge,
   Histogram,
   MetricsRegistry,
+  createStandardMetrics,
   getMetricsRegistry,
   resetMetricsRegistry,
-  createStandardMetrics,
 } from "./metrics.js";
 
 describe("Counter", () => {
@@ -122,7 +122,7 @@ describe("Histogram", () => {
       "test_histogram",
       "A test histogram",
       ["endpoint"],
-      [0.1, 0.5, 1, 2.5, 5]
+      [0.1, 0.5, 1, 2.5, 5],
     );
   });
 
@@ -151,7 +151,7 @@ describe("Histogram", () => {
     expect(buckets.find((b) => b.le === 1)?.count).toBe(3);
     expect(buckets.find((b) => b.le === 2.5)?.count).toBe(4);
     expect(buckets.find((b) => b.le === 5)?.count).toBe(4);
-    expect(buckets.find((b) => b.le === Infinity)?.count).toBe(5);
+    expect(buckets.find((b) => b.le === Number.POSITIVE_INFINITY)?.count).toBe(5);
   });
 
   it("should observe with labels", () => {
@@ -286,7 +286,7 @@ describe("MetricsRegistry", () => {
       const json = registry.toJSON();
 
       expect(json.counters).toHaveProperty("test_requests");
-      const series = json.counters["test_requests"];
+      const series = json.counters.test_requests;
       expect(series).toBeDefined();
       const first = series?.[0];
       expect(first).toBeDefined();

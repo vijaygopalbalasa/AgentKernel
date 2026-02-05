@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // Mock @qdrant/js-client-rest so tests never make real network calls
 vi.mock("@qdrant/js-client-rest", () => {
@@ -17,18 +17,18 @@ vi.mock("@qdrant/js-client-rest", () => {
   return { QdrantClient: MockQdrantClient };
 });
 
+import type { QdrantConfig } from "../config.js";
 import {
-  createVectorStore,
-  checkVectorStoreHealth,
-  waitForVectorStore,
-  type VectorStore,
-  type VectorPoint,
-  type SearchResult,
-  type SearchFilter,
   type CollectionInfo,
   type Embedding,
+  type SearchFilter,
+  type SearchResult,
+  type VectorPoint,
+  type VectorStore,
+  checkVectorStoreHealth,
+  createVectorStore,
+  waitForVectorStore,
 } from "../vector-store.js";
-import type { QdrantConfig } from "../config.js";
 
 // Note: These tests verify API contracts without requiring a real Qdrant connection.
 // Integration tests with real Qdrant should be in a separate test suite.

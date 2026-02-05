@@ -1,13 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { writeFileSync, unlinkSync, existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type Config,
   ConfigManager,
   ConfigSchema,
-  loadConfig,
-  getConfig,
+  assertProductionHardening,
   createConfigManager,
-  type Config,
+  getConfig,
+  getProductionHardeningIssues,
+  isProductionHardeningEnabled,
+  loadConfig,
 } from "../config.js";
 
 describe("ConfigSchema", () => {
@@ -16,7 +19,7 @@ describe("ConfigSchema", () => {
 
     expect(result.database.host).toBe("localhost");
     expect(result.database.port).toBe(5432);
-    expect(result.database.database).toBe("agentdb");
+    expect(result.database.database).toBe("agentkernel");
     expect(result.qdrant.host).toBe("localhost");
     expect(result.qdrant.port).toBe(6333);
     expect(result.redis.host).toBe("localhost");
@@ -33,7 +36,7 @@ describe("ConfigSchema", () => {
 
     expect(result.database.host).toBe("db.example.com");
     expect(result.database.port).toBe(5433);
-    expect(result.database.database).toBe("agentdb"); // default
+    expect(result.database.database).toBe("agentkernel"); // default
     expect(result.logging.level).toBe("debug");
   });
 
@@ -69,11 +72,14 @@ describe("ConfigManager", () => {
       mkdirSync(testDir, { recursive: true });
     }
     // Clear env vars that interfere with default-checking tests
-    delete process.env.DATABASE_HOST;
-    delete process.env.DATABASE_PORT;
-    delete process.env.DATABASE_URL;
-    delete process.env.LOG_LEVEL;
-    delete process.env.ANTHROPIC_API_KEY;
+    Reflect.deleteProperty(process.env, "DATABASE_HOST");
+    Reflect.deleteProperty(process.env, "DATABASE_PORT");
+    Reflect.deleteProperty(process.env, "DATABASE_URL");
+    Reflect.deleteProperty(process.env, "LOG_LEVEL");
+    Reflect.deleteProperty(process.env, "ANTHROPIC_API_KEY");
+    Reflect.deleteProperty(process.env, "ENFORCE_PRODUCTION_HARDENING");
+    Reflect.deleteProperty(process.env, "PERMISSION_SECRET");
+    Reflect.deleteProperty(process.env, "NODE_ENV");
   });
 
   afterEach(() => {
@@ -81,11 +87,14 @@ describe("ConfigManager", () => {
       unlinkSync(testConfigPath);
     }
     // Reset environment variables
-    delete process.env.DATABASE_HOST;
-    delete process.env.DATABASE_PORT;
-    delete process.env.DATABASE_URL;
-    delete process.env.LOG_LEVEL;
-    delete process.env.ANTHROPIC_API_KEY;
+    Reflect.deleteProperty(process.env, "DATABASE_HOST");
+    Reflect.deleteProperty(process.env, "DATABASE_PORT");
+    Reflect.deleteProperty(process.env, "DATABASE_URL");
+    Reflect.deleteProperty(process.env, "LOG_LEVEL");
+    Reflect.deleteProperty(process.env, "ANTHROPIC_API_KEY");
+    Reflect.deleteProperty(process.env, "ENFORCE_PRODUCTION_HARDENING");
+    Reflect.deleteProperty(process.env, "PERMISSION_SECRET");
+    Reflect.deleteProperty(process.env, "NODE_ENV");
   });
 
   it("should load defaults when no config file exists", () => {
@@ -214,5 +223,70 @@ describe("Config module functions", () => {
     const config2 = getConfig();
     // Should return the same instance
     expect(config1).toBe(config2);
+  });
+});
+
+describe("Production hardening", () => {
+  beforeEach(() => {
+    Reflect.deleteProperty(process.env, "ENFORCE_PRODUCTION_HARDENING");
+    Reflect.deleteProperty(process.env, "PERMISSION_SECRET");
+    Reflect.deleteProperty(process.env, "NODE_ENV");
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(process.env, "ENFORCE_PRODUCTION_HARDENING");
+    Reflect.deleteProperty(process.env, "PERMISSION_SECRET");
+    Reflect.deleteProperty(process.env, "NODE_ENV");
+  });
+
+  it("should detect hardening enablement flag", () => {
+    process.env.ENFORCE_PRODUCTION_HARDENING = "true";
+    expect(isProductionHardeningEnabled()).toBe(true);
+    process.env.ENFORCE_PRODUCTION_HARDENING = "false";
+    expect(isProductionHardeningEnabled()).toBe(false);
+  });
+
+  it("should report issues for insecure defaults", () => {
+    process.env.NODE_ENV = "production";
+    process.env.PERMISSION_SECRET = "s".repeat(32);
+    const config = ConfigSchema.parse({});
+    const issues = getProductionHardeningIssues(config);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.some((issue) => issue.includes("DATABASE_PASSWORD"))).toBe(true);
+  });
+
+  it("should enforce hardening when enabled during load", () => {
+    process.env.NODE_ENV = "production";
+    process.env.PERMISSION_SECRET = "s".repeat(32);
+    process.env.ENFORCE_PRODUCTION_HARDENING = "true";
+    const manager = new ConfigManager(join(process.cwd(), ".test-config", "nonexistent.yaml"));
+    expect(() => manager.load()).toThrow(/Production hardening checks failed/);
+  });
+
+  it("should pass for a hardened configuration", () => {
+    process.env.NODE_ENV = "production";
+    process.env.PERMISSION_SECRET = "s".repeat(48);
+    const config = ConfigSchema.parse({
+      database: {
+        host: "db.example.com",
+        ssl: true,
+        user: "ak_user",
+        password: "super-secret-password",
+        database: "agentkernel_prod",
+      },
+      redis: {
+        host: "redis.example.com",
+        password: "redis-secret",
+      },
+      qdrant: {
+        host: "qdrant.example.com",
+        https: true,
+      },
+      logging: {
+        level: "info",
+      },
+    });
+
+    expect(() => assertProductionHardening(config)).not.toThrow();
   });
 });

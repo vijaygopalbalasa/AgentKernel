@@ -1,12 +1,17 @@
 // Persistence — state checkpointing and recovery
 // Enables agents to survive restarts
 
-import { readFile, writeFile, mkdir, unlink, readdir } from "fs/promises";
-import { join, dirname } from "path";
-import { type AgentId, type AgentContext, type ResourceUsage, createInitialUsage } from "./agent-context.js";
-import type { AgentState, StateTransition } from "./state-machine.js";
+import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import {
+  type AgentContext,
+  type AgentId,
+  type ResourceUsage,
+  createInitialUsage,
+} from "./agent-context.js";
 import type { AgentManifest } from "./lifecycle.js";
 import type { Capability, CapabilityGrant } from "./sandbox.js";
+import type { AgentState, StateTransition } from "./state-machine.js";
 
 /** Checkpoint data structure for an agent */
 export interface AgentCheckpoint {
@@ -46,7 +51,7 @@ function migrateCheckpoint(checkpoint: AgentCheckpoint): AgentCheckpoint {
 
   if (checkpoint.version > CHECKPOINT_VERSION) {
     throw new Error(
-      `Checkpoint version ${checkpoint.version} is newer than supported version ${CHECKPOINT_VERSION}`
+      `Checkpoint version ${checkpoint.version} is newer than supported version ${CHECKPOINT_VERSION}`,
     );
   }
 
@@ -300,7 +305,7 @@ export class PersistenceManager {
    */
   async checkpoint(
     agentId: AgentId,
-    data: Omit<AgentCheckpoint, "version" | "agentId" | "timestamp">
+    data: Omit<AgentCheckpoint, "version" | "agentId" | "timestamp">,
   ): Promise<void> {
     const checkpoint: AgentCheckpoint = {
       version: CHECKPOINT_VERSION,
@@ -359,7 +364,7 @@ export class PersistenceManager {
    */
   startAutoCheckpoint(
     agentId: AgentId,
-    getCheckpointData: () => Omit<AgentCheckpoint, "version" | "agentId" | "timestamp">
+    getCheckpointData: () => Omit<AgentCheckpoint, "version" | "agentId" | "timestamp">,
   ): void {
     if (this.config.autoCheckpointIntervalMs <= 0) return;
 
@@ -407,7 +412,7 @@ export class PersistenceManager {
     stateHistory: StateTransition[],
     manifest: AgentManifest,
     capabilities: Array<{ capability: Capability; grant: CapabilityGrant }>,
-    customData?: Record<string, unknown>
+    customData?: Record<string, unknown>,
   ): Omit<AgentCheckpoint, "version" | "agentId" | "timestamp"> {
     return {
       state: context.state,
@@ -429,7 +434,7 @@ export class PersistenceManager {
  */
 export function createFilePersistence(
   baseDir: string,
-  options?: Partial<Omit<PersistenceManagerConfig, "storage">>
+  options?: Partial<Omit<PersistenceManagerConfig, "storage">>,
 ): PersistenceManager {
   const storage = new FilePersistenceStorage({ baseDir, prettyPrint: true });
   return new PersistenceManager({ storage, ...options });
@@ -440,7 +445,7 @@ export function createFilePersistence(
  * Useful for testing.
  */
 export function createMemoryPersistence(
-  options?: Partial<Omit<PersistenceManagerConfig, "storage">>
+  options?: Partial<Omit<PersistenceManagerConfig, "storage">>,
 ): PersistenceManager {
   const storage = new MemoryPersistenceStorage();
   return new PersistenceManager({ storage, ...options });
