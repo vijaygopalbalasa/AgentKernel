@@ -36,11 +36,11 @@ importers:
   packages/agentkernel-cli:
     dependencies:
       '@agentkernel/runtime':
-        specifier: workspace:*
-        version: link:../runtime
+        specifier: '>=0.1.1'
+        version: 0.1.1(typescript@5.9.3)
       '@agentkernel/shared':
-        specifier: workspace:*
-        version: link:../shared
+        specifier: '>=0.1.1'
+        version: 0.1.1
       ws:
         specifier: ^8.18.0
         version: 8.19.0
@@ -210,6 +210,18 @@ importers:
   packages/shared: {}
 
 packages:
+
+  '@agentkernel/kernel@0.1.1':
+    resolution: {integrity: sha512-20twgRinbPM48wx3y4qk409Mhz/mJnCDgNz7a+3Xym/X0Cce4K5wkHUVV1gw0OOjZhtuWgKHuQoyS9slMlmShw==}
+    engines: {node: '>=20.0.0'}
+
+  '@agentkernel/runtime@0.1.1':
+    resolution: {integrity: sha512-QlPijCcgaPJM0wO/08wYqVFdKFUY7wn/B40+7t/BvpaZyylhBZf1+oG+nC7QrQH/YgAtoPHWXhIzG47DaG5a5Q==}
+    engines: {node: '>=20.0.0'}
+
+  '@agentkernel/shared@0.1.1':
+    resolution: {integrity: sha512-SJBuMUbcU/qxcWQBwof4a0W+3C40FF0BGAo1+lmoTGWUmvj3O3LGq7Ge24BkR/HSSvkZyGMVxSUDlWdAk705fw==}
+    engines: {node: '>=20.0.0'}
 
   '@biomejs/biome@1.9.4':
     resolution: {integrity: sha512-1rkd7G70+o9KkTn5KLmDYXihGoTaIGO9PIIN2ZB7UJxFrWw04CZHPYiMRjYsaDvVV7hP1dYNRLxSANLaBFGpog==}
@@ -1339,6 +1351,32 @@ packages:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
 snapshots:
+
+  '@agentkernel/kernel@0.1.1(typescript@5.9.3)':
+    dependencies:
+      '@agentkernel/shared': 0.1.1
+      '@qdrant/js-client-rest': 1.16.2(typescript@5.9.3)
+      ioredis: 5.9.2
+      pino: 9.14.0
+      pino-pretty: 13.1.3
+      postgres: 3.4.8
+      yaml: 2.8.2
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
+
+  '@agentkernel/runtime@0.1.1(typescript@5.9.3)':
+    dependencies:
+      '@agentkernel/kernel': 0.1.1(typescript@5.9.3)
+      '@agentkernel/shared': 0.1.1
+      yaml: 2.8.2
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
+
+  '@agentkernel/shared@0.1.1': {}
 
   '@biomejs/biome@1.9.4':
     optionalDependencies:
