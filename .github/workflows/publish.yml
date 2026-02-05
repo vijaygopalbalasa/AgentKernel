@@ -1,0 +1,103 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: TypeScript check
+        run: pnpm exec tsc --noEmit
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Bump versions
+        env:
+          BUMP_TYPE: ${{ inputs.version }}
+        run: |
+          NEW_VERSION=$(node -e "
+            const pkg = require('./package.json');
+            const [major, minor, patch] = pkg.version.split('.').map(Number);
+            const bump = process.env.BUMP_TYPE;
+            if (bump === 'major') console.log((major+1)+'.0.0');
+            else if (bump === 'minor') console.log(major+'.'+(minor+1)+'.0');
+            else console.log(major+'.'+minor+'.'+(patch+1));
+          ")
+          echo "VERSION=$NEW_VERSION" >> "$GITHUB_ENV"
+
+          # Update all package versions
+          for pkg in packages/shared packages/kernel packages/runtime packages/framework/permissions packages/cli packages/agentkernel-cli packages/langchain-adapter; do
+            cd "$pkg"
+            pnpm version "$NEW_VERSION" --no-git-tag-version
+            cd "$GITHUB_WORKSPACE"
+          done
+
+          # Update root
+          pnpm version "$NEW_VERSION" --no-git-tag-version
+
+      - name: Rebuild with updated versions
+        run: pnpm build
+
+      - name: Publish packages
+        run: |
+          # Publish in dependency order
+          cd packages/shared && pnpm publish --access public --no-git-checks && cd "$GITHUB_WORKSPACE"
+          cd packages/kernel && pnpm publish --access public --no-git-checks && cd "$GITHUB_WORKSPACE"
+          cd packages/runtime && pnpm publish --access public --no-git-checks && cd "$GITHUB_WORKSPACE"
+          cd packages/framework/permissions && pnpm publish --access public --no-git-checks && cd "$GITHUB_WORKSPACE"
+          cd packages/cli && pnpm publish --access public --no-git-checks && cd "$GITHUB_WORKSPACE"
+          cd packages/langchain-adapter && pnpm publish --access public --no-git-checks && cd "$GITHUB_WORKSPACE"
+          cd packages/agentkernel-cli && pnpm publish --access public --no-git-checks && cd "$GITHUB_WORKSPACE"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Commit version bump
+        env:
+          NEW_VERSION: ${{ env.VERSION }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "release: v${NEW_VERSION}"
+          git tag "v${NEW_VERSION}"
+          git push origin master --tags

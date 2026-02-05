@@ -1,11 +1,12 @@
 // OpenClaw proxy configuration helpers
 
-import { type PolicySet, loadPolicySetFromFile } from "@agentkernel/runtime";
+import type { PolicySet } from "@agentkernel/runtime";
+import * as runtime from "@agentkernel/runtime";
 import { z } from "zod";
 import type { OpenClawProxyConfig } from "./proxy.js";
 
 // Re-export for backwards compatibility
-export { loadPolicySetFromFile };
+export const loadPolicySetFromFile = runtime.loadPolicySetFromFile;
 
 const EnvConfigSchema = z.object({
   AGENTKERNEL_PORT: z.string().optional(),
@@ -85,7 +86,7 @@ export function loadOpenClawProxyConfigFromEnv(
 
   const policyFile = raw.AGENTKERNEL_POLICY_FILE ?? raw.OPENCLAW_POLICY_FILE;
   if (policyFile) {
-    config.policySet = loadPolicySetFromFile(policyFile);
+    config.policySet = runtime.loadPolicySetFromFile(policyFile);
   }
 
   const skipSsrfValidation = parseEnvBoolean(

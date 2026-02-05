@@ -37,7 +37,7 @@ AgentKernel intercepts ALL tool calls, validates them against security policies,
 
 ```bash
 # Install globally
-npm install -g agentkernel
+npm install -g @agentkernel/agent-kernel
 
 # Start the security proxy
 agentkernel start

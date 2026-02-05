@@ -221,7 +221,7 @@ describe("loadSimplifiedPolicy", () => {
   });
 
   it("parses template field", () => {
-    writeFileSync(policyPath, `template: balanced\n`);
+    writeFileSync(policyPath, "template: balanced\n");
     const result = loadSimplifiedPolicy(policyPath);
     expect(result.template).toBe("balanced");
   });

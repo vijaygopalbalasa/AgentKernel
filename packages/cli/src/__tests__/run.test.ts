@@ -40,7 +40,7 @@ vi.mock("@agentkernel/runtime", () => ({
   })),
 }));
 
-vi.mock("agentkernel", () => ({
+vi.mock("@agentkernel/agent-kernel", () => ({
   createOpenClawProxy: vi.fn().mockResolvedValue({
     start: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
@@ -50,7 +50,7 @@ vi.mock("agentkernel", () => ({
 
 import { createDatabase, createLogger, onShutdown } from "@agentkernel/kernel";
 import { createAuditLoggerWithDatabase, loadPolicySetFromFile } from "@agentkernel/runtime";
-import { createOpenClawProxy } from "agentkernel";
+import { createOpenClawProxy } from "@agentkernel/agent-kernel";
 import { type RunOptions, runProxy } from "../commands/run.js";
 
 describe("runProxy", () => {

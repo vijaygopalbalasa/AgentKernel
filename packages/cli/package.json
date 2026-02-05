@@ -18,7 +18,7 @@
   "dependencies": {
     "@agentkernel/kernel": "workspace:*",
     "@agentkernel/runtime": "workspace:*",
-    "agentkernel": "workspace:*",
+    "@agentkernel/agent-kernel": "workspace:*",
     "cac": "^6.7.14",
     "picocolors": "^1.0.0"
   },

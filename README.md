@@ -200,7 +200,7 @@ sandbox.terminate();
 
 ```bash
 # Install the CLI globally
-npm install -g agentkernel
+npm install -g @agentkernel/agent-kernel
 
 # Initialize a security policy (interactive wizard)
 agentkernel init
@@ -297,7 +297,7 @@ agentkernel/
 
 | Package | npm | Description |
 |---------|-----|-------------|
-| `agentkernel` | CLI binary | Security proxy, policy management, audit viewer |
+| `@agentkernel/agent-kernel` | CLI binary | Security proxy, policy management, audit viewer |
 | `@agentkernel/kernel` | Library | Config, logging, PostgreSQL, security utilities |
 | `@agentkernel/runtime` | Library | Policy engine, sandbox, audit, lifecycle |
 | `@agentkernel/permissions` | Library | HMAC capability tokens |
@@ -320,7 +320,7 @@ agentkernel/
 ### AgentKernel CLI
 One-command security for any agent:
 ```bash
-npm install -g agentkernel
+npm install -g @agentkernel/agent-kernel
 agentkernel init          # Interactive setup wizard
 agentkernel start         # Start the security proxy
 agentkernel allow "github"  # Allow GitHub access

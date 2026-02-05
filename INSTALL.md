@@ -66,7 +66,7 @@ pnpm test
 node packages/agentkernel-cli/dist/cli.js start
 
 # Or install globally
-npm install -g agentkernel
+npm install -g @agentkernel/agent-kernel
 agentkernel init
 agentkernel start
 ```
@@ -244,7 +244,7 @@ npm install @agentkernel/runtime
 npm install @agentkernel/langchain-adapter
 
 # CLI tool (global binary)
-npm install -g agentkernel
+npm install -g @agentkernel/agent-kernel
 ```
 
 ### Peer Dependencies

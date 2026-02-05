@@ -5,7 +5,7 @@ Security runtime for AI agents — protect against malicious tools, data theft, 
 ## Installation
 
 ```bash
-npm install -g agentkernel
+npm install -g @agentkernel/agent-kernel
 ```
 
 ## CLI Commands
@@ -29,7 +29,7 @@ agentkernel audit                         # Query audit logs
 ## Programmatic Usage
 
 ```typescript
-import { createToolInterceptor, createOpenClawProxy } from 'agentkernel';
+import { createToolInterceptor, createOpenClawProxy } from '@agentkernel/agent-kernel';
 
 // Intercept tool calls with security policies
 const interceptor = createToolInterceptor({
@@ -52,7 +52,7 @@ import {
   generatePolicyFromTemplate,
   summarizePolicy,
   testPolicy,
-} from 'agentkernel';
+} from '@agentkernel/agent-kernel';
 
 // Resolve natural language to policy patterns
 const target = resolveTarget("telegram");

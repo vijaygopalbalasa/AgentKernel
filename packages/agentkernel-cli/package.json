@@ -1,5 +1,5 @@
 {
-  "name": "agentkernel",
+  "name": "@agentkernel/agent-kernel",
   "version": "0.1.0",
   "type": "module",
   "description": "Security runtime for AI agents — protect against malicious tools, data theft, and prompt injection",

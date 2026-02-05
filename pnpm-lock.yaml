@@ -66,15 +66,15 @@ importers:
 
   packages/cli:
     dependencies:
+      '@agentkernel/agent-kernel':
+        specifier: workspace:*
+        version: link:../agentkernel-cli
       '@agentkernel/kernel':
         specifier: workspace:*
         version: link:../kernel
       '@agentkernel/runtime':
         specifier: workspace:*
         version: link:../runtime
-      agentkernel:
-        specifier: workspace:*
-        version: link:../agentkernel-cli
       cac:
         specifier: ^6.7.14
         version: 6.7.14

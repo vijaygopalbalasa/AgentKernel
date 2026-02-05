@@ -6,7 +6,7 @@ This guide covers how to use the AgentKernel CLI and programmatic APIs.
 
 ```bash
 # Global installation
-npm install -g agentkernel
+npm install -g @agentkernel/agent-kernel
 
 # Or run from the repository
 pnpm build
@@ -321,7 +321,7 @@ console.log(result.decision); // "allow"
 ### Using the Security Proxy Programmatically
 
 ```typescript
-import { createOpenClawProxy } from "agentkernel";
+import { createOpenClawProxy } from "@agentkernel/agent-kernel";
 import { loadPolicySetFromFile } from "@agentkernel/runtime";
 
 const policy = loadPolicySetFromFile("./policy.yaml");

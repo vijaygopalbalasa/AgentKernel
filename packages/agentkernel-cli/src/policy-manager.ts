@@ -1040,7 +1040,6 @@ function parseSimplifiedYaml(content: string): SimplifiedPolicyYaml {
     // Continuation of current rule (indented key: value)
     if (currentRule && (trimmed.includes(":") || rawLine.startsWith("      "))) {
       parseRuleKv(currentRule, trimmed);
-      continue;
     }
   }
 

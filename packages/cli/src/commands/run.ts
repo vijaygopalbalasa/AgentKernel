@@ -24,7 +24,7 @@ import {
   type OpenClawProxyConfig,
   type OpenClawSecurityProxy,
   createOpenClawProxy,
-} from "agentkernel";
+} from "@agentkernel/agent-kernel";
 
 /** Parse a PostgreSQL connection string into DatabaseConfig */
 function parseDatabaseUrl(url: string): DatabaseConfig {
