@@ -6,7 +6,16 @@ export {
   createOpenClawProxy,
   type OpenClawProxyConfig,
   type OpenClawProxyStats,
+  type ProxyMode,
 } from "./proxy.js";
+
+export {
+  normalizeMessage,
+  formatResponse,
+  type NormalizedMessage,
+  type MessageFormat,
+  type EvaluationResponse,
+} from "./message-normalizer.js";
 
 export {
   ToolInterceptor,

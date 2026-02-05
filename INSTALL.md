@@ -37,16 +37,15 @@ cp .env.example .env
 Edit `.env` with your configuration:
 
 ```env
-# Required for LLM features
-ANTHROPIC_API_KEY=sk-ant-...
-# or
-OPENAI_API_KEY=sk-...
+# Security (required for capability tokens)
+PERMISSION_SECRET=your-32-char-secret-for-hmac-signing
 
-# Database (optional - uses in-memory by default)
-DATABASE_URL=postgresql://agentkernel:password@localhost:5432/agentkernel
-
-# Redis (optional - uses in-memory by default)
-REDIS_URL=redis://localhost:6379
+# Database
+DATABASE_HOST=localhost
+DATABASE_PORT=5433
+DATABASE_NAME=agentkernel_test
+DATABASE_USER=agentkernel
+DATABASE_PASSWORD=agentkernel_test
 ```
 
 ### 3. Build and Test
@@ -71,6 +70,15 @@ agentkernel init
 agentkernel start
 ```
 
+Once running, test with curl:
+
+```bash
+curl http://localhost:18788/health
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"read","args":{"path":"/home/user/.ssh/id_rsa"}}'
+```
+
 ## Docker Quick Start
 
 ### Using Docker Compose
@@ -88,40 +96,37 @@ pnpm install
 pnpm build
 
 # Run the CLI
-node packages/cli/dist/bin.js run --audit-db
+node packages/agentkernel-cli/dist/cli.js start
 ```
 
 ### Docker Compose Configuration
 
 The `docker/docker-compose.test.yml` provides:
 
-- PostgreSQL 15 on port 5432
-- Redis 7 on port 6379
-- Qdrant (optional) on port 6333
+- PostgreSQL 16 on port 5433
+- Redis 7 on port 6380
+- Qdrant (optional) on port 6335
 
 ```yaml
 services:
-  postgres:
-    image: postgres:15-alpine
+  postgres-test:
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: agentkernel
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: agentkernel
+      POSTGRES_PASSWORD: agentkernel_test
+      POSTGRES_DB: agentkernel_test
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - "5433:5432"
 
-  redis:
+  redis-test:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - "6380:6379"
 
-volumes:
-  postgres_data:
-  redis_data:
+  qdrant-test:
+    image: qdrant/qdrant:v1.13.6
+    ports:
+      - "6335:6333"
 ```
 
 ## Production Installation
@@ -211,7 +216,7 @@ User=agentkernel
 Group=agentkernel
 WorkingDirectory=/opt/agentkernel
 EnvironmentFile=/etc/agentkernel/config.env
-ExecStart=/usr/bin/node packages/cli/dist/bin.js run --config /etc/agentkernel/policy.yaml --audit-db
+ExecStart=/usr/local/bin/agentkernel start --policy /etc/agentkernel/policy.yaml --port 18788
 Restart=always
 RestartSec=10
 
@@ -268,17 +273,20 @@ pnpm build
 pnpm test
 
 # Check CLI
-node packages/cli/dist/bin.js --help
+agentkernel --help
 ```
 
 ### Health Check
 
 ```bash
-# Check database connectivity
-node packages/cli/dist/bin.js status
+# Check proxy status
+agentkernel status
 
 # View recent audit logs
-node packages/cli/dist/bin.js audit --limit 10
+agentkernel audit --limit 10
+
+# Or via HTTP when proxy is running
+curl http://localhost:18788/health
 ```
 
 ## Troubleshooting

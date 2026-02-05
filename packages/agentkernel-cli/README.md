@@ -8,12 +8,29 @@ Security runtime for AI agents — protect against malicious tools, data theft, 
 npm install -g @agentkernel/agent-kernel
 ```
 
+## Quick Start
+
+```bash
+# Initialize a security policy (interactive wizard)
+agentkernel init
+
+# Start the security proxy (standalone mode — no gateway needed)
+agentkernel start
+
+# Test it
+curl http://localhost:18788/health
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"read","args":{"path":"/home/user/.ssh/id_rsa"}}'
+```
+
 ## CLI Commands
 
 ```bash
 agentkernel init                          # Interactive policy setup wizard
 agentkernel init --template balanced      # Non-interactive init
-agentkernel start                         # Start the security proxy
+agentkernel start                         # Start in standalone mode (HTTP + WebSocket)
+agentkernel start --gateway ws://gw:18789 # Start in proxy mode (intercept gateway traffic)
 agentkernel allow "github"                # Allow by known name
 agentkernel allow --domain api.example.com  # Allow a domain
 agentkernel allow --file ~/my-project     # Allow a file path
@@ -22,14 +39,69 @@ agentkernel block --command "rm -rf*"     # Block a command
 agentkernel unblock "telegram"            # Remove block rules
 agentkernel policy show                   # Human-readable policy view
 agentkernel policy test --domain api.telegram.org  # Dry-run test
-agentkernel status                        # Check health
+agentkernel status                        # Check health (connects to running proxy)
 agentkernel audit                         # Query audit logs
 ```
+
+## Two Modes
+
+### Standalone Mode (default)
+No gateway needed. Evaluates tool calls via HTTP API and WebSocket:
+
+```bash
+agentkernel start
+# Listening on http://0.0.0.0:18788 (standalone evaluate mode)
+```
+
+### Proxy Mode
+Intercepts traffic between your agent and a gateway:
+
+```bash
+agentkernel start --gateway ws://my-gateway:18789
+```
+
+## HTTP API
+
+When running in either mode, the following HTTP endpoints are available:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check with uptime and mode |
+| `/evaluate` | POST | Evaluate a tool call against policies |
+| `/stats` | GET | Live proxy statistics |
+| `/audit` | GET | Recent audit log entries |
+
+### POST /evaluate
+
+Accepts tool calls in three formats:
+
+```bash
+# Simple format
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"read","args":{"path":"/home/user/.ssh/id_rsa"}}'
+
+# MCP/JSON-RPC format
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":"1","method":"tools/call","params":{"name":"bash","arguments":{"command":"git status"}}}'
+```
+
+### WebSocket
+
+Connect to `ws://localhost:18788` and send tool calls in OpenClaw, MCP/JSON-RPC, or Simple format.
 
 ## Programmatic Usage
 
 ```typescript
 import { createToolInterceptor, createOpenClawProxy } from '@agentkernel/agent-kernel';
+import { normalizeMessage, formatResponse } from '@agentkernel/agent-kernel';
+
+// Create a standalone security proxy
+const proxy = await createOpenClawProxy({
+  listenPort: 18788,
+  policySet: myPolicy,
+});
 
 // Intercept tool calls with security policies
 const interceptor = createToolInterceptor({

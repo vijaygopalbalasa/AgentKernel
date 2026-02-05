@@ -165,7 +165,10 @@ agentkernel policy test --domain api.github.com
 
 ## `agentkernel start`
 
-Start the security proxy to intercept and enforce policies on agent tool calls.
+Start the security proxy. Runs in two modes:
+
+- **Standalone mode** (default): HTTP API + WebSocket server for evaluating tool calls against policies. No external gateway needed.
+- **Proxy mode** (with `--gateway`): WebSocket proxy between your agent and a gateway. Intercepts tool calls, blocks dangerous ones, forwards allowed ones.
 
 ```bash
 agentkernel start [options]
@@ -175,56 +178,99 @@ agentkernel start [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-p, --port <number>` | Port to listen on | `18788` |
-| `-g, --gateway <url>` | Gateway URL to connect to | None |
-| `--audit-db` | Enable PostgreSQL audit logging | Disabled |
-| `--db-url <url>` | PostgreSQL connection URL | `$DATABASE_URL` |
-| `--verbose` | Enable verbose logging | Disabled |
+| `--host <ip>` | Bind address | `0.0.0.0` (all interfaces) |
+| `--port <number>` | Port to listen on | `18788` |
+| `--gateway <url>` | Gateway URL (enables proxy mode) | None (standalone) |
+| `--policy <file>` | Custom policy YAML file | `~/.agentkernel/policy.yaml` |
+| `--log-file <file>` | Audit log file path | Auto-generated |
 
 ### Examples
 
 ```bash
-# Start with default settings
+# Standalone mode (default — no gateway needed)
 agentkernel start
 
-# Start with custom port
-agentkernel start --port 8080
+# Custom port and host
+agentkernel start --port 8080 --host 127.0.0.1
 
-# Start with PostgreSQL audit logging
-agentkernel start --audit-db --db-url postgresql://user:pass@localhost/agentkernel
+# Proxy mode (intercept traffic to a gateway)
+agentkernel start --gateway ws://my-gateway:18789
 ```
+
+### HTTP API (available in both modes)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check with uptime and mode |
+| `/evaluate` | POST | Evaluate a tool call against policies |
+| `/stats` | GET | Live proxy statistics |
+| `/audit` | GET | Recent audit log entries |
+
+#### POST /evaluate
+
+Send a tool call in any supported format:
+
+```bash
+# Simple format
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"read","args":{"path":"/home/user/.ssh/id_rsa"}}'
+
+# MCP/JSON-RPC format
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":"1","method":"tools/call","params":{"name":"bash","arguments":{"command":"git status"}}}'
+```
+
+Response:
+```json
+{"decision":"blocked","reason":"File matched .ssh pattern","tool":"read","executionTimeMs":1}
+```
+
+### WebSocket
+
+Connect to `ws://localhost:18788` and send tool calls in any format (OpenClaw, MCP/JSON-RPC, or Simple). Responses are returned in the same format as the request.
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection URL |
+| `AGENTKERNEL_HOST` | Bind address (default: 0.0.0.0) |
 | `AGENTKERNEL_PORT` | Default port (overridden by `--port`) |
+| `AGENTKERNEL_GATEWAY_URL` | Gateway URL (enables proxy mode) |
+| `AGENTKERNEL_MODE` | Force mode: `evaluate` or `proxy` |
+| `AGENTKERNEL_POLICY_FILE` | Custom policy file path |
 | `AGENTKERNEL_PRODUCTION_HARDENING` | Enable production security checks |
-| `AGENTKERNEL_SKIP_SSRF_VALIDATION` | Disable SSRF checks for local dev |
+| `AGENTKERNEL_SKIP_SSRF_VALIDATION` | Allow localhost SSRF bypass only |
 
 ---
 
 ## `agentkernel status`
 
-Check the health of the proxy and database connectivity.
+Check config and live proxy status. When a proxy is running, connects to its HTTP API to show live stats.
 
 ```bash
-agentkernel status [options]
+agentkernel status
 ```
 
-### Options
+Output when proxy is running:
+```
+AgentKernel Status
+────────────────────────────────────────
+  Config dir: /home/user/.agentkernel
+  Policy file: /home/user/.agentkernel/policy.yaml
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--db-url <url>` | PostgreSQL connection URL | `$DATABASE_URL` |
-| `--json` | Output as JSON | Disabled |
+  Proxy:   RUNNING (evaluate mode)
+  Uptime:  42s
+  Connections: 1
+  Tool calls:  15 (12 allowed, 3 blocked)
+```
 
 ---
 
 ## `agentkernel audit`
 
-Query audit logs from the database.
+Query audit logs from file or the live proxy.
 
 ```bash
 agentkernel audit [options]
@@ -234,13 +280,10 @@ agentkernel audit [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--db-url <url>` | PostgreSQL connection URL | `$DATABASE_URL` |
 | `--limit <number>` | Maximum number of records | `100` |
-| `--agent-id <id>` | Filter by agent ID | None |
-| `--decision <type>` | Filter by decision (allow/block/approve) | None |
-| `--since <duration>` | Filter records (e.g., `1h`, `24h`, `7d`) | None |
+| `--since <duration>` | Filter records (e.g., `1h`, `30m`, `1d`) | None |
 | `--blocked-only` | Show only blocked actions | Disabled |
-| `--json` | Output as JSON | Disabled |
+| `--tool <name>` | Filter by tool name | None |
 
 ### Examples
 
@@ -248,11 +291,17 @@ agentkernel audit [options]
 # Get last 100 audit records
 agentkernel audit
 
-# Get blocked actions from the last 24 hours
-agentkernel audit --since 24h --blocked-only
+# Get blocked actions from the last hour
+agentkernel audit --since 1h --blocked-only
 
-# Get actions for specific agent as JSON
-agentkernel audit --agent-id my-agent --json
+# Filter by tool name
+agentkernel audit --tool bash --limit 20
+```
+
+You can also query the live proxy via HTTP:
+
+```bash
+curl http://localhost:18788/audit?limit=50
 ```
 
 ---

@@ -209,9 +209,33 @@ npm install -g @agentkernel/agent-kernel
 # Initialize a security policy (interactive wizard)
 agentkernel init
 
-# Start the security proxy
+# Start the security proxy (standalone mode — no gateway needed)
 agentkernel start
 ```
+
+### Try It Immediately
+
+Once running, test with curl:
+
+```bash
+# Health check
+curl http://localhost:18788/health
+
+# Test a blocked operation (should return "blocked")
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"read","args":{"path":"/home/user/.ssh/id_rsa"}}'
+
+# Test an allowed operation (should return "allowed")
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"bash","args":{"command":"git status"}}'
+
+# View live stats
+curl http://localhost:18788/stats
+```
+
+WebSocket clients can connect to `ws://localhost:18788` and send tool calls in OpenClaw, MCP/JSON-RPC, or Simple `{tool, args}` format.
 
 ### From Source
 
@@ -277,7 +301,7 @@ Set `AGENTKERNEL_PRODUCTION_HARDENING=true` (or `NODE_ENV=production`) to fail f
 - **Runtime:** Node.js 20+
 - **Package Manager:** pnpm
 - **Database:** PostgreSQL
-- **Testing:** Vitest (1,175+ tests)
+- **Testing:** Vitest (1,180+ tests)
 - **Build:** tsup
 - **Linting:** Biome
 
@@ -325,13 +349,14 @@ agentkernel/
 One-command security for any agent:
 ```bash
 npm install -g @agentkernel/agent-kernel
-agentkernel init          # Interactive setup wizard
-agentkernel start         # Start the security proxy
-agentkernel allow "github"  # Allow GitHub access
-agentkernel block "telegram"  # Block data exfiltration
-agentkernel policy show   # View current policy
-agentkernel status        # Check health
-agentkernel audit         # Query audit logs
+agentkernel init                          # Interactive setup wizard
+agentkernel start                         # Start in standalone mode (HTTP + WebSocket)
+agentkernel start --gateway ws://gw:18789 # Start in proxy mode (intercept gateway traffic)
+agentkernel allow "github"                # Allow GitHub access
+agentkernel block "telegram"              # Block data exfiltration
+agentkernel policy show                   # View current policy
+agentkernel status                        # Live proxy stats (connects to running proxy)
+agentkernel audit                         # Query audit logs
 ```
 
 ### LangChain Adapter
