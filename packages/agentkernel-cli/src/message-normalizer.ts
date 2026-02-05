@@ -6,8 +6,26 @@ import type { ToolCall, ToolResult } from "./interceptor.js";
 
 // ─── MESSAGE SCHEMAS ─────────────────────────────────────────
 
-/** OpenClaw proprietary format */
-const OpenClawSchema = z.object({
+/**
+ * OpenClaw real gateway protocol — request frame with node.invoke method.
+ * Format: { type: "req", id: "...", method: "node.invoke", params: { nodeId, command, params, ... } }
+ * See: openclaw/src/gateway/protocol/schema/frames.ts + nodes.ts
+ */
+const OpenClawReqSchema = z.object({
+  type: z.literal("req"),
+  id: z.string().min(1),
+  method: z.literal("node.invoke"),
+  params: z.object({
+    nodeId: z.string().min(1),
+    command: z.string().min(1),
+    params: z.unknown().optional(),
+    timeoutMs: z.number().optional(),
+    idempotencyKey: z.string().optional(),
+  }),
+});
+
+/** OpenClaw legacy format (tool_invoke — kept for backward compat) */
+const OpenClawLegacySchema = z.object({
   type: z.literal("tool_invoke"),
   id: z.string(),
   sessionId: z.string().optional(),
@@ -36,7 +54,7 @@ const SimpleSchema = z.object({
 
 // ─── TYPES ───────────────────────────────────────────────────
 
-export type MessageFormat = "openclaw" | "mcp" | "simple";
+export type MessageFormat = "openclaw" | "openclaw-legacy" | "mcp" | "simple";
 
 export interface NormalizedMessage {
   /** Which format the original message was in */
@@ -63,7 +81,7 @@ export interface EvaluationResponse {
 
 /**
  * Parse a raw message string and normalize it into the internal ToolCall type.
- * Tries OpenClaw format first, then MCP/JSON-RPC, then Simple.
+ * Tries OpenClaw req format first, then legacy OpenClaw, then MCP/JSON-RPC, then Simple.
  * Returns null if the message doesn't match any recognized format.
  */
 export function normalizeMessage(data: string): NormalizedMessage | null {
@@ -74,17 +92,45 @@ export function normalizeMessage(data: string): NormalizedMessage | null {
     return null;
   }
 
-  // Try OpenClaw format
-  const oc = OpenClawSchema.safeParse(parsed);
-  if (oc.success) {
+  // Try OpenClaw real gateway protocol: { type: "req", method: "node.invoke", params: { command, params } }
+  const ocReq = OpenClawReqSchema.safeParse(parsed);
+  if (ocReq.success) {
+    // params.params can be an object (tool args) or a JSON string
+    let args: Record<string, unknown> | undefined;
+    const rawParams = ocReq.data.params.params;
+    if (rawParams && typeof rawParams === "object" && !Array.isArray(rawParams)) {
+      args = rawParams as Record<string, unknown>;
+    } else if (typeof rawParams === "string") {
+      try {
+        const p = JSON.parse(rawParams);
+        if (p && typeof p === "object" && !Array.isArray(p)) args = p;
+      } catch {
+        // not JSON — ignore
+      }
+    }
     return {
       format: "openclaw",
-      id: oc.data.id,
-      sessionId: oc.data.sessionId,
+      id: ocReq.data.id,
       toolCall: {
-        tool: oc.data.data.tool,
-        args: oc.data.data.args,
-        sessionId: oc.data.sessionId,
+        tool: ocReq.data.params.command,
+        args,
+        timestamp: new Date(),
+      },
+      raw: parsed,
+    };
+  }
+
+  // Try OpenClaw legacy format: { type: "tool_invoke", data: { tool, args } }
+  const ocLegacy = OpenClawLegacySchema.safeParse(parsed);
+  if (ocLegacy.success) {
+    return {
+      format: "openclaw-legacy",
+      id: ocLegacy.data.id,
+      sessionId: ocLegacy.data.sessionId,
+      toolCall: {
+        tool: ocLegacy.data.data.tool,
+        args: ocLegacy.data.data.args,
+        sessionId: ocLegacy.data.sessionId,
         timestamp: new Date(),
       },
       raw: parsed,
@@ -145,6 +191,30 @@ export function formatResponse(
 
   switch (normalized.format) {
     case "openclaw":
+      // Real OpenClaw gateway protocol: { type: "res", id, ok, payload/error }
+      if (result.allowed) {
+        return JSON.stringify({
+          type: "res",
+          id: normalized.id,
+          ok: true,
+          payload: { decision: "allowed", reason },
+        });
+      }
+      return JSON.stringify({
+        type: "res",
+        id: normalized.id,
+        ok: false,
+        error: {
+          code: "POLICY_BLOCKED",
+          message: reason,
+          details: {
+            tool: normalized.toolCall.tool,
+            decision,
+          },
+        },
+      });
+
+    case "openclaw-legacy":
       if (result.allowed) {
         return JSON.stringify({
           type: "tool_result",

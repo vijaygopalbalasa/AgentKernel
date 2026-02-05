@@ -622,9 +622,10 @@ export class OpenClawSecurityProxy {
           {
             format: "openclaw",
             example: {
-              type: "tool_invoke",
+              type: "req",
               id: "1",
-              data: { tool: "bash", args: { command: "ls" } },
+              method: "node.invoke",
+              params: { nodeId: "device-1", command: "bash", params: { command: "ls" } },
             },
           },
         ],
