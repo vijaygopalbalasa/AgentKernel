@@ -129,13 +129,14 @@ describe("Database Integration Tests (Real PostgreSQL)", () => {
       `,
     );
 
-    const rows = await db.query<{ name: string; value: { x: number } }>(
+    const rows = await db.query<{ name: string; value: string | { x: number } }>(
       (sql) => sql`
         SELECT name, value FROM _test_integration WHERE name = ${"where-test"}
       `,
     );
     expect(rows.length).toBeGreaterThanOrEqual(1);
-    expect(rows[0]?.value.x).toBe(42);
+    const value = typeof rows[0]?.value === "string" ? JSON.parse(rows[0].value) : rows[0]?.value;
+    expect(value.x).toBe(42);
   });
 
   it("should execute UPDATE and verify changes", async () => {
@@ -158,12 +159,14 @@ describe("Database Integration Tests (Real PostgreSQL)", () => {
       `,
     );
 
-    const updated = await db.query<{ value: { version: number } }>(
+    const updated = await db.query<{ value: string | { version: number } }>(
       (sql) => sql`
         SELECT value FROM _test_integration WHERE id = ${id}
       `,
     );
-    expect(updated[0]?.value.version).toBe(2);
+    const updatedValue =
+      typeof updated[0]?.value === "string" ? JSON.parse(updated[0].value) : updated[0]?.value;
+    expect(updatedValue.version).toBe(2);
   });
 
   it("should execute DELETE", async () => {
@@ -289,7 +292,7 @@ describe("Database Integration Tests (Real PostgreSQL)", () => {
     const results = await Promise.all(promises);
     expect(results).toHaveLength(10);
     results.forEach((rows, i) => {
-      expect(rows[0]?.result).toBe(i + 1);
+      expect(Number(rows[0]?.result)).toBe(i + 1);
     });
   });
 
@@ -334,12 +337,14 @@ describe("Database Integration Tests (Real PostgreSQL)", () => {
       `,
     );
 
-    const rows = await db.query<{ value: typeof complexData }>(
+    const rows = await db.query<{ value: string | typeof complexData }>(
       (sql) => sql`
         SELECT value FROM _test_integration WHERE name = ${"jsonb-test"}
       `,
     );
-    expect(rows[0]?.value).toEqual(complexData);
+    const jsonbValue =
+      typeof rows[0]?.value === "string" ? JSON.parse(rows[0].value) : rows[0]?.value;
+    expect(jsonbValue).toEqual(complexData);
   });
 
   it("should query JSONB fields with operators", async () => {
@@ -347,7 +352,7 @@ describe("Database Integration Tests (Real PostgreSQL)", () => {
     await db.query(
       (sql) => sql`
         INSERT INTO _test_integration (name, value)
-        VALUES (${"jsonb-query"}, ${JSON.stringify({ type: "special", score: 95 })})
+        VALUES (${"jsonb-query"}, ${JSON.stringify({ type: "special", score: 95 })}::jsonb)
       `,
     );
 

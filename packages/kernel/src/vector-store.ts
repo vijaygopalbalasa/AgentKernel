@@ -1,9 +1,21 @@
 // Qdrant vector store client for semantic memory
 // Handles embeddings storage and similarity search
 
+import { createHash } from "node:crypto";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import type { QdrantConfig } from "./config.js";
 import type { Logger } from "./logger.js";
+
+/** Convert a string ID to a deterministic UUID v5-style format for Qdrant compatibility */
+function toQdrantId(id: string): string {
+  // If already a valid UUID, pass through
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return id;
+  }
+  // Convert arbitrary string to a deterministic UUID via SHA-256
+  const hash = createHash("sha256").update(id).digest("hex");
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+}
 
 /** Vector embedding */
 export type Embedding = number[];
@@ -208,9 +220,9 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
         wait: true,
         points: [
           {
-            id: point.id,
+            id: toQdrantId(point.id),
             vector: point.vector,
-            payload: point.payload,
+            payload: { ...point.payload, _originalId: point.id },
           },
         ],
       });
@@ -226,9 +238,9 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
         await client.upsert(collectionName, {
           wait: true,
           points: batch.map((p) => ({
-            id: p.id,
+            id: toQdrantId(p.id),
             vector: p.vector,
-            payload: p.payload,
+            payload: { ...p.payload, _originalId: p.id },
           })),
         });
       }
@@ -252,17 +264,18 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
         with_payload: true,
       });
 
-      return results.map((r) => ({
-        id: String(r.id),
-        score: r.score,
-        payload: (r.payload ?? {}) as Record<string, unknown>,
-      }));
+      return results.map((r) => {
+        const payload = (r.payload ?? {}) as Record<string, unknown>;
+        const originalId = (payload._originalId as string) ?? String(r.id);
+        const { _originalId, ...cleanPayload } = payload;
+        return { id: originalId, score: r.score, payload: cleanPayload };
+      });
     },
 
     async get(id: string): Promise<VectorPoint | null> {
       try {
         const results = await client.retrieve(collectionName, {
-          ids: [id],
+          ids: [toQdrantId(id)],
           with_payload: true,
           with_vector: true,
         });
@@ -270,10 +283,13 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
         if (results.length === 0) return null;
 
         const point = results[0]!;
+        const payload = (point.payload ?? {}) as Record<string, unknown>;
+        const originalId = (payload._originalId as string) ?? String(point.id);
+        const { _originalId, ...cleanPayload } = payload;
         return {
-          id: String(point.id),
+          id: originalId,
           vector: point.vector as Embedding,
-          payload: (point.payload ?? {}) as Record<string, unknown>,
+          payload: cleanPayload,
         };
       } catch {
         return null;
@@ -291,16 +307,19 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
         for (let i = 0; i < ids.length; i += BATCH_SIZE) {
           const batch = ids.slice(i, i + BATCH_SIZE);
           const results = await client.retrieve(collectionName, {
-            ids: batch,
+            ids: batch.map(toQdrantId),
             with_payload: true,
             with_vector: true,
           });
 
           for (const point of results) {
+            const payload = (point.payload ?? {}) as Record<string, unknown>;
+            const originalId = (payload._originalId as string) ?? String(point.id);
+            const { _originalId, ...cleanPayload } = payload;
             allResults.push({
-              id: String(point.id),
+              id: originalId,
               vector: point.vector as Embedding,
-              payload: (point.payload ?? {}) as Record<string, unknown>,
+              payload: cleanPayload,
             });
           }
         }
@@ -315,7 +334,7 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
       try {
         await client.delete(collectionName, {
           wait: true,
-          points: [id],
+          points: [toQdrantId(id)],
         });
         return true;
       } catch {
@@ -329,7 +348,7 @@ export function createVectorStore(config: QdrantConfig, logger?: Logger): Vector
       try {
         await client.delete(collectionName, {
           wait: true,
-          points: ids,
+          points: ids.map(toQdrantId),
         });
         return ids.length;
       } catch {

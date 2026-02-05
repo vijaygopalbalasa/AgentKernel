@@ -47,6 +47,12 @@ describe("Event Bus Integration Tests (Real Redis)", () => {
     }
 
     bus = createEventBus(TEST_REDIS_CONFIG, logger);
+
+    // Wait for Redis connections to establish
+    for (let attempt = 0; attempt < 50; attempt++) {
+      if (bus.isConnected()) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }, 15000);
 
   afterAll(async () => {
