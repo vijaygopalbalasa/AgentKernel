@@ -551,7 +551,7 @@ export class OpenClawSecurityProxy {
         status: "ok",
         mode: this.mode,
         uptime: this.getStats().uptimeSeconds,
-        version: "0.1.4",
+        version: "0.1.5",
       });
       return;
     }
