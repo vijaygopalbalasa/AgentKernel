@@ -123,6 +123,20 @@ shell:
       reason: "Safe dev tool"
 ```
 
+### Cross-Domain Security
+
+Shell commands that access files are automatically cross-checked against file policies:
+
+```
+$ curl -X POST http://localhost:18788/evaluate \
+    -d '{"tool":"bash","args":{"command":"cat ~/.ssh/id_rsa"}}'
+
+→ BLOCKED: Shell command "cat" accesses blocked file:
+  File path "~/.ssh/id_rsa" matched pattern "~/.ssh/**"
+```
+
+Even though `cat` is an allowed command, the file argument `~/.ssh/id_rsa` is blocked. This prevents attackers from using shell commands to bypass file policies — a common blind spot in other security tools.
+
 ### User-Friendly CLI
 
 No YAML editing required — manage policies with simple commands:
@@ -287,6 +301,7 @@ Set `AGENTKERNEL_PRODUCTION_HARDENING=true` (or `NODE_ENV=production`) to fail f
 ## Security Standards
 
 - **OWASP Top 10 for Agentic Applications 2026**
+- **Shell → file cross-check** (blocks `cat ~/.ssh/id_rsa` even when `cat` is allowed)
 - **Capability-based security** (unforgeable tokens)
 - **Least privilege** (minimal permissions by default)
 - **JIT access** (time-bounded grants)
@@ -301,7 +316,7 @@ Set `AGENTKERNEL_PRODUCTION_HARDENING=true` (or `NODE_ENV=production`) to fail f
 - **Runtime:** Node.js 20+
 - **Package Manager:** pnpm
 - **Database:** PostgreSQL
-- **Testing:** Vitest (1,180+ tests)
+- **Testing:** Vitest (1,200+ tests)
 - **Build:** tsup
 - **Linting:** Biome
 
@@ -343,7 +358,7 @@ agentkernel/
 - Permissions: HMAC capability tokens with constant-time verify
 - AgentKernel CLI: Security proxy, tool interceptor, policy manager, audit logging
 - LangChain Adapter: Tool interception with PolicyEngine
-- 1,175+ tests across all packages
+- 1,200+ tests across all packages
 
 ### AgentKernel CLI
 One-command security for any agent:
