@@ -138,6 +138,19 @@ const result = await testPolicy("~/.agentkernel/policy.yaml", { domain: "api.tel
 // { decision: "block", reason: "Data exfiltration channel" }
 ```
 
+## Cross-Domain Security
+
+Shell commands that access files are automatically cross-checked against file policies:
+
+```bash
+curl -X POST http://localhost:18788/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"bash","args":{"command":"cat ~/.ssh/id_rsa"}}'
+# → BLOCKED: Shell command "cat" accesses blocked file
+```
+
+Even though `cat` is allowed as a shell command, the file argument `~/.ssh/id_rsa` triggers the file block rule. This prevents attackers from using shell commands (cat, head, tail, cp, etc.) to bypass file policies.
+
 ## Default Security Policy
 
 Out of the box, AgentKernel blocks 341+ known malicious patterns including:
@@ -147,6 +160,7 @@ Out of the box, AgentKernel blocks 341+ known malicious patterns including:
 - **Data exfiltration** — Telegram bots, Discord webhooks, paste sites
 - **SSRF** — cloud metadata endpoints, internal networks
 - **Download & execute** — curl|bash, wget|sh
+- **Shell→file bypass** — cat/head/tail/cp of blocked files
 
 See the [main repo](https://github.com/vijaygopalbalasa/AgentKernel) for full documentation.
 
