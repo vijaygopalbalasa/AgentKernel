@@ -6,6 +6,10 @@ AgentKernel is an agent security sandbox — a firewall for AI agents. It interc
 
 Self-hosted. Open source. Framework-agnostic.
 
+<p align="center">
+  <img src="docs/demo.svg" alt="AgentKernel blocking credential theft, data exfiltration, and malware in real-time" width="720">
+</p>
+
 ---
 
 ## The Problem

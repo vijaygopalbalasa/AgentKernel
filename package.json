@@ -32,6 +32,7 @@
     "verify:infra": "tsx scripts/verify-infrastructure.ts",
     "verify:infra:direct": "tsx scripts/verify-infra-direct.ts",
     "migrate": "tsx scripts/run-migrations.ts",
+    "demo": "node scripts/demo.mjs",
     "demo:security": "node scripts/demo-openclaw-security.mjs"
   },
   "devDependencies": {
