@@ -9,8 +9,128 @@ import type { ToolResult } from "./interceptor.js";
 // ─── NORMALIZE ───────────────────────────────────────────────
 
 describe("normalizeMessage", () => {
-  describe("OpenClaw format", () => {
-    it("parses valid OpenClaw message", () => {
+  describe("OpenClaw real gateway protocol (req/node.invoke)", () => {
+    it("parses node.invoke request frame", () => {
+      const msg = JSON.stringify({
+        type: "req",
+        id: "req-abc-123",
+        method: "node.invoke",
+        params: {
+          nodeId: "device-1",
+          command: "bash",
+          params: { command: "ls -la" },
+          timeoutMs: 30000,
+          idempotencyKey: "key-1",
+        },
+      });
+      const result = normalizeMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.format).toBe("openclaw");
+      expect(result!.id).toBe("req-abc-123");
+      expect(result!.toolCall.tool).toBe("bash");
+      expect(result!.toolCall.args).toEqual({ command: "ls -la" });
+    });
+
+    it("parses node.invoke with read command", () => {
+      const msg = JSON.stringify({
+        type: "req",
+        id: "req-2",
+        method: "node.invoke",
+        params: {
+          nodeId: "laptop",
+          command: "read",
+          params: { path: "/home/user/.ssh/id_rsa" },
+          idempotencyKey: "k2",
+        },
+      });
+      const result = normalizeMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.toolCall.tool).toBe("read");
+      expect(result!.toolCall.args).toEqual({ path: "/home/user/.ssh/id_rsa" });
+    });
+
+    it("parses node.invoke without params (no tool args)", () => {
+      const msg = JSON.stringify({
+        type: "req",
+        id: "req-3",
+        method: "node.invoke",
+        params: {
+          nodeId: "device-1",
+          command: "status",
+          idempotencyKey: "k3",
+        },
+      });
+      const result = normalizeMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.toolCall.tool).toBe("status");
+      expect(result!.toolCall.args).toBeUndefined();
+    });
+
+    it("parses node.invoke with paramsJSON string", () => {
+      const msg = JSON.stringify({
+        type: "req",
+        id: "req-4",
+        method: "node.invoke",
+        params: {
+          nodeId: "device-1",
+          command: "write",
+          params: JSON.stringify({ path: "/tmp/test.txt", content: "hello" }),
+          idempotencyKey: "k4",
+        },
+      });
+      const result = normalizeMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.toolCall.tool).toBe("write");
+      // String params should be parsed as JSON
+      expect(result!.toolCall.args).toEqual({ path: "/tmp/test.txt", content: "hello" });
+    });
+
+    it("ignores non-node.invoke req frames", () => {
+      const msg = JSON.stringify({
+        type: "req",
+        id: "req-5",
+        method: "chat.send",
+        params: { message: "hello" },
+      });
+      // Should NOT match — method is not "node.invoke"
+      const result = normalizeMessage(msg);
+      expect(result).toBeNull();
+    });
+
+    it("ignores res frames", () => {
+      const msg = JSON.stringify({
+        type: "res",
+        id: "req-1",
+        ok: true,
+        payload: {},
+      });
+      expect(normalizeMessage(msg)).toBeNull();
+    });
+
+    it("ignores event frames", () => {
+      const msg = JSON.stringify({
+        type: "event",
+        event: "chat.token",
+        payload: { token: "hello" },
+      });
+      expect(normalizeMessage(msg)).toBeNull();
+    });
+
+    it("ignores hello-ok frames", () => {
+      const msg = JSON.stringify({
+        type: "hello-ok",
+        protocol: 1,
+        server: { version: "1.0", connId: "c1" },
+        features: { methods: [], events: [] },
+        snapshot: {},
+        policy: { maxPayload: 1000, maxBufferedBytes: 5000, tickIntervalMs: 1000 },
+      });
+      expect(normalizeMessage(msg)).toBeNull();
+    });
+  });
+
+  describe("OpenClaw legacy format (tool_invoke)", () => {
+    it("parses valid legacy OpenClaw message", () => {
       const msg = JSON.stringify({
         type: "tool_invoke",
         id: "abc-123",
@@ -19,14 +139,14 @@ describe("normalizeMessage", () => {
       });
       const result = normalizeMessage(msg);
       expect(result).not.toBeNull();
-      expect(result!.format).toBe("openclaw");
+      expect(result!.format).toBe("openclaw-legacy");
       expect(result!.id).toBe("abc-123");
       expect(result!.sessionId).toBe("sess-1");
       expect(result!.toolCall.tool).toBe("bash");
       expect(result!.toolCall.args).toEqual({ command: "ls" });
     });
 
-    it("parses OpenClaw without sessionId", () => {
+    it("parses legacy OpenClaw without sessionId", () => {
       const msg = JSON.stringify({
         type: "tool_invoke",
         id: "1",
@@ -34,11 +154,11 @@ describe("normalizeMessage", () => {
       });
       const result = normalizeMessage(msg);
       expect(result).not.toBeNull();
-      expect(result!.format).toBe("openclaw");
+      expect(result!.format).toBe("openclaw-legacy");
       expect(result!.sessionId).toBeUndefined();
     });
 
-    it("parses OpenClaw without args", () => {
+    it("parses legacy OpenClaw without args", () => {
       const msg = JSON.stringify({
         type: "tool_invoke",
         id: "1",
@@ -179,9 +299,20 @@ describe("normalizeMessage", () => {
   });
 
   describe("format priority", () => {
-    it("OpenClaw takes priority when both type and tool exist", () => {
-      // This message has 'type: tool_invoke' AND 'tool' field
-      // OpenClaw should match first
+    it("OpenClaw req takes priority over legacy when both could match", () => {
+      // Real OpenClaw req frame should match first
+      const msg = JSON.stringify({
+        type: "req",
+        id: "1",
+        method: "node.invoke",
+        params: { nodeId: "d1", command: "bash", params: { command: "ls" }, idempotencyKey: "k" },
+      });
+      const result = normalizeMessage(msg);
+      expect(result).not.toBeNull();
+      expect(result!.format).toBe("openclaw");
+    });
+
+    it("Legacy OpenClaw takes priority when both type and tool exist", () => {
       const msg = JSON.stringify({
         type: "tool_invoke",
         id: "1",
@@ -190,7 +321,7 @@ describe("normalizeMessage", () => {
       });
       const result = normalizeMessage(msg);
       expect(result).not.toBeNull();
-      expect(result!.format).toBe("openclaw");
+      expect(result!.format).toBe("openclaw-legacy");
       expect(result!.toolCall.tool).toBe("bash");
     });
   });
@@ -200,7 +331,7 @@ describe("normalizeMessage", () => {
 
 describe("formatResponse", () => {
   const makeNormalized = (
-    format: "openclaw" | "mcp" | "simple",
+    format: "openclaw" | "openclaw-legacy" | "mcp" | "simple",
     overrides: Partial<NormalizedMessage> = {},
   ): NormalizedMessage => ({
     format,
@@ -223,16 +354,37 @@ describe("formatResponse", () => {
     executionTimeMs: 1,
   };
 
-  describe("OpenClaw responses", () => {
-    it("formats allowed response", () => {
+  describe("OpenClaw real protocol responses (res frame)", () => {
+    it("formats allowed response as res frame", () => {
       const resp = JSON.parse(formatResponse(makeNormalized("openclaw"), allowedResult));
+      expect(resp.type).toBe("res");
+      expect(resp.id).toBe("test-id");
+      expect(resp.ok).toBe(true);
+      expect(resp.payload.decision).toBe("allowed");
+    });
+
+    it("formats blocked response as res frame with error", () => {
+      const resp = JSON.parse(formatResponse(makeNormalized("openclaw"), blockedResult));
+      expect(resp.type).toBe("res");
+      expect(resp.id).toBe("test-id");
+      expect(resp.ok).toBe(false);
+      expect(resp.error.code).toBe("POLICY_BLOCKED");
+      expect(resp.error.message).toBe("Sensitive file access");
+      expect(resp.error.details.tool).toBe("bash");
+      expect(resp.error.details.decision).toBe("blocked");
+    });
+  });
+
+  describe("OpenClaw legacy responses (tool_result)", () => {
+    it("formats allowed response", () => {
+      const resp = JSON.parse(formatResponse(makeNormalized("openclaw-legacy"), allowedResult));
       expect(resp.type).toBe("tool_result");
       expect(resp.id).toBe("test-id");
       expect(resp.data.result.decision).toBe("allowed");
     });
 
     it("formats blocked response", () => {
-      const resp = JSON.parse(formatResponse(makeNormalized("openclaw"), blockedResult));
+      const resp = JSON.parse(formatResponse(makeNormalized("openclaw-legacy"), blockedResult));
       expect(resp.type).toBe("tool_result");
       expect(resp.data.error.code).toBe("POLICY_BLOCKED");
       expect(resp.data.error.decision).toBe("blocked");
