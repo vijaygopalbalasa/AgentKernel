@@ -42,7 +42,7 @@ describe("TokenBucket", () => {
     it("should fail when not enough tokens", () => {
       const bucket = new TokenBucket(10, 1, 5);
       expect(bucket.tryConsume(10)).toBe(false);
-      expect(bucket.tokens).toBe(5); // Unchanged
+      expect(bucket.tokens).toBeCloseTo(5, 1); // Unchanged (allow tiny refill drift)
     });
 
     it("should consume exact capacity", () => {
