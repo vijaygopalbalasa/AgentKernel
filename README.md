@@ -1,5 +1,10 @@
 # AgentKernel
 
+[![npm version](https://img.shields.io/npm/v/@agentkernel/agent-kernel.svg)](https://www.npmjs.com/package/@agentkernel/agent-kernel)
+[![CI](https://github.com/vijaygopalbalasa/AgentKernel/actions/workflows/ci.yml/badge.svg)](https://github.com/vijaygopalbalasa/AgentKernel/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
+
 **Run any AI agent safely. See everything. Block what's dangerous.**
 
 AgentKernel is an agent security sandbox — a firewall for AI agents. It intercepts all agent actions (file access, network requests, shell commands), enforces security policies, and logs everything for audit. Works with any agent framework (OpenClaw, LangChain, AutoGPT, etc.).

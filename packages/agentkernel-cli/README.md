@@ -1,5 +1,8 @@
 # agentkernel
 
+[![npm version](https://img.shields.io/npm/v/@agentkernel/agent-kernel.svg)](https://www.npmjs.com/package/@agentkernel/agent-kernel)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 Security runtime for AI agents — protect against malicious tools, data theft, and prompt injection. Works with OpenClaw, LangChain, and any agent framework.
 
 ## Installation
