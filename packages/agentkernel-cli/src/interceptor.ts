@@ -62,6 +62,38 @@ export interface InterceptorConfig {
 
 // ─── TOOL MAPPINGS ─────────────────────────────────────────────
 
+/** Shell commands that read files — their arguments should be checked against file policies */
+const FILE_READING_COMMANDS = new Set([
+  "cat", "head", "tail", "less", "more", "tac",
+  "cp", "mv", "ln", "scp",
+  "vim", "vi", "nano", "emacs",
+  "source", ".", "open",
+  "base64", "xxd", "hexdump", "od",
+  "tar", "zip", "gzip", "bzip2",
+]);
+
+/** Shell commands that write files — their output arguments should be checked */
+const FILE_WRITING_COMMANDS = new Set([
+  "cp", "mv", "ln", "scp",
+  "tee", "dd",
+  "tar", "unzip", "gunzip",
+]);
+
+/** Extract file-like arguments from shell command args */
+function extractFileArgsFromShell(args: string[]): string[] {
+  return args.filter((arg) => {
+    // Skip flags
+    if (arg.startsWith("-")) return false;
+    // Skip obvious non-paths
+    if (arg === "|" || arg === ">" || arg === ">>" || arg === "<" || arg === "&&" || arg === "||" || arg === ";") return false;
+    // Looks like a file path (starts with /, ~, ./ or contains /)
+    if (arg.startsWith("/") || arg.startsWith("~") || arg.startsWith("./") || arg.startsWith("../")) return true;
+    // Could be a relative path with file extension
+    if (arg.includes("/") || arg.includes(".")) return true;
+    return false;
+  });
+}
+
 /** Map OpenClaw tools to policy categories */
 const TOOL_CATEGORY_MAP: Record<string, "file" | "network" | "shell" | "secret"> = {
   // File operations
@@ -264,12 +296,41 @@ export class ToolInterceptor {
             timestamp: new Date(),
           };
         } else {
+          // First check shell policy
           evaluation = this.policyEngine.evaluate({
             type: "shell",
             command: cmdInfo.command,
             args: cmdInfo.shellArgs,
             agentId: this.config.agentId,
           });
+
+          // If shell policy allows it, also check file arguments against file policies.
+          // This prevents "cat ~/.ssh/id_rsa" from bypassing file block rules.
+          if (
+            evaluation.decision === "allow" &&
+            cmdInfo.shellArgs &&
+            (FILE_READING_COMMANDS.has(cmdInfo.command) || FILE_WRITING_COMMANDS.has(cmdInfo.command))
+          ) {
+            const filePaths = extractFileArgsFromShell(cmdInfo.shellArgs);
+            for (const filePath of filePaths) {
+              const operation = FILE_WRITING_COMMANDS.has(cmdInfo.command) ? "write" : "read";
+              const fileEval = this.policyEngine.evaluate({
+                type: "file",
+                path: filePath,
+                operation,
+                agentId: this.config.agentId,
+              });
+              if (fileEval.decision === "block") {
+                evaluation = {
+                  decision: "block",
+                  matchedRule: fileEval.matchedRule,
+                  reason: `Shell command "${cmdInfo.command}" accesses blocked file: ${fileEval.reason}`,
+                  timestamp: new Date(),
+                };
+                break;
+              }
+            }
+          }
         }
         break;
       }

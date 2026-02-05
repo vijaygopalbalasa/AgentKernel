@@ -143,6 +143,122 @@ describe("ToolInterceptor", () => {
     });
   });
 
+  describe("Shell → File Policy Cross-Check", () => {
+    it("should block 'cat ~/.ssh/id_rsa' even though cat is allowed", async () => {
+      const customInterceptor = createToolInterceptor({
+        agentId: "test-agent",
+        policySet: {
+          defaultDecision: "block",
+          shellRules: [
+            { id: "allow-cat", type: "shell", decision: "allow", priority: 50, enabled: true, commandPatterns: ["cat"] },
+          ],
+          fileRules: [
+            { id: "block-ssh", type: "file", decision: "block", priority: 100, enabled: true, pathPatterns: ["~/.ssh/**", "/home/*/.ssh/**"], operations: ["read", "write", "delete", "list"] },
+          ],
+        },
+      });
+
+      const result = await customInterceptor.intercept({
+        tool: "bash",
+        args: { command: "cat ~/.ssh/id_rsa" },
+      });
+
+      expect(result.allowed).toBe(false);
+      expect(result.evaluation?.decision).toBe("block");
+      expect(result.evaluation?.reason).toContain("blocked file");
+    });
+
+    it("should block 'head /home/user/.aws/credentials'", async () => {
+      const customInterceptor = createToolInterceptor({
+        agentId: "test-agent",
+        policySet: {
+          defaultDecision: "block",
+          shellRules: [
+            { id: "allow-head", type: "shell", decision: "allow", priority: 50, enabled: true, commandPatterns: ["head"] },
+          ],
+          fileRules: [
+            { id: "block-aws", type: "file", decision: "block", priority: 100, enabled: true, pathPatterns: ["/home/*/.aws/**"], operations: ["read"] },
+          ],
+        },
+      });
+
+      const result = await customInterceptor.intercept({
+        tool: "bash",
+        args: { command: "head /home/user/.aws/credentials" },
+      });
+
+      expect(result.allowed).toBe(false);
+      expect(result.evaluation?.reason).toContain("blocked file");
+    });
+
+    it("should block 'cp ~/.ssh/id_rsa /tmp/stolen'", async () => {
+      const customInterceptor = createToolInterceptor({
+        agentId: "test-agent",
+        policySet: {
+          defaultDecision: "block",
+          shellRules: [
+            { id: "allow-cp", type: "shell", decision: "allow", priority: 50, enabled: true, commandPatterns: ["cp"] },
+          ],
+          fileRules: [
+            { id: "block-ssh", type: "file", decision: "block", priority: 100, enabled: true, pathPatterns: ["~/.ssh/**"], operations: ["read", "write", "delete", "list"] },
+          ],
+        },
+      });
+
+      const result = await customInterceptor.intercept({
+        tool: "bash",
+        args: { command: "cp ~/.ssh/id_rsa /tmp/stolen" },
+      });
+
+      expect(result.allowed).toBe(false);
+    });
+
+    it("should allow 'cat /tmp/safe.txt' when only ssh is blocked", async () => {
+      const customInterceptor = createToolInterceptor({
+        agentId: "test-agent",
+        policySet: {
+          defaultDecision: "block",
+          shellRules: [
+            { id: "allow-cat", type: "shell", decision: "allow", priority: 50, enabled: true, commandPatterns: ["cat"] },
+          ],
+          fileRules: [
+            { id: "block-ssh", type: "file", decision: "block", priority: 100, enabled: true, pathPatterns: ["~/.ssh/**"], operations: ["read"] },
+            { id: "allow-tmp", type: "file", decision: "allow", priority: 50, enabled: true, pathPatterns: ["/tmp/**"], operations: ["read"] },
+          ],
+        },
+      });
+
+      const result = await customInterceptor.intercept({
+        tool: "bash",
+        args: { command: "cat /tmp/safe.txt" },
+      });
+
+      expect(result.allowed).toBe(true);
+    });
+
+    it("should allow 'git status' (not a file-reading command)", async () => {
+      const customInterceptor = createToolInterceptor({
+        agentId: "test-agent",
+        policySet: {
+          defaultDecision: "block",
+          shellRules: [
+            { id: "allow-git", type: "shell", decision: "allow", priority: 50, enabled: true, commandPatterns: ["git"] },
+          ],
+          fileRules: [
+            { id: "block-ssh", type: "file", decision: "block", priority: 100, enabled: true, pathPatterns: ["~/.ssh/**"], operations: ["read"] },
+          ],
+        },
+      });
+
+      const result = await customInterceptor.intercept({
+        tool: "bash",
+        args: { command: "git status" },
+      });
+
+      expect(result.allowed).toBe(true);
+    });
+  });
+
   describe("Secret Operations", () => {
     it("should require approval for API keys", async () => {
       const call: ToolCall = {
