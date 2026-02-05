@@ -743,9 +743,15 @@ export async function testPolicy(
   }
 
   if (request.command) {
+    // Split command into base command and args (same as interceptor does)
+    const parts = request.command.split(" ");
+    const baseCommand = parts[0] ?? request.command;
+    const shellArgs = parts.slice(1);
+
     const result = engine.evaluate({
       type: "shell",
-      command: request.command,
+      command: baseCommand,
+      args: shellArgs.length > 0 ? shellArgs : undefined,
       agentId: "test",
     });
     return {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.4 (2026-02-06)
+
+### Security Fix
+- **Shell → file policy cross-check**: Commands like `cat ~/.ssh/id_rsa`, `head ~/.aws/credentials`, `cp ~/.ssh/id_rsa /tmp/stolen` are now **blocked** even when the base command (cat, head, cp) is on the shell allow list. File-reading/writing shell commands have their path arguments checked against file policies.
+
+### Fixed
+- **`policy test --command`**: `agentkernel policy test --command "git status"` now correctly returns ALLOWED (was returning BLOCKED because the command wasn't being split into base command + args)
+- 5 new tests for shell→file cross-check security (185 total)
+
 ## 0.1.3 (2026-02-06)
 
 ### Fixed
