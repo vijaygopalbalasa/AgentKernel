@@ -166,8 +166,8 @@ describe("Default OpenClaw Policy", () => {
       expect(DEFAULT_OPENCLAW_POLICY.secretRules.length).toBeGreaterThan(0);
     });
 
-    it("should default to allow decision", () => {
-      expect(DEFAULT_OPENCLAW_POLICY.defaultDecision).toBe("allow");
+    it("should default to block decision (deny-by-default)", () => {
+      expect(DEFAULT_OPENCLAW_POLICY.defaultDecision).toBe("block");
     });
   });
 
@@ -334,9 +334,12 @@ describe("Policy Rule Coverage", () => {
       expect(npmRule).toBeDefined();
     });
 
-    it("should have approval rules", () => {
-      const approvalRules = policy.shellRules.filter((r) => r.decision === "approve");
-      expect(approvalRules.length).toBeGreaterThan(0);
+    it("should block sensitive commands (rm -rf, sudo, etc.)", () => {
+      // In non-interactive daemon mode, sensitive commands are blocked instead of requiring approval
+      const sensitiveBlockRules = policy.shellRules.filter(
+        (r) => r.decision === "block" && r.id.includes("shell-block-sensitive")
+      );
+      expect(sensitiveBlockRules.length).toBeGreaterThan(0);
     });
 
     it("should block reverse shells", () => {

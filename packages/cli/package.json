@@ -1,0 +1,46 @@
+{
+  "name": "@agentkernel/cli",
+  "version": "0.1.0",
+  "description": "CLI for AgentKernel - run, monitor, and manage security proxies",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "agentkernel": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/bin.ts --format esm --dts",
+    "test": "vitest run",
+    "dev": "node --import tsx ./src/bin.ts"
+  },
+  "dependencies": {
+    "@agentkernel/kernel": "workspace:*",
+    "@agentkernel/runtime": "workspace:*",
+    "agentkernel": "workspace:*",
+    "cac": "^6.7.14",
+    "picocolors": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijaygopalbalasa/AgentKernel"
+  }
+}

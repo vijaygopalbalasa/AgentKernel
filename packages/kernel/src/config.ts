@@ -7,17 +7,65 @@ import { parse as parseYaml } from "yaml";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+/** Weak passwords that should never be used in production */
+const WEAK_PASSWORDS = [
+  "agentkernel",
+  "password",
+  "secret",
+  "admin",
+  "root",
+  "test",
+  "123456",
+  "postgres",
+];
+
 /** Database configuration */
 export const DatabaseConfigSchema = z.object({
   host: z.string().default("localhost"),
   port: z.number().default(5432),
-  database: z.string().default("agentdb"),
-  user: z.string().default("agentuser"),
-  password: z.string().default("agentpass"),
+  database: z.string().default("agentkernel"),
+  user: z.string().default("agentkernel"),
+  password: z.string().default("agentkernel"),
   maxConnections: z.number().default(100),
   idleTimeout: z.number().default(30000),
   ssl: z.boolean().default(false),
 });
+
+/**
+ * Validate database configuration for production use.
+ * Throws if using weak credentials in production.
+ */
+export function validateDatabaseConfigForProduction(config: DatabaseConfig): void {
+  const isProduction = process.env.NODE_ENV === "production" ||
+    process.env.ENFORCE_PRODUCTION_HARDENING === "true";
+
+  if (!isProduction) {
+    return; // Skip validation in development
+  }
+
+  // Check for weak passwords
+  if (WEAK_PASSWORDS.includes(config.password.toLowerCase())) {
+    throw new Error(
+      `[SECURITY] Database password '${config.password}' is too weak for production. ` +
+      "Use a strong password (min 16 characters, mixed case, numbers, symbols)."
+    );
+  }
+
+  // Check minimum password length
+  if (config.password.length < 16) {
+    throw new Error(
+      "[SECURITY] Database password must be at least 16 characters in production."
+    );
+  }
+
+  // Require SSL in production
+  if (!config.ssl) {
+    console.warn(
+      "[SECURITY WARNING] Database SSL is disabled. " +
+      "Enable SSL for production deployments to encrypt database connections."
+    );
+  }
+}
 
 /** Qdrant vector store configuration */
 export const QdrantConfigSchema = z.object({
@@ -25,7 +73,7 @@ export const QdrantConfigSchema = z.object({
   port: z.number().default(6333),
   apiKey: z.string().optional(),
   https: z.boolean().default(false),
-  collection: z.string().default("agent_os_memory"),
+  collection: z.string().default("agentkernel_memory"),
   vectorSize: z.number().default(1536),
 });
 
@@ -41,7 +89,7 @@ export const RedisConfigSchema = z.object({
   port: z.number().default(6379),
   password: z.string().optional(),
   db: z.number().default(0),
-  keyPrefix: z.string().default("agent_os:"),
+  keyPrefix: z.string().default("agentkernel:"),
   /** Connection mode: standalone (default), sentinel for HA failover, cluster for sharding */
   mode: z.enum(["standalone", "sentinel", "cluster"]).default("standalone"),
   /** Sentinel nodes (required when mode=sentinel) */
@@ -176,8 +224,8 @@ function parseDatabaseUrl(urlValue: string): Partial<DatabaseConfig> {
     return {
       host: url.hostname,
       port: url.port ? Number(url.port) : 5432,
-      database: url.pathname.replace(/^\//, "") || "agent_os",
-      user: decodeURIComponent(url.username || "agent_os"),
+      database: url.pathname.replace(/^\//, "") || "agentkernel",
+      user: decodeURIComponent(url.username || "agentkernel"),
       password: decodeURIComponent(url.password || ""),
       ssl: url.searchParams.get("sslmode") === "require" || url.searchParams.get("ssl") === "true",
     };
@@ -457,6 +505,9 @@ export class ConfigManager {
 
     const result = ConfigSchema.parse(merged);
     this.config = result;
+    if (isProductionHardeningEnabled()) {
+      assertProductionHardening(result);
+    }
 
     return result;
   }
@@ -476,6 +527,9 @@ export class ConfigManager {
 
     const result = ConfigSchema.parse(merged);
     this.config = result;
+    if (isProductionHardeningEnabled()) {
+      assertProductionHardening(result);
+    }
     return result;
   }
 
@@ -534,4 +588,84 @@ export async function loadConfigAsync(overrides: Partial<Config> = {}): Promise<
 
 export function createConfigManager(configPath?: string): ConfigManager {
   return new ConfigManager(configPath);
+}
+
+function isLocalHost(host: string): boolean {
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+}
+
+export function isProductionHardeningEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return isTruthyEnv(env.ENFORCE_PRODUCTION_HARDENING);
+}
+
+export function getProductionHardeningIssues(
+  config: Config,
+  env: NodeJS.ProcessEnv = process.env
+): string[] {
+  const issues: string[] = [];
+
+  const nodeEnv = env.NODE_ENV ?? "development";
+  if (nodeEnv !== "production") {
+    issues.push("NODE_ENV must be set to \"production\".");
+  }
+
+  const permissionSecret = env.PERMISSION_SECRET;
+  if (!permissionSecret || permissionSecret.length < 32) {
+    issues.push("PERMISSION_SECRET must be set and at least 32 characters.");
+  } else {
+    const lowered = permissionSecret.toLowerCase();
+    if (lowered.includes("change-me") || lowered.includes("your-") || lowered.includes("example")) {
+      issues.push("PERMISSION_SECRET appears to be a placeholder value. Set a real secret.");
+    }
+  }
+
+  if (config.logging.level === "debug" || config.logging.level === "trace") {
+    issues.push("LOG_LEVEL must not be \"debug\" or \"trace\" in production.");
+  }
+
+  const weakDbPasswords = new Set([
+    "",
+    "agentkernel",
+    "agentkernel_test",
+    "agentos",
+    "agentos_test",
+    "agentpass",
+  ]);
+  if (weakDbPasswords.has(config.database.password)) {
+    issues.push("DATABASE_PASSWORD must not use default/placeholder values.");
+  }
+
+  if (!isLocalHost(config.database.host) && !config.database.ssl) {
+    issues.push("DATABASE_SSL must be true when DATABASE_HOST is not local.");
+  }
+
+  if (!isLocalHost(config.redis.host) && !config.redis.password) {
+    issues.push("REDIS_PASSWORD must be set when REDIS_HOST is not local.");
+  }
+
+  if (!isLocalHost(config.qdrant.host) && !config.qdrant.https) {
+    issues.push("QDRANT_HTTPS must be true when QDRANT_HOST is not local.");
+  }
+
+  return issues;
+}
+
+export function assertProductionHardening(
+  config: Config,
+  env: NodeJS.ProcessEnv = process.env
+): void {
+  const issues = getProductionHardeningIssues(config, env);
+  if (issues.length === 0) return;
+
+  const message = [
+    "Production hardening checks failed:",
+    ...issues.map((issue) => `- ${issue}`),
+  ].join("\n");
+  throw new Error(message);
 }

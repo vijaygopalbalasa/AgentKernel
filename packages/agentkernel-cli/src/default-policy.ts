@@ -274,6 +274,30 @@ function createDefaultFileRules(): FilePolicyRule[] {
     operations: ["read", "write", "delete", "list"],
   });
 
+  // Allow current working directory (essential for agents to work)
+  rules.push({
+    id: nextRuleId("file-allow"),
+    type: "file",
+    description: "Allow current working directory",
+    decision: "allow",
+    priority: 50,
+    enabled: true,
+    pathPatterns: ["./**", "${CWD}/**"],
+    operations: ["read", "write", "delete", "list"],
+  });
+
+  // Allow common read-only paths
+  rules.push({
+    id: nextRuleId("file-allow"),
+    type: "file",
+    description: "Allow reading node_modules",
+    decision: "allow",
+    priority: 50,
+    enabled: true,
+    pathPatterns: ["**/node_modules/**"],
+    operations: ["read", "list"],
+  });
+
   return rules;
 }
 
@@ -350,6 +374,31 @@ function createDefaultNetworkRules(): NetworkPolicyRule[] {
     hostPatterns: ["127.*", "localhost"],
   });
 
+  // Allow common public APIs (needed since default is now "block")
+  const allowedHosts = [
+    "*.npmjs.org", "registry.npmjs.org",  // npm
+    "*.github.com", "api.github.com", "raw.githubusercontent.com",  // GitHub
+    "*.pypi.org", "pypi.org",  // PyPI
+    "*.googleapis.com",  // Google APIs
+    "*.anthropic.com",  // Anthropic API
+    "*.openai.com",  // OpenAI API
+    "*.jsdelivr.net", "*.cdnjs.cloudflare.com",  // CDNs
+    "*.stackexchange.com", "*.stackoverflow.com",  // Stack Overflow
+    "*.docker.io", "*.docker.com",  // Docker
+  ];
+
+  for (const host of allowedHosts) {
+    rules.push({
+      id: nextRuleId("network-allow"),
+      type: "network",
+      description: `Allow public API: ${host}`,
+      decision: "allow",
+      priority: 50,
+      enabled: true,
+      hostPatterns: [host],
+    });
+  }
+
   return rules;
 }
 
@@ -372,13 +421,15 @@ function createDefaultShellRules(): ShellPolicyRule[] {
     });
   }
 
-  // Require approval for sensitive commands
+  // Block sensitive commands (approval requires interactive mode)
+  // NOTE: In daemon/non-interactive mode, these are blocked by default.
+  // Use a custom policy file to allow specific commands if needed.
   for (const command of APPROVAL_REQUIRED_COMMANDS) {
     rules.push({
-      id: nextRuleId("shell-approve"),
+      id: nextRuleId("shell-block-sensitive"),
       type: "shell",
-      description: `Require approval for: ${command}`,
-      decision: "approve",
+      description: `Block sensitive command: ${command}`,
+      decision: "block",
       priority: 90,
       enabled: true,
       commandPatterns: [command],
@@ -464,7 +515,7 @@ function createDefaultSecretRules(): SecretPolicyRule[] {
 export const DEFAULT_OPENCLAW_POLICY: PolicySet = {
   name: "openclaw-default",
   description: "Default security policy for OpenClaw based on analysis of 341+ malicious ClawHub skills",
-  defaultDecision: "allow",
+  defaultDecision: "block",
   fileRules: createDefaultFileRules(),
   networkRules: createDefaultNetworkRules(),
   shellRules: createDefaultShellRules(),
@@ -480,7 +531,7 @@ export function getDefaultOpenClawPolicy(): PolicySet {
   return {
     name: "openclaw-default",
     description: "Default security policy for OpenClaw based on analysis of 341+ malicious ClawHub skills",
-    defaultDecision: "allow",
+    defaultDecision: "block",
     fileRules: createDefaultFileRules(),
     networkRules: createDefaultNetworkRules(),
     shellRules: createDefaultShellRules(),
