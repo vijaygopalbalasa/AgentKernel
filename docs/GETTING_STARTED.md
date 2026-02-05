@@ -17,7 +17,7 @@ Verify installation:
 
 ```bash
 agentkernel --version
-# agentkernel v0.1.6
+# agentkernel v0.1.7
 ```
 
 ## Step 2: Initialize a Security Policy

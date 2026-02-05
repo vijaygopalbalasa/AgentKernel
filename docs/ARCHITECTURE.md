@@ -268,11 +268,11 @@ When `AGENTKERNEL_PRODUCTION_HARDENING=true` or `NODE_ENV=production`:
 ## Testing Architecture
 
 ```
-1,140+ tests across all packages:
+1,170+ tests across all packages:
 
   kernel (445)          ── Config, database, event bus, vector store, logging, health
   runtime (437)         ── Policy engine, sandbox, audit, lifecycle, rate limiter
-  agentkernel-cli (185) ── Proxy, interceptor, policy manager, normalizer, CLI
+  agentkernel-cli (196) ── Proxy, interceptor, policy manager, normalizer, CLI
   langchain-adapter (52)── Tool wrapping, policy enforcement
   permissions (21)      ── HMAC tokens, capability management
 
