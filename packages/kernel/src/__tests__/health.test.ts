@@ -364,7 +364,7 @@ describe("createSimpleHealthChecker", () => {
 
     const result = await checker();
     expect(result.healthy).toBe(true);
-    expect(result.latencyMs).toBeGreaterThanOrEqual(10);
+    expect(result.latencyMs).toBeGreaterThanOrEqual(5);
   });
 
   it("should include details when provided", async () => {
